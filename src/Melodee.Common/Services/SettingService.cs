@@ -1,11 +1,10 @@
 using Ardalis.GuardClauses;
-using Dapper;
 using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Extensions;
+using Melodee.Common.Filtering;
 using Melodee.Common.Services.Caching;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using Serilog;
@@ -58,39 +57,30 @@ public class SettingService : ServiceBase
     {
         var settingsCount = 0;
         Setting[] settings = [];
+        
         await using (var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
             try
             {
-                var orderBy = pagedRequest.OrderByValue();
-                var dbConn = scopedContext.Database.GetDbConnection();
-                var countSqlParts = pagedRequest.FilterByParts("SELECT COUNT(*) FROM \"Settings\"");
-                settingsCount = await dbConn
-                    .QuerySingleOrDefaultAsync<int>(countSqlParts.Item1, countSqlParts.Item2)
-                    .ConfigureAwait(false);
+                // Build base query with AsNoTracking for performance
+                var query = scopedContext.Settings.AsNoTracking().AsQueryable();
+                
+                // Apply dynamic filtering using EF Core
+                query = ApplyFilters(query, pagedRequest);
+                
+                // Get total count efficiently
+                settingsCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+                
                 if (!pagedRequest.IsTotalCountOnlyRequest)
                 {
-                    var listSqlParts = pagedRequest.FilterByParts("SELECT * FROM \"Settings\"");
-                    var listSql = $"{listSqlParts.Item1} ORDER BY {orderBy} OFFSET {pagedRequest.SkipValue} ROWS FETCH NEXT {pagedRequest.TakeValue} ROWS ONLY;";
-                    if (dbConn is SqliteConnection)
-                    {
-                        listSql =
-                            $"{listSqlParts.Item1} ORDER BY {orderBy} LIMIT {pagedRequest.TakeValue} OFFSET {pagedRequest.SkipValue};";
-                    }
+                    // Apply ordering, pagination and execute query
+                    query = ApplyOrdering(query, pagedRequest);
+                    query = query.Skip(pagedRequest.SkipValue).Take(pagedRequest.TakeValue);
+                    
+                    settings = await query.ToArrayAsync(cancellationToken).ConfigureAwait(false);
 
-                    settings = (await dbConn
-                        .QueryAsync<Setting>(listSql, listSqlParts.Item2)
-                        .ConfigureAwait(false)).ToArray();
-
-                    foreach (var envSetSetting in MelodeeConfigurationFactory.EnvironmentVariablesSettings())
-                    {
-                        var kk = envSetSetting.Key.Replace("_", ".");
-                        var setting = settings.FirstOrDefault(x => string.Equals(x.Key, kk, StringComparison.OrdinalIgnoreCase));
-                        if (setting != null)
-                        {
-                            setting.Value = envSetSetting.Value?.ToString() ?? string.Empty;
-                        }
-                    }
+                    // Apply environment variable overrides
+                    ApplyEnvironmentVariableOverrides(settings);
                 }
             }
             catch (Exception e)
@@ -105,6 +95,100 @@ public class SettingService : ServiceBase
             TotalPages = pagedRequest.TotalPages(settingsCount),
             Data = settings
         };
+    }
+
+    /// <summary>
+    /// Applies dynamic filtering to the query based on PagedRequest filters using EF Core LINQ
+    /// </summary>
+    private static IQueryable<Setting> ApplyFilters(IQueryable<Setting> query, MelodeeModels.PagedRequest pagedRequest)
+    {
+        if (pagedRequest.FilterBy == null || pagedRequest.FilterBy.Length == 0)
+        {
+            return query;
+        }
+
+        foreach (var filter in pagedRequest.FilterBy)
+        {
+            query = filter.Operator switch
+            {
+                FilterOperator.Equals => query.Where(s => EF.Property<string>(s, filter.PropertyName) == filter.Value.ToString()),
+                FilterOperator.NotEquals => query.Where(s => EF.Property<string>(s, filter.PropertyName) != filter.Value.ToString()),
+                FilterOperator.Contains => query.Where(s => EF.Property<string>(s, filter.PropertyName).Contains(filter.Value.ToString()!)),
+                FilterOperator.DoesNotContain => query.Where(s => !EF.Property<string>(s, filter.PropertyName).Contains(filter.Value.ToString()!)),
+                FilterOperator.StartsWith => query.Where(s => EF.Property<string>(s, filter.PropertyName).StartsWith(filter.Value.ToString()!)),
+                FilterOperator.EndsWith => query.Where(s => EF.Property<string>(s, filter.PropertyName).EndsWith(filter.Value.ToString()!)),
+                FilterOperator.IsNull => query.Where(s => EF.Property<string>(s, filter.PropertyName) == null),
+                FilterOperator.IsNotNull => query.Where(s => EF.Property<string>(s, filter.PropertyName) != null),
+                FilterOperator.IsEmpty => query.Where(s => EF.Property<string>(s, filter.PropertyName) == string.Empty),
+                FilterOperator.IsNotEmpty => query.Where(s => EF.Property<string>(s, filter.PropertyName) != string.Empty),
+                FilterOperator.GreaterThan when filter.Value.IsNumericType() => 
+                    query.Where(s => EF.Property<int>(s, filter.PropertyName) > Convert.ToInt32(filter.Value)),
+                FilterOperator.GreaterThanOrEquals when filter.Value.IsNumericType() => 
+                    query.Where(s => EF.Property<int>(s, filter.PropertyName) >= Convert.ToInt32(filter.Value)),
+                FilterOperator.LessThan when filter.Value.IsNumericType() => 
+                    query.Where(s => EF.Property<int>(s, filter.PropertyName) < Convert.ToInt32(filter.Value)),
+                FilterOperator.LessThanOrEquals when filter.Value.IsNumericType() => 
+                    query.Where(s => EF.Property<int>(s, filter.PropertyName) <= Convert.ToInt32(filter.Value)),
+                _ => query
+            };
+        }
+
+        return query;
+    }
+
+    /// <summary>
+    /// Applies dynamic ordering to the query based on PagedRequest OrderBy using EF Core
+    /// </summary>
+    private static IQueryable<Setting> ApplyOrdering(IQueryable<Setting> query, MelodeeModels.PagedRequest pagedRequest)
+    {
+        var orderBy = pagedRequest.OrderBy;
+        if (orderBy == null || orderBy.Count == 0)
+        {
+            // Default ordering by Id ASC
+            return query.OrderBy(s => s.Id);
+        }
+
+        IOrderedQueryable<Setting>? orderedQuery = null;
+        var isFirst = true;
+
+        foreach (var orderPair in orderBy)
+        {
+            var propertyName = orderPair.Key;
+            var direction = orderPair.Value;
+            var isAscending = string.Equals(direction, "ASC", StringComparison.OrdinalIgnoreCase);
+
+            if (isFirst)
+            {
+                orderedQuery = isAscending
+                    ? query.OrderBy(s => EF.Property<object>(s, propertyName))
+                    : query.OrderByDescending(s => EF.Property<object>(s, propertyName));
+                isFirst = false;
+            }
+            else
+            {
+                orderedQuery = isAscending
+                    ? orderedQuery!.ThenBy(s => EF.Property<object>(s, propertyName))
+                    : orderedQuery!.ThenByDescending(s => EF.Property<object>(s, propertyName));
+            }
+        }
+
+        return orderedQuery ?? query.OrderBy(s => s.Id);
+    }
+
+    /// <summary>
+    /// Applies environment variable overrides to settings in memory
+    /// </summary>
+    private static void ApplyEnvironmentVariableOverrides(Setting[] settings)
+    {
+        foreach (var envSetSetting in MelodeeConfigurationFactory.EnvironmentVariablesSettings())
+        {
+            var normalizedKey = envSetSetting.Key.Replace("_", ".");
+            var setting = settings.FirstOrDefault(x => string.Equals(x.Key, normalizedKey, StringComparison.OrdinalIgnoreCase));
+            if (setting != null)
+            {
+                setting.Value = envSetSetting.Value?.ToString() ?? string.Empty;
+            }
+        }
     }
 
     public async Task<MelodeeModels.OperationResult<T?>> GetValueAsync<T>(string key, T? defaultValue = default,

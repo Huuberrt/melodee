@@ -234,7 +234,7 @@ public class PlaylistServiceTests : ServiceTestBase
 
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
-        Assert.Contains("Unknown playlist", result.Messages.FirstOrDefault() ?? "");
+        Assert.Contains("Unknown playlist", result.Messages?.FirstOrDefault() ?? "");
     }
 
     [Fact]
