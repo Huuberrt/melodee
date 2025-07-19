@@ -1,4 +1,3 @@
-using Dapper;
 using Melodee.Common.Data;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
@@ -22,176 +21,116 @@ public sealed class StatisticsService(
         await using (var scopedContext =
                      await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
-            var dbConn = scopedContext.Database.GetDbConnection();
+            // Use AsNoTracking for performance since we're only reading data for statistics
+            var albumsCountTask = scopedContext.Albums
+                .AsNoTracking()
+                .CountAsync(cancellationToken);
 
-            results.Add(new Statistic(StatisticType.Count,
-                "Albums",
-                await scopedContext.Albums.CountAsync(cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                1,
-                "album",
-                true));
+            var artistsCountTask = scopedContext.Artists
+                .AsNoTracking()
+                .CountAsync(cancellationToken);
 
-            results.Add(new Statistic(StatisticType.Count,
-                "Artists",
-                await scopedContext.Artists.CountAsync(cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                2,
-                "artist",
-                true));
+            var contributorsCountTask = scopedContext.Contributors
+                .AsNoTracking()
+                .CountAsync(cancellationToken);
 
-            results.Add(new Statistic(StatisticType.Count,
-                "Contributors",
-                await scopedContext.Contributors.CountAsync(cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                3,
-                "contacts_product"));
+            var librariesCountTask = scopedContext.Libraries
+                .AsNoTracking()
+                .CountAsync(cancellationToken);
 
-            var allGenres = await dbConn.QueryAsync<string>("""
-                                                            select distinct "Genres" 
-                                                            from 
-                                                            (
-                                                            	select unnest("Genres") as "Genres"
-                                                            	from "Albums"
-                                                            	union ALL
-                                                            	select  unnest("Genres") as "Genres"
-                                                            	from "Songs"
-                                                            ) t
-                                                            group by "Genres"
-                                                            order by "Genres";
-                                                            """, cancellationToken).ConfigureAwait(false);
-            results.Add(new Statistic(StatisticType.Count,
-                "Genres",
-                allGenres.Count(),
-                null,
-                null,
-                4,
-                "genres"));
+            var playlistsCountTask = scopedContext.Playlists
+                .AsNoTracking()
+                .CountAsync(cancellationToken);
 
-            results.Add(new Statistic(StatisticType.Count,
-                "Libraries",
-                await scopedContext.Libraries.CountAsync(cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                5,
-                "library_music"));
+            var radioStationsCountTask = scopedContext.RadioStations
+                .AsNoTracking()
+                .CountAsync(cancellationToken);
 
-            results.Add(new Statistic(StatisticType.Count,
-                "Playlists",
-                await scopedContext.Playlists.CountAsync(cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                6,
-                "playlist_play",
-                true));
+            var sharesCountTask = scopedContext.Shares
+                .AsNoTracking()
+                .CountAsync(cancellationToken);
 
-            results.Add(new Statistic(StatisticType.Count,
-                "Radio Stations",
-                await scopedContext.RadioStations.CountAsync(cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                7,
-                "radio"));
+            var songsCountTask = scopedContext.Songs
+                .AsNoTracking()
+                .CountAsync(cancellationToken);
 
-            results.Add(new Statistic(StatisticType.Count,
-                "Shares",
-                await scopedContext.Shares.CountAsync(cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                8,
-                "share"));
+            var songsPlayedCountTask = scopedContext.Songs
+                .AsNoTracking()
+                .SumAsync(x => x.PlayedCount, cancellationToken);
 
-            results.Add(new Statistic(StatisticType.Count,
-                "Songs",
-                await scopedContext.Songs.CountAsync(cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                9,
-                "music_note",
-                true));
+            var usersCountTask = scopedContext.Users
+                .AsNoTracking()
+                .CountAsync(cancellationToken);
 
-            results.Add(new Statistic(StatisticType.Count,
-                "Songs: Played count",
-                await scopedContext.Songs.SumAsync(x => x.PlayedCount, cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                10,
-                "analytics"));
+            var userArtistsFavoritedTask = scopedContext.UserArtists
+                .AsNoTracking()
+                .CountAsync(x => x.StarredAt != null, cancellationToken);
 
-            results.Add(new Statistic(StatisticType.Count,
-                "Users",
-                await scopedContext.Users.CountAsync(cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                11,
-                "group"));
+            var userAlbumsFavoritedTask = scopedContext.UserAlbums
+                .AsNoTracking()
+                .CountAsync(x => x.StarredAt != null, cancellationToken);
 
-            results.Add(new Statistic(StatisticType.Count,
-                "Users: Favorited artists",
-                await scopedContext.UserArtists.CountAsync(x => x.StarredAt != null, cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                12,
-                "analytics"));
+            var userSongsFavoritedTask = scopedContext.UserSongs
+                .AsNoTracking()
+                .CountAsync(x => x.StarredAt != null, cancellationToken);
 
-            results.Add(new Statistic(StatisticType.Count,
-                "Users: Favorited albums",
-                await scopedContext.UserAlbums.CountAsync(x => x.StarredAt != null, cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                13,
-                "analytics"));
+            var userSongsRatedTask = scopedContext.UserSongs
+                .AsNoTracking()
+                .CountAsync(x => x.Rating > 0, cancellationToken);
 
-            results.Add(new Statistic(StatisticType.Count,
-                "Users: Favorited songs",
-                await scopedContext.UserSongs.CountAsync(x => x.StarredAt != null, cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                14,
-                "analytics"));
+            var songsFileSizeTask = scopedContext.Songs
+                .AsNoTracking()
+                .SumAsync(x => x.FileSize, cancellationToken);
 
-            results.Add(new Statistic(StatisticType.Count,
-                "Users: Rated songs",
-                await scopedContext.UserSongs.CountAsync(x => x.Rating > 0, cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                15,
-                "analytics"));
+            var songsDurationTask = scopedContext.Songs
+                .AsNoTracking()
+                .SumAsync(x => x.Duration, cancellationToken);
 
-            results.Add(new Statistic(StatisticType.Information,
-                "Total: Song Mb",
-                (await scopedContext.Songs.SumAsync(x => x.FileSize, cancellationToken).ConfigureAwait(false))
-                .FormatFileSize(),
-                null,
-                null,
-                16,
-                "bar_chart"));
+            // Get unique genres from both Albums and Songs using EF Core
+            // This replaces the Dapper query with PostgreSQL unnest function
+            var genresCountTask = GetUniqueGenresCountAsync(scopedContext, cancellationToken);
 
-            results.Add(new Statistic(StatisticType.Information,
-                "Total: Song Duration",
-                (await scopedContext.Songs.SumAsync(x => x.Duration, cancellationToken).ConfigureAwait(false))
-                .ToTimeSpan().ToYearDaysMinutesHours(),
-                null,
-                "Total song duration in Year:Day:Hour:Minute format.",
-                17,
-                "bar_chart"));
+            // Wait for all tasks to complete
+            await Task.WhenAll(
+                albumsCountTask,
+                artistsCountTask,
+                contributorsCountTask,
+                librariesCountTask,
+                playlistsCountTask,
+                radioStationsCountTask,
+                sharesCountTask,
+                songsCountTask,
+                songsPlayedCountTask,
+                usersCountTask,
+                userArtistsFavoritedTask,
+                userAlbumsFavoritedTask,
+                userSongsFavoritedTask,
+                userSongsRatedTask,
+                songsFileSizeTask,
+                songsDurationTask,
+                genresCountTask
+            ).ConfigureAwait(false);
+
+            // Build results efficiently
+            results.AddRange([
+                new Statistic(StatisticType.Count, "Albums", albumsCountTask.Result, null, null, 1, "album", true),
+                new Statistic(StatisticType.Count, "Artists", artistsCountTask.Result, null, null, 2, "artist", true),
+                new Statistic(StatisticType.Count, "Contributors", contributorsCountTask.Result, null, null, 3, "contacts_product"),
+                new Statistic(StatisticType.Count, "Genres", genresCountTask.Result, null, null, 4, "genres"),
+                new Statistic(StatisticType.Count, "Libraries", librariesCountTask.Result, null, null, 5, "library_music"),
+                new Statistic(StatisticType.Count, "Playlists", playlistsCountTask.Result, null, null, 6, "playlist_play", true),
+                new Statistic(StatisticType.Count, "Radio Stations", radioStationsCountTask.Result, null, null, 7, "radio"),
+                new Statistic(StatisticType.Count, "Shares", sharesCountTask.Result, null, null, 8, "share"),
+                new Statistic(StatisticType.Count, "Songs", songsCountTask.Result, null, null, 9, "music_note", true),
+                new Statistic(StatisticType.Count, "Songs: Played count", songsPlayedCountTask.Result, null, null, 10, "analytics"),
+                new Statistic(StatisticType.Count, "Users", usersCountTask.Result, null, null, 11, "group"),
+                new Statistic(StatisticType.Count, "Users: Favorited artists", userArtistsFavoritedTask.Result, null, null, 12, "analytics"),
+                new Statistic(StatisticType.Count, "Users: Favorited albums", userAlbumsFavoritedTask.Result, null, null, 13, "analytics"),
+                new Statistic(StatisticType.Count, "Users: Favorited songs", userSongsFavoritedTask.Result, null, null, 14, "analytics"),
+                new Statistic(StatisticType.Count, "Users: Rated songs", userSongsRatedTask.Result, null, null, 15, "analytics"),
+                new Statistic(StatisticType.Information, "Total: Song Mb", songsFileSizeTask.Result.FormatFileSize(), null, null, 16, "bar_chart"),
+                new Statistic(StatisticType.Information, "Total: Song Duration", songsDurationTask.Result.ToTimeSpan().ToYearDaysMinutesHours(), null, "Total song duration in Year:Day:Hour:Minute format.", 17, "bar_chart")
+            ]);
         }
 
         return new OperationResult<Statistic[]>
@@ -200,89 +139,113 @@ public sealed class StatisticsService(
         };
     }
 
+    /// <summary>
+    /// Gets the count of unique genres from Albums and Songs using EF Core.
+    /// This replaces the Dapper query that used PostgreSQL's unnest function.
+    /// </summary>
+    private static async Task<int> GetUniqueGenresCountAsync(MelodeeDbContext context, CancellationToken cancellationToken)
+    {
+        // Get all non-null genre arrays from Albums and Songs
+        var albumGenres = await context.Albums
+            .AsNoTracking()
+            .Where(a => a.Genres != null && a.Genres.Length > 0)
+            .Select(a => a.Genres)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var songGenres = await context.Songs
+            .AsNoTracking()
+            .Where(s => s.Genres != null && s.Genres.Length > 0)
+            .Select(s => s.Genres)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        // Flatten arrays and get unique genres
+        var uniqueGenres = albumGenres
+            .Concat(songGenres)
+            .Where(genreArray => genreArray != null)
+            .SelectMany(genreArray => genreArray!)
+            .Where(genre => !string.IsNullOrWhiteSpace(genre))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet();
+
+        return uniqueGenres.Count;
+    }
+
     public async Task<OperationResult<Statistic[]>> GetUserSongStatisticsAsync(Guid userApiKey,
         CancellationToken cancellationToken = default)
     {
-        var results = new List<Statistic>();
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
-        {
-            results.Add(new Statistic(StatisticType.Count,
-                "Your Favorite songs",
-                await scopedContext.UserSongs
-                    .Where(x => x.User.ApiKey == userApiKey)
-                    .CountAsync(x => x.StarredAt != null, cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                1,
-                "analytics"));
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        
+        // Use AsNoTracking for performance and run queries in parallel
+        var baseQuery = scopedContext.UserSongs
+            .AsNoTracking()
+            .Where(x => x.User.ApiKey == userApiKey);
 
-            results.Add(new Statistic(StatisticType.Count,
-                "Your Rated songs",
-                await scopedContext.UserSongs
-                    .Where(x => x.User.ApiKey == userApiKey)
-                    .CountAsync(x => x.Rating > 0, cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                2,
-                "analytics"));
-        }
+        var favoriteSongsCountTask = baseQuery
+            .CountAsync(x => x.StarredAt != null, cancellationToken);
+
+        var ratedSongsCountTask = baseQuery
+            .CountAsync(x => x.Rating > 0, cancellationToken);
+
+        // Wait for both queries to complete
+        await Task.WhenAll(favoriteSongsCountTask, ratedSongsCountTask).ConfigureAwait(false);
+
+        var results = new Statistic[]
+        {
+            new(StatisticType.Count, "Your Favorite songs", favoriteSongsCountTask.Result, null, null, 1, "analytics"),
+            new(StatisticType.Count, "Your Rated songs", ratedSongsCountTask.Result, null, null, 2, "analytics")
+        };
 
         return new OperationResult<Statistic[]>
         {
-            Data = results.ToArray()
+            Data = results
         };
     }
 
     public async Task<OperationResult<Statistic[]>> GetUserAlbumStatisticsAsync(Guid userApiKey,
         CancellationToken cancellationToken = default)
     {
-        var results = new List<Statistic>();
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        
+        // Use AsNoTracking for performance
+        var favoriteAlbumsCount = await scopedContext.UserAlbums
+            .AsNoTracking()
+            .Where(x => x.User.ApiKey == userApiKey)
+            .CountAsync(x => x.StarredAt != null, cancellationToken)
+            .ConfigureAwait(false);
+
+        var results = new Statistic[]
         {
-            results.Add(new Statistic(StatisticType.Count,
-                "Your Favorite albums",
-                await scopedContext.UserAlbums
-                    .Where(x => x.User.ApiKey == userApiKey)
-                    .CountAsync(x => x.StarredAt != null, cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                1,
-                "analytics"));
-        }
+            new(StatisticType.Count, "Your Favorite albums", favoriteAlbumsCount, null, null, 1, "analytics")
+        };
 
         return new OperationResult<Statistic[]>
         {
-            Data = results.ToArray()
+            Data = results
         };
     }
 
     public async Task<OperationResult<Statistic[]>> GetUserArtistStatisticsAsync(Guid userApiKey,
         CancellationToken cancellationToken = default)
     {
-        var results = new List<Statistic>();
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        
+        // Use AsNoTracking for performance
+        var favoriteArtistsCount = await scopedContext.UserArtists
+            .AsNoTracking()
+            .Where(x => x.User.ApiKey == userApiKey)
+            .CountAsync(x => x.StarredAt != null, cancellationToken)
+            .ConfigureAwait(false);
+
+        var results = new Statistic[]
         {
-            results.Add(new Statistic(StatisticType.Count,
-                "Your Favorite artists",
-                await scopedContext.UserArtists
-                    .Where(x => x.User.ApiKey == userApiKey)
-                    .CountAsync(x => x.StarredAt != null, cancellationToken)
-                    .ConfigureAwait(false),
-                null,
-                null,
-                1,
-                "analytics"));
-        }
+            new(StatisticType.Count, "Your Favorite artists", favoriteArtistsCount, null, null, 1, "analytics")
+        };
 
         return new OperationResult<Statistic[]>
         {
-            Data = results.ToArray()
+            Data = results
         };
     }
 }

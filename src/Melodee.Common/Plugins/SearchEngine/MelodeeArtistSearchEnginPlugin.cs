@@ -29,11 +29,12 @@ public class MelodeeArtistSearchEnginPlugin(IDbContextFactory<MelodeeDbContext> 
 
     public int SortOrder { get; } = 0;
 
-    public async Task<PagedResult<ArtistSearchResult>> DoArtistSearchAsync(ArtistQuery query, int maxResults,
+    public async Task<PagedResult<ArtistSearchResult>> DoArtistSearchAsync(
+        ArtistQuery query, 
+        int maxResults,
         CancellationToken cancellationToken = default)
     {
-        await using (var scopedContext =
-                     await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        await using (var scopedContext = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
             var startTicks = Stopwatch.GetTimestamp();
             var data = new List<ArtistSearchResult>();
@@ -206,7 +207,9 @@ public class MelodeeArtistSearchEnginPlugin(IDbContextFactory<MelodeeDbContext> 
         }
     }
 
-    public async Task<PagedResult<SongSearchResult>> DoArtistTopSongsSearchAsync(int forArtist, int maxResults,
+    public async Task<PagedResult<SongSearchResult>> DoArtistTopSongsSearchAsync(
+        int forArtist, 
+        int maxResults,
         CancellationToken cancellationToken = default)
     {
         await using (var scopedContext =
