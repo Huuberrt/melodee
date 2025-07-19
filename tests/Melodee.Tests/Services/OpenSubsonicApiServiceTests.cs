@@ -23,8 +23,8 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
                 ApiKey = Guid.NewGuid(),
                 UserName = username,
                 UserNameNormalized = username.ToUpperInvariant(),
-                Email = "testemail@local.lan",
-                EmailNormalized = "testemail@local.lan".ToNormalizedString()!,
+                Email = "testemail@local.home.arpa",
+                EmailNormalized = "testemail@local.home.arpa".ToNormalizedString()!,
                 PublicKey = usersPublicKey,
                 PasswordEncrypted = EncryptionHelper.Encrypt(TestsBase.NewPluginsConfiguration().GetValue<string>(SettingRegistry.EncryptionPrivateKey)!, password, usersPublicKey),
                 CreatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow)
@@ -55,8 +55,8 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
                 ApiKey = Guid.NewGuid(),
                 UserName = username,
                 UserNameNormalized = username.ToUpperInvariant(),
-                Email = "testemail@local.lan",
-                EmailNormalized = "testemail@local.lan".ToNormalizedString()!,
+                Email = "testemail@local.home.arpa",
+                EmailNormalized = "testemail@local.home.arpa".ToNormalizedString()!,
                 PublicKey = usersPublicKey,
                 PasswordEncrypted = EncryptionHelper.Encrypt(TestsBase.NewPluginsConfiguration().GetValue<string>(SettingRegistry.EncryptionPrivateKey)!, password, usersPublicKey),
                 CreatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow)

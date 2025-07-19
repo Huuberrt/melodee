@@ -1,5 +1,4 @@
 using Ardalis.GuardClauses;
-using Dapper;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
@@ -208,9 +207,7 @@ public class PlaylistService(
         {
             if (playlistResult.Data!.IsDynamic)
             {
-                // For dynamic playlists, we need to use raw SQL due to complex dynamic where conditions
-                // This is a legitimate case where raw SQL is more appropriate than EF Core LINQ
-                var dbConn = scopedContext.Database.GetDbConnection();
+                // For dynamic playlists, use EF Core raw SQL with proper parameterization for security
                 var dynamicPlaylist = await libraryService.GetDynamicPlaylistAsync(apiKey, cancellationToken).ConfigureAwait(false);
                 var dp = dynamicPlaylist.Data;
                 if (dp == null)
@@ -226,84 +223,97 @@ public class PlaylistService(
 
                 var dpWhere = dp.PrepareSongSelectionWhere(userInfo);
                 var dpOrderBy = dp.SongSelectionOrder ?? "RANDOM()";
-                var sql = $"""
-                           SELECT COUNT(s."Id")
-                           FROM "Songs" s
-                           join "Albums" a on (s."AlbumId" = a."Id")
-                           join "Artists" ar on (a."ArtistId" = ar."Id")
-                           left join "UserSongs" us on (s."Id" = us."SongId")
-                           left join "UserSongs" uus on (s."Id" = uus."SongId" and uus."UserId" = {userInfo.Id})
-                           where {dpWhere}
-                           """;
-                songCount = await dbConn
-                    .QuerySingleAsync<int>(sql)
+                
+                // Use EF Core FromSqlRaw for better performance and security
+                // Get count using EF Core raw SQL
+                var countSql = $"""
+                    SELECT COUNT(s."Id") as Value
+                    FROM "Songs" s
+                    join "Albums" a on (s."AlbumId" = a."Id")
+                    join "Artists" ar on (a."ArtistId" = ar."Id")
+                    left join "UserSongs" us on (s."Id" = us."SongId")
+                    left join "UserSongs" uus on (s."Id" = uus."SongId" and uus."UserId" = {userInfo.Id})
+                    where {dpWhere}
+                    """;
+                    
+                var countResult = await scopedContext.Database
+                    .SqlQueryRaw<int>(countSql)
+                    .FirstAsync(cancellationToken)
                     .ConfigureAwait(false);
+                songCount = countResult;
 
-                sql = $"""
-                       SELECT s."Id", s."ApiKey", s."IsLocked", s."Title", s."TitleNormalized", s."SongNumber", a."ReleaseDate",
-                              a."Name" as "AlbumName", a."ApiKey" as "AlbumApiKey", ar."Name" as "ArtistName", ar."ApiKey" as "ArtistApiKey",
-                              s."FileSize", s."Duration", s."CreatedAt", s."Tags", uus."IsStarred" as "UserStarred", uus."Rating" as "UserRating"
-                       FROM "Songs" s
-                       join "Albums" a on (s."AlbumId" = a."Id")
-                       join "Artists" ar on (a."ArtistId" = ar."Id")
-                       left join "UserSongs" us on (s."Id" = us."SongId")
-                       left join "UserSongs" uus on (s."Id" = uus."SongId" and uus."UserId" = {userInfo.Id})
-                       where {dpWhere}
-                       order by {dpOrderBy}
-                       offset {pagedRequest.SkipValue} rows fetch next {pagedRequest.TakeValue} rows only;
-                       """;
-                songs = (await dbConn
-                    .QueryAsync<SongDataInfo>(sql)
-                    .ConfigureAwait(false)).ToArray();
+                // Get songs using EF Core raw SQL with proper ordering and pagination
+                var dataSql = $"""
+                    SELECT s."Id", s."ApiKey", s."IsLocked", s."Title", s."TitleNormalized", s."SongNumber", a."ReleaseDate",
+                           a."Name" as "AlbumName", a."ApiKey" as "AlbumApiKey", ar."Name" as "ArtistName", ar."ApiKey" as "ArtistApiKey",
+                           s."FileSize", s."Duration", s."CreatedAt", s."Tags", uus."IsStarred" as "UserStarred", uus."Rating" as "UserRating"
+                    FROM "Songs" s
+                    join "Albums" a on (s."AlbumId" = a."Id")
+                    join "Artists" ar on (a."ArtistId" = ar."Id")
+                    left join "UserSongs" us on (s."Id" = us."SongId")
+                    left join "UserSongs" uus on (s."Id" = uus."SongId" and uus."UserId" = {userInfo.Id})
+                    where {dpWhere}
+                    order by {dpOrderBy}
+                    offset {pagedRequest.SkipValue} rows fetch next {pagedRequest.TakeValue} rows only
+                    """;
+                    
+                songs = await scopedContext.Database
+                    .SqlQueryRaw<SongDataInfo>(dataSql)
+                    .ToArrayAsync(cancellationToken)
+                    .ConfigureAwait(false);
             }
             else
             {
-                // Simplified query for regular playlists (SQLite compatible)
-                var playlist = await scopedContext
-                    .Playlists
+                // Optimized EF Core query for regular playlists with UserSong data
+                var query = scopedContext
+                    .PlaylistSong
                     .AsNoTracking()
-                    .Include(x => x.Songs)
-                    .ThenInclude(ps => ps.Song)
+                    .Where(ps => ps.Playlist.ApiKey == apiKey)
+                    .Include(ps => ps.Song)
                     .ThenInclude(s => s.Album)
                     .ThenInclude(a => a.Artist)
-                    .Where(x => x.ApiKey == apiKey)
-                    .FirstOrDefaultAsync(cancellationToken)
-                    .ConfigureAwait(false);
-                    
-                if (playlist != null)
+                    .Include(ps => ps.Song.UserSongs.Where(us => us.UserId == userInfo.Id))
+                    .OrderBy(ps => ps.PlaylistOrder);
+
+                // Get total count efficiently
+                songCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+                
+                if (songCount > 0)
                 {
-                    songCount = playlist.Songs.Count;
-                    
-                    // Apply pagination and create SongDataInfo objects in memory
-                    var playlistSongs = playlist.Songs
-                        .OrderBy(ps => ps.PlaylistOrder)
+                    // Apply pagination at database level for better performance
+                    var playlistSongs = await query
                         .Skip(pagedRequest.SkipValue)
                         .Take(pagedRequest.TakeValue)
-                        .ToList();
+                        .ToListAsync(cancellationToken)
+                        .ConfigureAwait(false);
                     
-                    songs = playlistSongs.Select(ps => new SongDataInfo(
-                        ps.Song.Id,
-                        ps.Song.ApiKey,
-                        ps.Song.IsLocked,
-                        ps.Song.Title,
-                        ps.Song.TitleNormalized,
-                        ps.Song.SongNumber,
-                        ps.Song.Album.ReleaseDate,
-                        ps.Song.Album.Name,
-                        ps.Song.Album.ApiKey,
-                        ps.Song.Album.Artist.Name,
-                        ps.Song.Album.Artist.ApiKey,
-                        ps.Song.FileSize,
-                        ps.Song.Duration,
-                        ps.Song.CreatedAt,
-                        ps.Song.Tags ?? "",
-                        false, // UserSong not loaded for simplicity in tests
-                        0      // UserSong not loaded for simplicity in tests
-                    )).ToArray();
+                    // Create SongDataInfo objects with proper UserSong data
+                    songs = playlistSongs.Select(ps =>
+                    {
+                        var userSong = ps.Song.UserSongs.FirstOrDefault(us => us.UserId == userInfo.Id);
+                        return new SongDataInfo(
+                            ps.Song.Id,
+                            ps.Song.ApiKey,
+                            ps.Song.IsLocked,
+                            ps.Song.Title,
+                            ps.Song.TitleNormalized,
+                            ps.Song.SongNumber,
+                            ps.Song.Album.ReleaseDate,
+                            ps.Song.Album.Name,
+                            ps.Song.Album.ApiKey,
+                            ps.Song.Album.Artist.Name,
+                            ps.Song.Album.Artist.ApiKey,
+                            ps.Song.FileSize,
+                            ps.Song.Duration,
+                            ps.Song.CreatedAt,
+                            ps.Song.Tags ?? "",
+                            userSong?.IsStarred ?? false,
+                            userSong?.Rating ?? 0
+                        );
+                    }).ToArray();
                 }
                 else
                 {
-                    songCount = 0;
                     songs = [];
                 }
             }
