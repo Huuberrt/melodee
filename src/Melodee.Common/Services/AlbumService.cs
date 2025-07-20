@@ -32,7 +32,8 @@ public class AlbumService(
     IBus bus,
     ISerializer serializer,
     IHttpClientFactory httpClientFactory,
-    MediaEditService mediaEditService)
+    MediaEditService mediaEditService,
+    IFileSystemService fileSystemService)
     : ServiceBase(logger, cacheManager, contextFactory)
 {
     private const string CacheKeyDetailByApiKeyTemplate = "urn:album:apikey:{0}";
@@ -349,9 +350,9 @@ public class AlbumService(
                     .ConfigureAwait(false);
 
                 var albumDirectory = Path.Combine(album.Artist.Library.Path, album.Artist.Directory, album.Directory);
-                if (Directory.Exists(albumDirectory))
+                if (fileSystemService.DirectoryExists(albumDirectory))
                 {
-                    Directory.Delete(albumDirectory, true);
+                    fileSystemService.DeleteDirectory(albumDirectory, true);
                 }
 
                 scopedContext.Albums.Remove(album);
@@ -512,9 +513,14 @@ public class AlbumService(
                     dbDetail.Directory);
                 var newAlbumDirectory =
                     Path.Combine(dbDetail.Artist.Library.Path, dbDetail.Artist.Directory, albumDirectory);
-                if (Directory.Exists(existingAlbumDirectory))
+                if (!fileSystemService.DirectoryExists(existingAlbumDirectory))
                 {
-                    Directory.Move(existingAlbumDirectory, newAlbumDirectory);
+                    // Details that are used to build the albums directory has changed, rename directory to new name
+                    // Directory does not exist, skip renaming
+                }
+                else
+                {
+                    fileSystemService.MoveDirectory(existingAlbumDirectory, newAlbumDirectory);
                 }
 
                 album.Directory = albumDirectory;
@@ -566,7 +572,7 @@ public class AlbumService(
 
                         // Check if the melodee.json file exists before trying to read it
                         var melodeeJsonPath = Path.Combine(newAlbumPath, "melodee.json");
-                        if (File.Exists(melodeeJsonPath))
+                        if (fileSystemService.FileExists(melodeeJsonPath))
                         {
                             var melodeeAlbum = await MelodeeModels.Album.DeserializeAndInitializeAlbumAsync(serializer, melodeeJsonPath, cancellationToken).ConfigureAwait(false);
                             if (melodeeAlbum != null)
@@ -692,7 +698,7 @@ public class AlbumService(
 
             var album = albumResult.Data;
             var albumDirectory = Path.Combine(album.Artist.Library.Path, album.Artist.Directory, album.Directory);
-            if (!Directory.Exists(albumDirectory))
+            if (!fileSystemService.DirectoryExists(albumDirectory))
             {
                 Logger.Warning("Album directory [{AlbumDirectory}] does not exist for rescan.", albumDirectory);
                 // Continue with other albums but don't count this as successful
@@ -879,16 +885,16 @@ public class AlbumService(
         var albumImages = albumPath.FileInfosForExtension("jpg", false).ToArray();        
         if (deleteAllImages)
         {
-            albumPath.DeleteAllFilesForExtension("*.jpg");
+            fileSystemService.DeleteAllFilesForExtension(albumPath, "*.jpg");
         }
         var totalAlbumImageCount = albumImages.Length == 1 ? 1 : albumImages.Length + 1;
         var newAlbumCoverFilename = Path.Combine(albumPath.FullName(), $"i-01-{Album.FrontImageType}.jpg");
-        if (File.Exists(newAlbumCoverFilename))
+        if (fileSystemService.FileExists(newAlbumCoverFilename))
         {
-            File.Delete(newAlbumCoverFilename);
+            fileSystemService.DeleteFile(newAlbumCoverFilename);
         }
 
-        await File.WriteAllBytesAsync(newAlbumCoverFilename, imageBytes, cancellationToken).ConfigureAwait(false);
+        await fileSystemService.WriteAllBytesAsync(newAlbumCoverFilename, imageBytes, cancellationToken).ConfigureAwait(false);
         await imageConvertor.ProcessFileAsync(
             albumPath,
             new MelodeeModels.FileSystemFileInfo

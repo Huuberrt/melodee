@@ -1,4 +1,5 @@
 using Melodee.Common.Models;
+using Melodee.Common.Models.Extensions;
 using Melodee.Common.Serialization;
 
 namespace Melodee.Common.Services;
@@ -86,5 +87,14 @@ public class FileSystemService(ISerializer serializer) : IFileSystemService
     public string[] GetFiles(string path, string searchPattern = "*", SearchOption searchOption = SearchOption.TopDirectoryOnly)
     {
         return Directory.GetFiles(path, searchPattern, searchOption);
+    }
+
+    public void DeleteAllFilesForExtension(FileSystemDirectoryInfo directoryInfo, string extension)
+    {
+        var filesToDelete = directoryInfo.FileInfosForExtension(extension);
+        foreach (var fileToDelete in filesToDelete)
+        {
+            fileToDelete.Delete();
+        }
     }
 }

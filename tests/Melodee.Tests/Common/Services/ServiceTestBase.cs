@@ -262,7 +262,15 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
 
     protected ArtistService GetArtistService()
     {
-        return new ArtistService(Logger, CacheManager, MockConfigurationFactory(), MockFactory(), Serializer, MockHttpClientFactory(), GetAlbumService(), MockBus(), MockFileSystemService());
+        return new ArtistService(Logger,
+            CacheManager,
+            MockConfigurationFactory(),
+            MockFactory(),
+            Serializer,
+            MockHttpClientFactory(),
+            GetAlbumService(),
+            MockBus(),
+            MockFileSystemService());
     }
 
     protected AlbumService GetAlbumService()
@@ -274,7 +282,8 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             MockBus(),
             Serializer,
             MockHttpClientFactory(),
-            GetMediaEditService());
+            GetMediaEditService(),
+            MockFileSystemService());
     }
 
     protected LyricPlugin GetLyricPlugin()

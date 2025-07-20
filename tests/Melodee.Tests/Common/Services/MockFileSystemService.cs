@@ -156,6 +156,20 @@ public class MockFileSystemService : IFileSystemService
         return this;
     }
 
+    public void DeleteAllFilesForExtension(FileSystemDirectoryInfo directoryInfo, string searchPattern)
+    {
+        // Remove all files in the directory that match the search pattern (e.g., "*.jpg")
+        var directoryPath = directoryInfo.Path;
+        var extension = searchPattern.StartsWith("*.") ? searchPattern[1..] : searchPattern;
+        var filesToRemove = _files.Keys
+            .Where(f => f.StartsWith(directoryPath) && f.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        foreach (var file in filesToRemove)
+        {
+            _files.Remove(file);
+        }
+    }    
+    
     /// <summary>
     /// Resets the mock file system to its initial empty state.
     /// </summary>

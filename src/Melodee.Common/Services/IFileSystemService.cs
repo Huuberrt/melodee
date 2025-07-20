@@ -1,4 +1,5 @@
 using Melodee.Common.Models;
+using Microsoft.VisualBasic;
 
 namespace Melodee.Common.Services;
 
@@ -22,4 +23,5 @@ public interface IFileSystemService
     void DeleteFile(string path);
     void MoveDirectory(string sourcePath, string destinationPath);
     string[] GetFiles(string path, string searchPattern = "*", SearchOption searchOption = SearchOption.TopDirectoryOnly);
+    void DeleteAllFilesForExtension(FileSystemDirectoryInfo directoryInfo, string jpg);
 }
