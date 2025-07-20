@@ -1,12 +1,10 @@
 using System.Diagnostics;
-using Dapper;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models.Extensions;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
 using Melodee.Common.Models;
 using Melodee.Common.Models.SearchEngines;
-using Melodee.Common.Plugins.SearchEngine.Melodee.DTOs;
 using Melodee.Common.Utility;
 using Microsoft.EntityFrameworkCore;
 using ServiceStack;
@@ -41,37 +39,41 @@ public class MelodeeArtistSearchEnginePlugin(IDbContextFactory<MelodeeDbContext>
 
             if (query.MusicBrainzId.Nullify() != null)
             {
-                var artistByMusicBrainz = await scopedContext.Artists
+                // Optimized: Single query with Include to get artist and albums together
+                var artistWithAlbums = await scopedContext.Artists
+                    .AsNoTracking()
+                    .Where(x => x.MusicBrainzId == query.MusicBrainzIdValue)
                     .Select(x => new
                     {
-                        x.Id, x.Name, x.ApiKey, x.MusicBrainzId, x.SortName, x.RealName, x.AlbumCount, x.AlternateNames
+                        x.Id, x.Name, x.ApiKey, x.MusicBrainzId, x.SortName, x.RealName, x.AlbumCount, x.AlternateNames,
+                        Albums = x.Albums.Select(a => new
+                        {
+                            a.ApiKey, a.AlbumType, a.ReleaseDate, a.MusicBrainzId, a.Name, a.NameNormalized, a.SortName
+                        })
                     })
-                    .FirstOrDefaultAsync(x => x.MusicBrainzId == query.MusicBrainzIdValue, cancellationToken)
+                    .FirstOrDefaultAsync(cancellationToken)
                     .ConfigureAwait(false);
 
-                if (artistByMusicBrainz != null)
+                if (artistWithAlbums != null)
                 {
-                    var artistAlbums = await scopedContext
-                        .Albums
-                        .Where(x => x.ArtistId == artistByMusicBrainz.Id)
-                        .ToArrayAsync(cancellationToken)
-                        .ConfigureAwait(false);
                     data.Add(new ArtistSearchResult
                     {
-                        Id = artistByMusicBrainz.Id,
-                        AlternateNames = artistByMusicBrainz.AlternateNames?.ToTags()?.ToArray() ?? [],
+                        Id = artistWithAlbums.Id,
+                        AlternateNames = artistWithAlbums.AlternateNames?.ToTags()?.ToArray() ?? [],
                         FromPlugin = DisplayName,
-                        UniqueId = SafeParser.Hash(artistByMusicBrainz.MusicBrainzId.ToString()),
+                        UniqueId = SafeParser.Hash(artistWithAlbums.MusicBrainzId.ToString()),
                         Rank = short.MaxValue,
-                        Name = artistByMusicBrainz.Name,
-                        SortName = artistByMusicBrainz.SortName,
-                        MusicBrainzId = artistByMusicBrainz.MusicBrainzId,
-                        AlbumCount = artistByMusicBrainz.AlbumCount,
-                        Releases = artistAlbums.OrderBy(x => x.ReleaseDate).ThenBy(x => x.SortName).Select(x =>
-                            new AlbumSearchResult
+                        Name = artistWithAlbums.Name,
+                        SortName = artistWithAlbums.SortName,
+                        MusicBrainzId = artistWithAlbums.MusicBrainzId,
+                        AlbumCount = artistWithAlbums.AlbumCount,
+                        Releases = artistWithAlbums.Albums
+                            .OrderBy(x => x.ReleaseDate)
+                            .ThenBy(x => x.SortName)
+                            .Select(x => new AlbumSearchResult
                             {
                                 ApiKey = x.ApiKey,
-                                AlbumType = x.AlbumTypeValue,
+                                AlbumType = SafeParser.ToEnum<AlbumType>(x.AlbumType),
                                 ReleaseDate = x.ReleaseDate.ToString(),
                                 UniqueId = SafeParser.Hash(x.MusicBrainzId.ToString()),
                                 Name = x.Name,
@@ -87,6 +89,11 @@ public class MelodeeArtistSearchEnginePlugin(IDbContextFactory<MelodeeDbContext>
             if (data.Count == 0 && query.AlbumKeyValues?.Length > 0)
             {
                 var artistsByNamedNormalizedWithMatchingAlbums = await scopedContext.Artists
+                    .AsNoTracking()
+                    .Where(x => x.NameNormalized == query.NameNormalized ||
+                                (x.AlternateNames != null && x.AlternateNames.Contains(query.NameNormalized)))
+                    .OrderBy(x => x.SortName)
+                    .Take(maxResults)
                     .Select(x => new
                     {
                         x.Id, x.Name, x.ApiKey, x.MusicBrainzId, x.SortName, x.RealName, x.AlbumCount, x.AlternateNames,
@@ -97,10 +104,6 @@ public class MelodeeArtistSearchEnginePlugin(IDbContextFactory<MelodeeDbContext>
                             a.SortName, a.ApiKey
                         })
                     })
-                    .Where(x => x.NameNormalized == query.NameNormalized ||
-                                (x.AlternateNames != null && x.AlternateNames.Contains(query.NameNormalized)))
-                    .OrderBy(x => x.SortName)
-                    .Take(maxResults)
                     .ToArrayAsync(cancellationToken)
                     .ConfigureAwait(false);
 
@@ -151,6 +154,11 @@ public class MelodeeArtistSearchEnginePlugin(IDbContextFactory<MelodeeDbContext>
             if (data.Count == 0)
             {
                 var artistsByNamedNormalized = await scopedContext.Artists
+                    .AsNoTracking()
+                    .Where(x => x.NameNormalized == query.NameNormalized ||
+                                (x.AlternateNames != null && x.AlternateNames.Contains(query.NameNormalized)))
+                    .OrderBy(x => x.SortName)
+                    .Take(maxResults)
                     .Select(x => new
                     {
                         x.Id, x.Name, x.ApiKey, x.MusicBrainzId, x.SortName, x.RealName, x.AlbumCount, x.AlternateNames,
@@ -161,10 +169,6 @@ public class MelodeeArtistSearchEnginePlugin(IDbContextFactory<MelodeeDbContext>
                             a.SortName, a.ApiKey
                         })
                     })
-                    .Where(x => x.NameNormalized == query.NameNormalized ||
-                                (x.AlternateNames != null && x.AlternateNames.Contains(query.NameNormalized)))
-                    .OrderBy(x => x.SortName)
-                    .Take(maxResults)
                     .ToArrayAsync(cancellationToken)
                     .ConfigureAwait(false);
 
@@ -215,39 +219,56 @@ public class MelodeeArtistSearchEnginePlugin(IDbContextFactory<MelodeeDbContext>
         await using (var scopedContext =
                      await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
-            var dbConn = scopedContext.Database.GetDbConnection();
-
             var startTicks = Stopwatch.GetTimestamp();
             SongSearchResult[] data = [];
 
-            var artist = await scopedContext.Artists.FirstOrDefaultAsync(x => x.Id == forArtist, cancellationToken)
+            // Check if artist exists first
+            var artistExists = await scopedContext.Artists
+                .AsNoTracking()
+                .AnyAsync(x => x.Id == forArtist, cancellationToken)
                 .ConfigureAwait(false);
-            if (artist != null)
+                
+            if (artistExists)
             {
-                var sql = """
-                          select ROW_NUMBER () OVER (
-                            ORDER BY
-                              s."PlayedCount" desc, s."LastPlayedAt" desc, s."SortOrder", s."TitleSort", a."SortOrder"
-                          ) as "Index", s.*
-                          from "Songs" s
-                          join "Albums" a on (s."AlbumId" = a."Id")
-                          join "Artists" aa on (a."ArtistId" = aa."Id")
-                          where aa."Id" = @artistId
-                          order by s."PlayedCount" desc, s."LastPlayedAt" desc, s."SortOrder", s."TitleSort", a."SortOrder"
-                          limit @maxResults;
-                          """;
+                // Use EF Core to get top songs with proper ordering and ranking
+                var songs = await scopedContext.Songs
+                    .AsNoTracking()
+                    .Where(s => s.Album.ArtistId == forArtist)
+                    .OrderByDescending(s => s.PlayedCount)
+                    .ThenByDescending(s => s.LastPlayedAt)
+                    .ThenBy(s => s.SortOrder)
+                    .ThenBy(s => s.TitleSort)
+                    .ThenBy(s => s.Album.SortOrder)
+                    .Take(maxResults)
+                    .Select(s => new
+                    {
+                        s.Id,
+                        s.ApiKey,
+                        s.Title,
+                        s.MusicBrainzId,
+                        s.TitleSort,
+                        s.PlayedCount
+                    })
+                    .ToArrayAsync(cancellationToken)
+                    .ConfigureAwait(false);
 
-                var songs = (await dbConn
-                    .QueryAsync<TopSongSearch>(sql, new { artistId = artist.Id, maxResults })
-                    .ConfigureAwait(false)).ToArray();
-
-                data = songs.Select(x => x.ToSearchEngineSongSearchResult(x.Index)).ToArray();
+                // Convert to search results with ranking
+                data = songs.Select((song, index) => new SongSearchResult
+                {
+                    Id = song.Id,
+                    ApiKey = song.ApiKey,
+                    Name = song.Title,
+                    MusicBrainzId = song.MusicBrainzId,
+                    SortName = song.TitleSort ?? song.Title,
+                    SortOrder = index + 1, // 1-based ranking
+                    PlayCount = song.PlayedCount
+                }).ToArray();
             }
 
             return new PagedResult<SongSearchResult>
             {
                 OperationTime = Stopwatch.GetElapsedTime(startTicks).Microseconds,
-                TotalCount = 0,
+                TotalCount = data.Length,
                 TotalPages = 1,
                 Data = data
             };
