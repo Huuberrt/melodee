@@ -1,31 +1,30 @@
+using Melodee.Common.Extensions;
 using Melodee.Common.Models;
 using Melodee.Common.Models.SearchEngines;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 using Melodee.Tests.Services;
 using Microsoft.EntityFrameworkCore;
 using Moq;
-using Xunit;
 using Album = Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data.Models.Materialized.Album;
 using Artist = Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data.Models.Materialized.Artist;
-using ArtistRelation = Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data.Models.Materialized.ArtistRelation;
 
 namespace Melodee.Tests.Common.Plugins.SearchEngine;
 
 public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
 {
     private readonly DbContextOptions<MusicBrainzDbContext> _dbContextOptions;
-    private readonly IDbContextFactory<MusicBrainzDbContext> _dbContextFactory;
     private readonly Microsoft.Data.Sqlite.SqliteConnection _connection;
     private SQLiteMusicBrainzRepository _repository;
 
     public SQLiteMusicBrainzRepositoryTests()
     {
-        // Create a persistent in-memory database connection
-        _connection = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:");
+        // Create a persistent in-memory database connection with proper caching
+        _connection = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:;Cache=Shared");
         _connection.Open();
 
         _dbContextOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
             .UseSqlite(_connection)
+            .EnableSensitiveDataLogging()
             .Options;
 
         // Create the database tables
@@ -33,16 +32,20 @@ public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
         context.Database.EnsureCreated();
 
         var mockFactory = new Mock<IDbContextFactory<MusicBrainzDbContext>>();
+        // Ensure all contexts share the same SQLite connection
         mockFactory.Setup(f => f.CreateDbContextAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(() => new MusicBrainzDbContext(_dbContextOptions));
+            .ReturnsAsync(() => 
+            {
+                return new MusicBrainzDbContext(_dbContextOptions);
+            });
         mockFactory.Setup(f => f.CreateDbContext())
             .Returns(() => new MusicBrainzDbContext(_dbContextOptions));
-        _dbContextFactory = mockFactory.Object;
+        var dbContextFactory = mockFactory.Object;
         
         _repository = new SQLiteMusicBrainzRepository(
             Logger,
             MockConfigurationFactory(),
-            _dbContextFactory);
+            dbContextFactory);
     }
 
 
@@ -65,7 +68,7 @@ public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
 
         using var context = new MusicBrainzDbContext(_dbContextOptions);
         context.Albums.Add(testAlbum);
-        context.SaveChanges();
+        await context.SaveChangesAsync();
 
         var result = await _repository.GetAlbumByMusicBrainzId(albumId);
 
@@ -163,7 +166,7 @@ public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
         var query = new ArtistQuery 
         { 
             Name = "Artist With Albums",
-            AlbumKeyValues = new[] { new KeyValue("2023", "test album") }
+            AlbumKeyValues = new[] { new KeyValue("2023", "Test Album") }
         };
 
         var result = await _repository.SearchArtist(query, 10);
@@ -187,14 +190,19 @@ public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
             MusicBrainzArtistId = 1,
             MusicBrainzIdRaw = artistId.ToString(),
             Name = "Ac/Dc",
-            NameNormalized = "ac dc",
+            NameNormalized = "Ac/Dc".ToNormalizedString() ?? string.Empty,
             SortName = "Ac/Dc",
             AlternateNames = ""
         };
 
         using var context = new MusicBrainzDbContext(_dbContextOptions);
+        // Clear any existing data to avoid conflicts
+        context.Artists.RemoveRange(context.Artists);
+        context.Albums.RemoveRange(context.Albums);
+        await context.SaveChangesAsync();
+        
         context.Artists.Add(testArtist);
-        context.SaveChanges();
+        await context.SaveChangesAsync();
 
         var query = new ArtistQuery 
         { 
@@ -276,7 +284,7 @@ public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
     public async Task SearchArtist_CancellationToken_RespectsCancellation()
     {
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var query = new ArtistQuery 
         { 
@@ -308,7 +316,7 @@ public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
             MusicBrainzArtistId = 1,
             MusicBrainzIdRaw = artist1Id.ToString(),
             Name = "Beatles",
-            NameNormalized = "beatles",
+            NameNormalized = "Beatles".ToNormalizedString() ?? string.Empty,
             SortName = "Beatles",
             AlternateNames = ""
         };
@@ -319,15 +327,20 @@ public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
             MusicBrainzArtistId = 2,
             MusicBrainzIdRaw = artist2Id.ToString(),
             Name = "Beatles Tribute Band",
-            NameNormalized = "beatles tribute band",
+            NameNormalized = "Beatles Tribute Band".ToNormalizedString() ?? string.Empty,
             SortName = "Beatles Tribute Band",
             AlternateNames = ""
         };
 
         using var context = new MusicBrainzDbContext(_dbContextOptions);
+        // Clear any existing data to avoid conflicts
+        context.Artists.RemoveRange(context.Artists);
+        context.Albums.RemoveRange(context.Albums);
+        await context.SaveChangesAsync();
+        
         context.Artists.Add(exactMatchArtist);
         context.Artists.Add(partialMatchArtist);
-        context.SaveChanges();
+        await context.SaveChangesAsync();
 
         var query = new ArtistQuery 
         { 
@@ -355,14 +368,20 @@ public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
             MusicBrainzArtistId = 1,
             MusicBrainzIdRaw = artistId.ToString(),
             Name = "Prince",
-            NameNormalized = "prince",
+            NameNormalized = "Prince".ToNormalizedString() ?? string.Empty,
             SortName = "Prince",
-            AlternateNames = "the artist formerly known as prince|tafkap"
+            // Include both original and normalized versions of alternate names
+            AlternateNames = $"the artist formerly known as prince|{("The Artist Formerly Known As Prince").ToNormalizedString()}|tafkap"
         };
 
         using var context = new MusicBrainzDbContext(_dbContextOptions);
+        // Clear any existing data to avoid conflicts
+        context.Artists.RemoveRange(context.Artists);
+        context.Albums.RemoveRange(context.Albums);
+        await context.SaveChangesAsync();
+        
         context.Artists.Add(testArtist);
-        context.SaveChanges();
+        await context.SaveChangesAsync();
 
         var query = new ArtistQuery 
         { 
@@ -389,12 +408,16 @@ public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
             MusicBrainzArtistId = 1,
             MusicBrainzIdRaw = artistId.ToString(),
             Name = "Test Artist",
-            NameNormalized = "test artist",
+            NameNormalized = "Test Artist".ToNormalizedString() ?? string.Empty, // Use actual normalization
             SortName = "Test Artist",
             AlternateNames = ""
         };
 
         using var context = new MusicBrainzDbContext(_dbContextOptions);
+        // Clear any existing data to avoid conflicts
+        context.Artists.RemoveRange(context.Artists);
+        context.SaveChanges();
+        
         context.Artists.Add(testArtist);
         context.SaveChanges();
     }
@@ -409,7 +432,7 @@ public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
                 MusicBrainzArtistId = 1,
                 MusicBrainzIdRaw = Guid.NewGuid().ToString(),
                 Name = "Artist One",
-                NameNormalized = "artist one",
+                NameNormalized = "Artist One".ToNormalizedString()?? string.Empty,
                 SortName = "Artist One",
                 AlternateNames = ""
             },
@@ -419,7 +442,7 @@ public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
                 MusicBrainzArtistId = 2,
                 MusicBrainzIdRaw = Guid.NewGuid().ToString(),
                 Name = "Artist Two",
-                NameNormalized = "artist two",
+                NameNormalized = "Artist Two".ToNormalizedString()?? string.Empty,
                 SortName = "Artist Two",
                 AlternateNames = ""
             },
@@ -429,13 +452,18 @@ public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
                 MusicBrainzArtistId = 3,
                 MusicBrainzIdRaw = Guid.NewGuid().ToString(),
                 Name = "Artist Three",
-                NameNormalized = "artist three",
+                NameNormalized = "Artist Three".ToNormalizedString() ?? string.Empty,
                 SortName = "Artist Three",
                 AlternateNames = ""
             }
         };
 
         using var context = new MusicBrainzDbContext(_dbContextOptions);
+        // Clear any existing data to avoid conflicts
+        context.Artists.RemoveRange(context.Artists);
+        context.Albums.RemoveRange(context.Albums);
+        context.SaveChanges();
+        
         context.Artists.AddRange(artists);
         context.SaveChanges();
     }
@@ -451,7 +479,7 @@ public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
             MusicBrainzArtistId = 1,
             MusicBrainzIdRaw = artistId.ToString(),
             Name = "Artist With Albums",
-            NameNormalized = "artist with albums",
+            NameNormalized = "Artist With Albums".ToNormalizedString() ?? string.Empty,
             SortName = "Artist With Albums",
             AlternateNames = ""
         };
@@ -461,7 +489,7 @@ public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
             Id = 1,
             MusicBrainzIdRaw = albumId.ToString(),
             Name = "Test Album",
-            NameNormalized = "test album",
+            NameNormalized = "Test Album".ToNormalizedString()?? string.Empty,
             SortName = "Test Album",
             ReleaseDate = new DateTime(2023, 1, 1),
             ReleaseType = 1,
@@ -470,6 +498,11 @@ public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
         };
 
         using var context = new MusicBrainzDbContext(_dbContextOptions);
+        // Clear any existing data to avoid conflicts
+        context.Artists.RemoveRange(context.Artists);
+        context.Albums.RemoveRange(context.Albums);
+        context.SaveChanges();
+        
         context.Artists.Add(testArtist);
         context.Albums.Add(testAlbum);
         context.SaveChanges();
@@ -478,18 +511,15 @@ public class SQLiteMusicBrainzRepositoryTests : ServiceTestBase
     public override void Dispose()
     {
         _repository = null!;
-        _connection?.Close();
-        _connection?.Dispose();
+        _connection.Close();
+        _connection.Dispose();
         base.Dispose();
     }
 
     public override async ValueTask DisposeAsync()
     {
-        _connection?.Close();
-        if (_connection != null)
-        {
-            await _connection.DisposeAsync();
-        }
+        _connection.Close();
+        await _connection.DisposeAsync();        
         await base.DisposeAsync();
     }
 }

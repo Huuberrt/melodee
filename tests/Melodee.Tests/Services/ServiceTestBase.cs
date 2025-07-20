@@ -27,7 +27,7 @@ using Moq;
 using Quartz;
 using Rebus.Bus;
 using Serilog;
-using ServiceStack.Data;
+
 
 namespace Melodee.Tests.Services;
 
@@ -160,12 +160,6 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
                 null,
                 null,
                 null));
-    }
-
-    protected IDbConnectionFactory MockDbContextFactory()
-    {
-        var mockFactory = new Mock<IDbConnectionFactory>();
-        return mockFactory.Object;
     }
 
     protected IDbContextFactory<MusicBrainzDbContext> MockMusicBrainzDbContextFactory()

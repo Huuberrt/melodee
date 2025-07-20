@@ -1,10 +1,10 @@
 using System.Security.Claims;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
+using Melodee.Common.Extensions;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Services;
 using Melodee.Common.Utility;
-using ServiceStack.Auth;
 
 namespace Melodee.Common.Models;
 
@@ -18,7 +18,7 @@ public record UserInfo(int Id, Guid ApiKey, string UserName, string Email, strin
     {
         var userSalt = UserService.GenerateSalt();
         var usersPassword = this.Decrypt(PasswordEncrypted, configuration);
-        var userToken = $"{usersPassword}{userSalt}".ToMd5Hash();
+        var userToken = $"{usersPassword}{userSalt}".ToMd5() ?? string.Empty;
 
         return new ClaimsPrincipal(new ClaimsIdentity(new Claim[]
             {

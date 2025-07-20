@@ -11,7 +11,7 @@ using Melodee.Common.Extensions;
 using Melodee.Common.Services;
 using Melodee.Common.Utility;
 using NodaTime;
-using ServiceStack;
+
 
 namespace Melodee.Common.Models.Extensions;
 
@@ -361,7 +361,7 @@ public static class SongExtensions
 
     public static string ContentType(this Song song)
     {
-        return MimeTypes.GetMimeType(song.File.Name);
+        return FileHelper.GetMimeType(song.File.Name);
     }
 
     public static string FileExtension(this Song song)

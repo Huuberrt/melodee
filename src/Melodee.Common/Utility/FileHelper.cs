@@ -1,9 +1,21 @@
+using MimeKit;
+
 namespace Melodee.Common.Utility;
 
 public static class FileHelper
 {
     public static readonly string MelodeeTagFileExtension = ".mtg";
 
+    private static readonly Dictionary<byte[], string> MagicNumbers = new()
+    {
+        [new byte[] { 0xFF, 0xFB }] = "audio/mpeg", // MP3
+        [new byte[] { 0x66, 0x4C, 0x61, 0x43 }] = "audio/flac", // FLAC
+        [new byte[] { 0x52, 0x49, 0x46, 0x46 }] = "audio/wav", // WAV/RIFF
+        [new byte[] { 0x4F, 0x67, 0x67, 0x53 }] = "audio/ogg", // OGG
+        [new byte[] { 0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70 }] = "audio/mp4" // M4A
+    };
+    
+    
     private static readonly IEnumerable<string> MediaMetaDataFileTypeExtensions =
     [
         "cue",
@@ -122,4 +134,26 @@ public static class FileHelper
 
         return result;
     }
+    
+    public static string GetMimeType(string filePath)
+    {
+        try
+        {
+            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+            var buffer = new byte[8];
+            fs.ReadExactly(buffer, 0, buffer.Length);
+
+            foreach (var magic in MagicNumbers.Where(magic => buffer.Take(magic.Key.Length).SequenceEqual(magic.Key)))
+            {
+                return magic.Value;
+            }
+        }
+        catch
+        {
+            // Fall back to extension-based detection
+        }
+        
+        return MimeTypes.GetMimeType(Path.GetFileName(filePath));
+    }
+    
 }

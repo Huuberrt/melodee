@@ -968,7 +968,18 @@ public static partial class StringExtensions
         return Regex.Replace(input!, "\r\n|\r", "\n");
     }
 
+    public static string? ToMd5(this string? input) => HashHelper.CreateMd5(input);
 
+    public static bool ContainsAny(this string text, params string[] testMatches)
+    {
+        foreach (var testMatch in testMatches)
+        {
+            if (text.Contains(testMatch)) 
+                return true;
+        }
+        return false;
+    }    
+    
     [GeneratedRegex("[^a-zA-Z0-9 -.:]")]
     private static partial Regex OnlyAlphaNumericRegex();
 

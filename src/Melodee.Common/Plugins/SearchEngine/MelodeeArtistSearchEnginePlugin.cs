@@ -7,7 +7,7 @@ using Melodee.Common.Models;
 using Melodee.Common.Models.SearchEngines;
 using Melodee.Common.Utility;
 using Microsoft.EntityFrameworkCore;
-using ServiceStack;
+
 
 namespace Melodee.Common.Plugins.SearchEngine;
 
