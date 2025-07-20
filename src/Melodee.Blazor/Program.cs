@@ -37,8 +37,6 @@ using Rebus.Config;
 using Rebus.Persistence.InMem;
 using Rebus.Transport.InMem;
 using Serilog;
-using ServiceStack.Data;
-using ServiceStack.OrmLite;
 using SpotifyAPI.Web;
 using ILogger = Serilog.ILogger;
 
@@ -69,8 +67,8 @@ builder.Services.AddDbContextFactory<MelodeeDbContext>(opt =>
 builder.Services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(opt
     => opt.UseSqlite(builder.Configuration.GetConnectionString("ArtistSearchEngineConnection")));
 
-builder.Services.AddSingleton<IDbConnectionFactory>(_ =>
-    new OrmLiteConnectionFactory(builder.Configuration.GetConnectionString("MusicBrainzConnection"), SqliteDialect.Provider));
+builder.Services.AddDbContextFactory<MusicBrainzDbContext>(opt =>
+    opt.UseSqlite(builder.Configuration.GetConnectionString("MusicBrainzConnection")));
 
 builder.Services.AddApiVersioning(options =>
     {

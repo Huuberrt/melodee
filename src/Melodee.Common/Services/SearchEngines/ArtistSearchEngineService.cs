@@ -88,7 +88,8 @@ public class ArtistSearchEngineService(
         }
     }
 
-    public async Task<PagedResult<Artist>> ListAsync(PagedRequest pagedRequest,
+    public async Task<PagedResult<Artist>> ListAsync(
+        PagedRequest pagedRequest,
         CancellationToken cancellationToken = default)
     {
         SqlMapper.ResetTypeHandlers();

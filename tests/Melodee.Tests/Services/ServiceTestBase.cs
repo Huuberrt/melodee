@@ -74,6 +74,16 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             context.Database.EnsureCreated();
             context.SaveChanges();
         }
+
+        // Create MusicBrainz database tables
+        var musicBrainzDbContextOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
+            .UseSqlite(_dbConnection)
+            .Options;
+        using (var context = new MusicBrainzDbContext(musicBrainzDbContextOptions))
+        {
+            context.Database.EnsureCreated();
+            context.SaveChanges();
+        }
     }
 
     protected ILogger Logger { get; }
@@ -158,11 +168,22 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
         return mockFactory.Object;
     }
 
+    protected IDbContextFactory<MusicBrainzDbContext> MockMusicBrainzDbContextFactory()
+    {
+        var mockFactory = new Mock<IDbContextFactory<MusicBrainzDbContext>>();
+        var dbContextOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
+            .UseSqlite(_dbConnection)
+            .Options;
+        mockFactory.Setup(f => f.CreateDbContextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MusicBrainzDbContext(dbContextOptions));
+        return mockFactory.Object;
+    }
+
     protected IMusicBrainzRepository GetMusicBrainzRepository()
     {
         return new SQLiteMusicBrainzRepository(Log.Logger,
             MockConfigurationFactory(),
-            MockDbContextFactory());
+            MockMusicBrainzDbContextFactory());
     }
 
     protected ISpotifyClientBuilder MockSpotifyClientBuilder()

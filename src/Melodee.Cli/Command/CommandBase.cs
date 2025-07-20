@@ -16,8 +16,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Rebus.Config;
 using Rebus.Transport.InMem;
 using Serilog;
-using ServiceStack.Data;
-using ServiceStack.OrmLite;
 using Spectre.Console.Cli;
 using SpotifyAPI.Web;
 
@@ -50,8 +48,8 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddHttpClient();
         services.AddDbContextFactory<MelodeeDbContext>(opt =>
             opt.UseNpgsql(configuration.GetConnectionString("DefaultConnection"), o => o.UseNodaTime()));
-        services.AddSingleton<IDbConnectionFactory>(opt =>
-            new OrmLiteConnectionFactory(configuration.GetConnectionString("MusicBrainzConnection"), SqliteDialect.Provider));
+        services.AddDbContextFactory<MusicBrainzDbContext>(opt =>
+            opt.UseSqlite(configuration.GetConnectionString("MusicBrainzConnection")));
         services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(opt
             => opt.UseSqlite(configuration.GetConnectionString("ArtistSearchEngineConnection")));
         services.AddScoped<IMusicBrainzRepository, SQLiteMusicBrainzRepository>();
