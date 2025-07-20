@@ -53,7 +53,7 @@ public class ShareServiceTests : ServiceTestBase
 
     #region ListAsync Tests
 
-    [Fact(Skip = "ShareService.ListAsync uses SQL Server syntax incompatible with SQLite test database")]
+    [Fact]
     public async Task ListAsync_ShouldReturnEmptyResult_WhenNoShares()
     {
         var service = GetShareService();
@@ -67,7 +67,7 @@ public class ShareServiceTests : ServiceTestBase
         Assert.Empty(result.Data);
     }
 
-    [Fact(Skip = "ShareService.ListAsync uses SQL Server syntax incompatible with SQLite test database")]
+    [Fact]
     public async Task ListAsync_ShouldReturnCorrectPagination_WhenMultipleShares()
     {
         await using var context = await MockFactory().CreateDbContextAsync();
@@ -94,7 +94,7 @@ public class ShareServiceTests : ServiceTestBase
         Assert.Equal(2, result.Data.Count());
     }
 
-    [Fact(Skip = "ShareService.ListAsync uses SQL Server syntax incompatible with SQLite test database")]
+    [Fact]
     public async Task ListAsync_ShouldReturnTotalCountOnly_WhenTotalCountOnlyRequest()
     {
         await using var context = await MockFactory().CreateDbContextAsync();
@@ -114,7 +114,7 @@ public class ShareServiceTests : ServiceTestBase
         Assert.Empty(result.Data);
     }
 
-    [Fact(Skip = "ShareService.ListAsync uses SQL Server syntax incompatible with SQLite test database")]
+    [Fact]
     public async Task ListAsync_ShouldHandleCancellationToken()
     {
         var service = GetShareService();
@@ -956,7 +956,7 @@ public class ShareServiceTests : ServiceTestBase
 
     #region Edge Case Tests
 
-    [Fact(Skip = "ShareService.ListAsync uses SQL Server syntax incompatible with SQLite test database")]
+    [Fact]
     public async Task AllMethods_ShouldHandleDbContextDisposal()
     {
         var service = GetShareService();

@@ -1,13 +1,14 @@
 using Ardalis.GuardClauses;
-using Dapper;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
+using Melodee.Common.Extensions;
 using Melodee.Common.Services.Caching;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using Serilog;
 using SmartFormat;
 using Sqids;
+using System.Linq.Expressions;
 using MelodeeModels = Melodee.Common.Models;
 
 namespace Melodee.Common.Services;
@@ -24,26 +25,29 @@ public class ShareService(
     public async Task<MelodeeModels.PagedResult<Share>> ListAsync(MelodeeModels.PagedRequest pagedRequest,
         CancellationToken cancellationToken = default)
     {
-        int shareCount;
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        
+        // Create base query with optimized includes
+        var baseQuery = scopedContext.Shares
+            .Include(s => s.User)
+            .AsNoTracking();
+        
+        // Apply filters using EF Core
+        var filteredQuery = ApplyFilters(baseQuery, pagedRequest);
+        
+        // Get total count efficiently
+        var shareCount = await filteredQuery.CountAsync(cancellationToken).ConfigureAwait(false);
+        
         Share[] shares = [];
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        if (!pagedRequest.IsTotalCountOnlyRequest)
         {
-            var orderBy = pagedRequest.OrderByValue();
-            var dbConn = scopedContext.Database.GetDbConnection();
-            var countSqlParts = pagedRequest.FilterByParts("SELECT COUNT(*) FROM \"Shares\"");
-            shareCount = await dbConn
-                .QuerySingleAsync<int>(countSqlParts.Item1, countSqlParts.Item2)
+            // Apply ordering and paging
+            var orderedQuery = ApplyOrdering(filteredQuery, pagedRequest);
+            shares = await orderedQuery
+                .Skip(pagedRequest.SkipValue)
+                .Take(pagedRequest.TakeValue)
+                .ToArrayAsync(cancellationToken)
                 .ConfigureAwait(false);
-            if (!pagedRequest.IsTotalCountOnlyRequest)
-            {
-                var listSqlParts = pagedRequest.FilterByParts("SELECT * FROM \"Shares\"");
-                var listSql =
-                    $"{listSqlParts.Item1} ORDER BY {orderBy} OFFSET {pagedRequest.SkipValue} ROWS FETCH NEXT {pagedRequest.TakeValue} ROWS ONLY;";
-                shares = (await dbConn
-                    .QueryAsync<Share>(listSql, listSqlParts.Item2)
-                    .ConfigureAwait(false)).ToArray();
-            }
         }
 
         return new MelodeeModels.PagedResult<Share>
@@ -92,21 +96,19 @@ public class ShareService(
     {
         Guard.Against.NullOrEmpty(id, nameof(id));
 
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
-        {
-            var dbConn = scopedContext.Database.GetDbConnection();
-            var shareId = await dbConn
-                .ExecuteScalarAsync<int?>("SELECT \"Id\" FROM \"Shares\" WHERE \"ShareUniqueId\" = @id;", new { id })
-                .ConfigureAwait(false);
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        
+        // Use EF Core to find the share by unique ID with optimized query
+        var share = await scopedContext.Shares
+            .Include(s => s.User)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.ShareUniqueId == id, cancellationToken)
+            .ConfigureAwait(false);
 
-            return shareId == null
-                ? new MelodeeModels.OperationResult<Share?>
-                {
-                    Data = null
-                }
-                : await GetAsync(shareId.Value, cancellationToken).ConfigureAwait(false);
-        }
+        return new MelodeeModels.OperationResult<Share?>
+        {
+            Data = share
+        };
     }
 
     public async Task<MelodeeModels.OperationResult<Share?>> GetAsync(int id,
@@ -246,5 +248,114 @@ public class ShareService(
         {
             Data = result
         };
+    }
+
+    /// <summary>
+    ///     Apply filters to the Share query based on PagedRequest FilterBy criteria
+    /// </summary>
+    private static IQueryable<Share> ApplyFilters(IQueryable<Share> query, MelodeeModels.PagedRequest pagedRequest)
+    {
+        if (pagedRequest.FilterBy == null || pagedRequest.FilterBy.Length == 0)
+        {
+            return query;
+        }
+
+        foreach (var filter in pagedRequest.FilterBy)
+        {
+            var value = filter.Value.ToString();
+            if (string.IsNullOrEmpty(value))
+            {
+                continue;
+            }
+
+            var normalizedValue = value.ToNormalizedString() ?? value;
+            
+            query = filter.PropertyName.ToLowerInvariant() switch
+            {
+                "userid" => int.TryParse(value, out var userIdValue)
+                    ? query.Where(s => s.UserId == userIdValue)
+                    : query,
+                "shareid" => int.TryParse(value, out var shareIdValue) 
+                    ? query.Where(s => s.ShareId == shareIdValue)
+                    : query,
+                "sharetype" => int.TryParse(value, out var shareTypeValue)
+                    ? query.Where(s => s.ShareType == shareTypeValue)
+                    : query,
+                "shareuniqueid" => query.Where(s => s.ShareUniqueId.Contains(normalizedValue)),
+                "description" => query.Where(s => s.Description != null && s.Description.Contains(normalizedValue)),
+                "notes" => query.Where(s => s.Notes != null && s.Notes.Contains(normalizedValue)),
+                "tags" => query.Where(s => s.Tags != null && s.Tags.Contains(normalizedValue)),
+                "islocked" => bool.TryParse(value, out var isLockedValue)
+                    ? query.Where(s => s.IsLocked == isLockedValue)
+                    : query,
+                "isdownloadable" => bool.TryParse(value, out var isDownloadableValue)
+                    ? query.Where(s => s.IsDownloadable == isDownloadableValue)
+                    : query,
+                "username" => query.Where(s => s.User.UserName.Contains(normalizedValue)),
+                "useremail" => query.Where(s => s.User.Email.Contains(normalizedValue)),
+                _ => query
+            };
+        }
+
+        return query;
+    }
+
+    /// <summary>
+    ///     Apply ordering to the Share query based on PagedRequest OrderBy criteria
+    /// </summary>
+    private static IQueryable<Share> ApplyOrdering(IQueryable<Share> query, MelodeeModels.PagedRequest pagedRequest)
+    {
+        if (pagedRequest.OrderBy == null || pagedRequest.OrderBy.Count == 0)
+        {
+            // Default ordering by Id ascending
+            return query.OrderBy(s => s.Id);
+        }
+
+        IOrderedQueryable<Share>? orderedQuery = null;
+        var isFirst = true;
+
+        foreach (var orderBy in pagedRequest.OrderBy)
+        {
+            var isDescending = orderBy.Value.Equals("DESC", StringComparison.OrdinalIgnoreCase);
+            
+            Expression<Func<Share, object>> keySelector = orderBy.Key.ToLowerInvariant() switch
+            {
+                "id" => s => s.Id,
+                "userid" => s => s.UserId,
+                "shareid" => s => s.ShareId,
+                "sharetype" => s => s.ShareType,
+                "shareuniqueid" => s => s.ShareUniqueId,
+                "description" => s => s.Description ?? string.Empty,
+                "notes" => s => s.Notes ?? string.Empty,
+                "tags" => s => s.Tags ?? string.Empty,
+                "islocked" => s => s.IsLocked,
+                "isdownloadable" => s => s.IsDownloadable,
+                "sortorder" => s => s.SortOrder,
+                "visitcount" => s => s.VisitCount,
+                "createdat" => s => s.CreatedAt,
+                "lastupdatedat" => s => s.LastUpdatedAt ?? Instant.MinValue,
+                "expiresat" => s => s.ExpiresAt ?? Instant.MinValue,
+                "lastvisitedat" => s => s.LastVisitedAt ?? Instant.MinValue,
+                "username" => s => s.User.UserName,
+                "useremail" => s => s.User.Email,
+                _ => s => s.Id // fallback to Id
+            };
+
+            if (isFirst)
+            {
+                orderedQuery = isDescending 
+                    ? query.OrderByDescending(keySelector)
+                    : query.OrderBy(keySelector);
+                isFirst = false;
+            }
+            else
+            {
+                orderedQuery = isDescending
+                    ? orderedQuery!.ThenByDescending(keySelector)
+                    : orderedQuery!.ThenBy(keySelector);
+            }
+        }
+
+        return orderedQuery ?? query.OrderBy(s => s.Id);
     }
 }
