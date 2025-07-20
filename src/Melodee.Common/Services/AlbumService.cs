@@ -334,7 +334,7 @@ public class AlbumService(
                 var artist = await GetAsync(albumId, cancellationToken).ConfigureAwait(false);
                 if (!artist.IsSuccess)
                 {
-                    return new MelodeeModels.OperationResult<bool>("Unknown album.")
+                    return new MelodeeModels.OperationResult<bool>("Unknown album")
                     {
                         Data = false
                     };
@@ -427,7 +427,7 @@ public class AlbumService(
             }, cancellationToken, region: Album.CacheRegion);
         if (id is null or 0)
         {
-            return new MelodeeModels.OperationResult<Album?>("Unknown album.")
+            return new MelodeeModels.OperationResult<Album?>("Unknown album")
             {
                 Data = null
             };
@@ -456,7 +456,7 @@ public class AlbumService(
         }, cancellationToken, region: Album.CacheRegion);
         if (id is null or 0)
         {
-            return new MelodeeModels.OperationResult<Album?>("Unknown album.")
+            return new MelodeeModels.OperationResult<Album?>("Unknown album")
             {
                 Data = null
             };
@@ -662,7 +662,7 @@ public class AlbumService(
 
             if (id is null or 0)
             {
-                return new MelodeeModels.OperationResult<Album?>("Unknown album.")
+                return new MelodeeModels.OperationResult<Album?>("Unknown album")
                 {
                     Data = null
                 };
@@ -684,7 +684,7 @@ public class AlbumService(
             var albumResult = await GetAsync(albumId, cancellationToken).ConfigureAwait(false);
             if (!albumResult.IsSuccess || albumResult.Data == null)
             {
-                return new MelodeeModels.OperationResult<bool>("Unknown album.")
+                return new MelodeeModels.OperationResult<bool>("Unknown album")
                 {
                     Data = false
                 };
@@ -849,7 +849,7 @@ public class AlbumService(
         var album = await GetAsync(albumId, cancellationToken);
         if (!album.IsSuccess || album.Data == null)
         {
-            return new MelodeeModels.OperationResult<bool>("Unknown album.")
+            return new MelodeeModels.OperationResult<bool>("Unknown album")
             {
                 Data = false
             };
@@ -926,7 +926,7 @@ public class AlbumService(
         var album = await GetAsync(albumId, cancellationToken);
         if (!album.IsSuccess || album.Data == null)
         {
-            return new MelodeeModels.OperationResult<bool>("Unknown album.")
+            return new MelodeeModels.OperationResult<bool>("Unknown album")
             {
                 Data = false
             };

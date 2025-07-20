@@ -174,7 +174,7 @@ public class AlbumServiceTests : ServiceTestBase
         // Assert
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
-        Assert.Equal("Unknown album.", result.Messages?.FirstOrDefault());
+        Assert.Equal("Unknown album", result.Messages?.FirstOrDefault());
     }
 
     [Fact]
@@ -247,7 +247,7 @@ public class AlbumServiceTests : ServiceTestBase
         // Assert
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
-        Assert.Equal("Unknown album.", result.Messages?.FirstOrDefault());
+        Assert.Equal("Unknown album", result.Messages?.FirstOrDefault());
     }
 
     [Fact]
@@ -651,7 +651,7 @@ public class AlbumServiceTests : ServiceTestBase
         // Assert
         Assert.False(result.IsSuccess);
         Assert.False(result.Data);
-        Assert.Equal("Unknown album.", result.Messages?.FirstOrDefault());
+        Assert.Equal("Unknown album", result.Messages?.FirstOrDefault());
     }
 
     [Fact]
@@ -741,7 +741,7 @@ public class AlbumServiceTests : ServiceTestBase
         // Assert
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
-        Assert.Equal("Unknown album.", result.Messages?.FirstOrDefault());
+        Assert.Equal("Unknown album", result.Messages?.FirstOrDefault());
     }
 
     [Fact]
