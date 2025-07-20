@@ -5,7 +5,7 @@ using Melodee.Common.Models;
 using Melodee.Common.Models.SearchEngines;
 using Melodee.Common.Plugins.SearchEngine;
 using Melodee.Common.Utility;
-using Melodee.Tests.Services;
+using Melodee.Tests.Common.Services;
 using NodaTime;
 using Artist = Melodee.Common.Data.Models.Artist;
 using Album = Melodee.Common.Data.Models.Album;

@@ -5,7 +5,7 @@ using Melodee.Common.Extensions;
 using Melodee.Common.Models;
 using Melodee.Common.Models.OpenSubsonic;
 using Melodee.Common.Models.OpenSubsonic.Responses;
-using Melodee.Tests.Services;
+using Melodee.Tests.Common.Services;
 using NodaTime;
 using Xunit.Abstractions;
 

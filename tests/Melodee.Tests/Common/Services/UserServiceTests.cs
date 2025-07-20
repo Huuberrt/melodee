@@ -7,7 +7,7 @@ using Melodee.Common.Models.Importing;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 
-namespace Melodee.Tests.Services;
+namespace Melodee.Tests.Common.Services;
 
 public class UserServiceTests : ServiceTestBase
 {

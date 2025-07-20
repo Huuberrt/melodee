@@ -6,7 +6,7 @@ using Melodee.Common.Utility;
 using NodaTime;
 using User = Melodee.Common.Data.Models.User;
 
-namespace Melodee.Tests.Services;
+namespace Melodee.Tests.Common.Services;
 
 public class OpenSubsonicApiServiceTests : ServiceTestBase
 {

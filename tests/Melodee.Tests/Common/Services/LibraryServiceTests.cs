@@ -1,21 +1,14 @@
-using System;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
 using Melodee.Common.Models;
-using Melodee.Common.Services.Models;
-using Melodee.Common.Configuration;
 using Melodee.Common.Services;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using NodaTime;
-using Xunit;
 
-namespace Melodee.Tests.Services;
+namespace Melodee.Tests.Common.Services;
 
 public sealed class LibraryServiceTests : ServiceTestBase
 {

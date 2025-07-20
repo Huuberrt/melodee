@@ -1,11 +1,11 @@
+using System.Text.Json;
+using Melodee.Common.Enums;
 using Melodee.Common.Models;
 using Melodee.Common.Services.Scanning;
-using Serilog;
-using Melodee.Common.Enums;
 using NodaTime;
-using System.Text.Json;
+using Serilog;
 
-namespace Melodee.Tests.Services.Scanning;
+namespace Melodee.Tests.Common.Services.Scanning;
 
 public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
 {

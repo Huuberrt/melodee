@@ -1,8 +1,6 @@
-using Melodee.Common.Enums;
 using Melodee.Common.Models;
-using NodaTime;
 
-namespace Melodee.Tests.Services;
+namespace Melodee.Tests.Common.Services;
 
 /// <summary>
 /// Test helper class that provides pre-configured file system scenarios for testing AlbumDiscoveryService.

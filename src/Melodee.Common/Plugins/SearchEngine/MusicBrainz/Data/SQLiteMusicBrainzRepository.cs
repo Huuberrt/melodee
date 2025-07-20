@@ -48,7 +48,9 @@ public class SQLiteMusicBrainzRepository(
             .FirstOrDefaultAsync(x => x.MusicBrainzIdRaw == musicBrainzIdRaw, cancellationToken);
     }
 
-    public override async Task<PagedResult<ArtistSearchResult>> SearchArtist(ArtistQuery query, int maxResults,
+    public override async Task<PagedResult<ArtistSearchResult>> SearchArtist(
+        ArtistQuery query, 
+        int maxResults,
         CancellationToken cancellationToken = default)
     {
         var startTicks = Stopwatch.GetTimestamp();
@@ -298,7 +300,7 @@ public class SQLiteMusicBrainzRepository(
         }
         catch (Exception e)
         {
-            Logger.Error(e, "[MusicBrainzRepository] Search Engine Exception AritistQuery [{Query}]", query.ToString());
+            Logger.Error(e, "[MusicBrainzRepository] Search Engine Exception ArtistQuery [{Query}]", query.ToString());
         }
 
         return new PagedResult<ArtistSearchResult>

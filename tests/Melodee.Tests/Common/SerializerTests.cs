@@ -1,7 +1,7 @@
 using Melodee.Common.Enums;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
-using Melodee.Tests.Services;
+using Melodee.Tests.Common.Services;
 using Melodee.Tests.Validation;
 
 namespace Melodee.Tests.Common;

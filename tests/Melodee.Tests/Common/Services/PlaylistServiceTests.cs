@@ -1,11 +1,8 @@
-using Melodee.Common.Constants;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Models;
-using Melodee.Common.Models.Collection;
-using Microsoft.EntityFrameworkCore;
 using NodaTime;
 
-namespace Melodee.Tests.Services;
+namespace Melodee.Tests.Common.Services;
 
 public class PlaylistServiceTests : ServiceTestBase
 {

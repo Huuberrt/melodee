@@ -2,11 +2,9 @@ using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
 using Melodee.Common.Models;
 using Melodee.Common.Services;
-using Microsoft.EntityFrameworkCore;
 using NodaTime;
-using Xunit;
 
-namespace Melodee.Tests.Services;
+namespace Melodee.Tests.Common.Services;
 
 public class ShareServiceTests : ServiceTestBase
 {

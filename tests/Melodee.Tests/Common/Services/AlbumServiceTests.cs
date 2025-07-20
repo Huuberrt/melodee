@@ -6,7 +6,7 @@ using NodaTime;
 using MelodeeModels = Melodee.Common.Models;
 using DataModels = Melodee.Common.Data.Models;
 
-namespace Melodee.Tests.Services;
+namespace Melodee.Tests.Common.Services;
 
 public class AlbumServiceTests : ServiceTestBase
 {
@@ -1005,6 +1005,78 @@ public class AlbumServiceTests : ServiceTestBase
         // Act & Assert - Should not throw any exceptions
         await GetAlbumService().ClearCacheForArtist(1);
     }
+
+    [Fact]
+    public async Task SaveImageAsAlbumImageAsync_WithInvalidAlbumId_ReturnsFailure()
+    {
+        // Arrange
+        var albumService = GetAlbumService();
+        var imageBytes = new byte[] { 1, 2, 3 };
+
+        // Act
+        var result = await albumService.SaveImageAsAlbumImageAsync(9999, true, imageBytes);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.False(result.Data);
+        Assert.Contains("Unknown album", result.Messages?.FirstOrDefault() ?? "");
+    }
+
+    [Fact]
+    public async Task SaveImageAsAlbumImageAsync_WithEmptyImageBytes_ThrowsArgumentException()
+    {
+        // Arrange
+        var albumName = "Image Album";
+        var artistName = "Image Artist";
+        int albumId;
+
+        await using (var context = await MockFactory().CreateDbContextAsync())
+        {
+            var library = new Library
+            {
+                ApiKey = Guid.NewGuid(),
+                Name = "Test Library",
+                Path = "/tmp/test/library",
+                Type = (int)LibraryType.Storage,
+                CreatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow)
+            };
+            context.Libraries.Add(library);
+            await context.SaveChangesAsync();
+
+            var artist = new DataModels.Artist
+            {
+                ApiKey = Guid.NewGuid(),
+                Directory = artistName.ToNormalizedString() ?? artistName,
+                CreatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow),
+                LibraryId = library.Id,
+                Name = artistName,
+                NameNormalized = artistName.ToNormalizedString()!
+            };
+            context.Artists.Add(artist);
+            await context.SaveChangesAsync();
+
+            var album = new DataModels.Album
+            {
+                ApiKey = Guid.NewGuid(),
+                Directory = albumName.ToNormalizedString() ?? albumName,
+                CreatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow),
+                ArtistId = artist.Id,
+                Name = albumName,
+                NameNormalized = albumName.ToNormalizedString()!,
+                AlbumStatus = (short)AlbumStatus.Ok
+            };
+            context.Albums.Add(album);
+            await context.SaveChangesAsync();
+            albumId = album.Id;
+        }
+
+        var albumService = GetAlbumService();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => albumService.SaveImageAsAlbumImageAsync(albumId, true, Array.Empty<byte>()));
+    }
+
+    
 
     protected new void AssertResultIsSuccessful<T>(OperationResult<T> result)
     {

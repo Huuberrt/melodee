@@ -28,8 +28,7 @@ using Quartz;
 using Rebus.Bus;
 using Serilog;
 
-
-namespace Melodee.Tests.Services;
+namespace Melodee.Tests.Common.Services;
 
 public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
 {

@@ -1,21 +1,10 @@
 using Melodee.Common.Configuration;
-using Melodee.Common.Data;
 using Melodee.Common.Enums;
-using Melodee.Common.Models;
-using Melodee.Common.Constants;
-using Melodee.Common.Serialization;
-using Melodee.Common.Services.Caching;
-using Melodee.Common.Services.Scanning;
-using Microsoft.EntityFrameworkCore;
-using Moq;
-using Serilog;
-using NodaTime;
-using Melodee.Common.Models.Collection;
 using Melodee.Common.Filtering;
-using Melodee.Common.Models.Extensions;
-using Melodee.Common.OrderBy;
+using Melodee.Common.Models;
+using Melodee.Common.Services.Scanning;
 
-namespace Melodee.Tests.Services.Scanning;
+namespace Melodee.Tests.Common.Services.Scanning;
 
 public class AlbumDiscoveryServiceTests : ServiceTestBase
 {

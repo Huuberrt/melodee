@@ -5,9 +5,8 @@ using Melodee.Common.Extensions;
 using Melodee.Common.Filtering;
 using Melodee.Common.Models;
 using Melodee.Common.Services;
-using NodaTime;
 
-namespace Melodee.Tests.Services;
+namespace Melodee.Tests.Common.Services;
 
 public sealed class SettingsServiceTests : ServiceTestBase
 {

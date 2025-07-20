@@ -1,8 +1,7 @@
 using Melodee.Common.Models.Extensions;
-using Melodee.Common.Services.Scanning;
-using Melodee.Tests.Services.Scanning;
+using Melodee.Tests.Common.Services.Scanning;
 
-namespace Melodee.Tests.Services;
+namespace Melodee.Tests.Common.Services;
 
 public class MockFileSystemTests : IDisposable
 {

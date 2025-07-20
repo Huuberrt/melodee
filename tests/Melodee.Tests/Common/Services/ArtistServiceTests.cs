@@ -1,17 +1,13 @@
-using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
 using Melodee.Common.Filtering;
 using Melodee.Common.Models;
-using Melodee.Common.Models.Collection;
 using Melodee.Common.Models.Extensions;
-using Microsoft.EntityFrameworkCore;
 using NodaTime;
-using Xunit;
 using Artist = Melodee.Common.Data.Models.Artist;
 using Library = Melodee.Common.Data.Models.Library;
 
-namespace Melodee.Tests.Services;
+namespace Melodee.Tests.Common.Services;
 
 public class ArtistServiceTests : ServiceTestBase
 {

@@ -1,12 +1,6 @@
-using System;
-using System.IO;
-using System.Linq;
-using System.Reflection;
 using Melodee.Common.Utility;
-using MimeKit;
-using Xunit;
 
-namespace Melodee.Common.Tests.Utility
+namespace Melodee.Tests.Utility
 {
     public class FileHelperTests : IDisposable
     {
@@ -35,7 +29,7 @@ namespace Melodee.Common.Tests.Utility
         [Theory]
         [InlineData("test.mp3", "audio/mpeg")]
         [InlineData("test.flac", "audio/x-flac")]
-        [InlineData("test.wav", "audio/x-wav")]
+        [InlineData("test.wav", "audio/wav")]
         [InlineData("test.ogg", "audio/ogg")]
         [InlineData("test.m4a", "audio/mp4")]
         [InlineData("test.txt", "text/plain")]
@@ -75,7 +69,7 @@ namespace Melodee.Common.Tests.Utility
             var filePath = Path.Combine(_testDir, "empty.wav");
             File.WriteAllBytes(filePath, Array.Empty<byte>());
             var result = FileHelper.GetMimeType(filePath);
-            Assert.Equal("audio/x-wav", result);
+            Assert.Equal("audio/wav", result);
         }
 
         public void Dispose()

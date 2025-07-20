@@ -1,16 +1,14 @@
-using Melodee.Common.Models;
-using Melodee.Common.Plugins.Validation;
-using Melodee.Common.Plugins.MetaData.Song;
-using Melodee.Common.Services;
-using Melodee.Common.Utility;
-using Melodee.Common.Data.Models.DTOs;
-using Melodee.Common.Models.OpenSubsonic;
-using Melodee.Common.Configuration;
-using Moq;
-using Xunit;
 using System.ComponentModel.DataAnnotations;
+using Melodee.Common.Configuration;
+using Melodee.Common.Data.Models.DTOs;
+using Melodee.Common.Models;
+using Melodee.Common.Models.OpenSubsonic;
+using Melodee.Common.Plugins.MetaData.Song;
+using Melodee.Common.Plugins.Validation;
+using Melodee.Common.Services;
+using Moq;
 
-namespace Melodee.Tests.Services;
+namespace Melodee.Tests.Common.Services;
 
 public class ServiceBaseTests : ServiceTestBase
 {

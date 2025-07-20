@@ -1,11 +1,9 @@
 using Melodee.Common.Serialization;
 using Melodee.Common.Services.Caching;
-using Microsoft.Extensions.Caching.Memory;
 using Moq;
 using Serilog;
-using System.Collections.Concurrent;
 
-namespace Melodee.Tests.Services.Caching;
+namespace Melodee.Tests.Common.Services.Caching;
 
 public class MemoryCacheManagerTests
 {
