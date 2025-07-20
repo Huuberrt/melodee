@@ -52,7 +52,7 @@ public class ArtistSearchEngineService(
 
         _artistSearchEnginePlugins =
         [
-            new MelodeeArtistSearchEnginPlugin(ContextFactory),
+            new MelodeeArtistSearchEnginePlugin(ContextFactory),
             new MusicBrainzArtistSearchEnginePlugin(musicBrainzRepository)
             {
                 IsEnabled = _configuration.GetValue<bool>(SettingRegistry.SearchEngineMusicBrainzEnabled)
@@ -65,7 +65,7 @@ public class ArtistSearchEngineService(
 
         _artistTopSongsSearchEnginePlugins =
         [
-            new MelodeeArtistSearchEnginPlugin(ContextFactory),
+            new MelodeeArtistSearchEnginePlugin(ContextFactory),
             new Spotify(Log.Logger, _configuration, spotifyClientBuilder, settingService)
             {
                 IsEnabled = _configuration.GetValue<bool>(SettingRegistry.SearchEngineSpotifyEnabled)

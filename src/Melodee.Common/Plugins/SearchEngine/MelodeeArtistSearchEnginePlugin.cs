@@ -16,7 +16,7 @@ namespace Melodee.Common.Plugins.SearchEngine;
 /// <summary>
 ///     Searches for Artist using the Melodee database
 /// </summary>
-public class MelodeeArtistSearchEnginPlugin(IDbContextFactory<MelodeeDbContext> contextFactory)
+public class MelodeeArtistSearchEnginePlugin(IDbContextFactory<MelodeeDbContext> contextFactory)
     : IArtistSearchEnginePlugin, IArtistTopSongsSearchEnginePlugin
 {
     public bool StopProcessing { get; } = false;
@@ -234,7 +234,7 @@ public class MelodeeArtistSearchEnginPlugin(IDbContextFactory<MelodeeDbContext> 
                           join "Artists" aa on (a."ArtistId" = aa."Id")
                           where aa."Id" = @artistId
                           order by s."PlayedCount" desc, s."LastPlayedAt" desc, s."SortOrder", s."TitleSort", a."SortOrder"
-                          offset 0 rows fetch next @maxResults rows only;
+                          limit @maxResults;
                           """;
 
                 var songs = (await dbConn
