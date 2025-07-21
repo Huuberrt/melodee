@@ -1,10 +1,8 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Ardalis.GuardClauses;
-using Dapper;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
-using Melodee.Common.Dapper.SqliteHandlers;
 using Melodee.Common.Data;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
@@ -92,50 +90,137 @@ public class ArtistSearchEngineService(
         PagedRequest pagedRequest,
         CancellationToken cancellationToken = default)
     {
-        SqlMapper.ResetTypeHandlers();
-        SqlMapper.AddTypeHandler(new DateTimeOffsetHandler());
-        SqlMapper.AddTypeHandler(new GuidHandler());
-        SqlMapper.AddTypeHandler(new TimeSpanHandler());
-
-        int albumCount;
+        int totalCount;
         Artist[] artists = [];
+        
         await using (var scopedContext = await artistSearchEngineServiceDbContextFactory
                          .CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
-            var orderBy = pagedRequest.OrderByValue();
-            var dbConn = scopedContext.Database.GetDbConnection();
-            var countSqlParts = pagedRequest.FilterByParts("SELECT COUNT(*) FROM \"Artists\"");
-            albumCount = await dbConn
-                .QuerySingleAsync<int>(countSqlParts.Item1, countSqlParts.Item2)
-                .ConfigureAwait(false);
-            if (!pagedRequest.IsTotalCountOnlyRequest)
+            // Build the base query with filters
+            var query = scopedContext.Artists.AsNoTracking();
+            
+            // Apply filters from PagedRequest.FilterBy if any
+            if (pagedRequest.FilterBy?.Length > 0)
             {
-                var sqlStartFragment = """
-                                       SELECT a."Id", a."Name", a."NameNormalized", a."ItunesId", a."AmgId", a."DiscogsId", a."WikiDataId", 
-                                              a."MusicBrainzId", a."LastFmId", a."SpotifyId", a."SortName" 
-                                       FROM "Artists" a
-                                       """;
-                var listSqlParts = pagedRequest.FilterByParts(sqlStartFragment, "a");
-                var listSql =
-                    $"{listSqlParts.Item1} ORDER BY {orderBy} LIMIT {pagedRequest.TakeValue} OFFSET {pagedRequest.SkipValue};";
-                artists = (await dbConn
-                    .QueryAsync<Artist>(listSql, listSqlParts.Item2)
-                    .ConfigureAwait(false)).ToArray();
-
-                foreach (var artist in artists)
+                foreach (var filter in pagedRequest.FilterBy)
                 {
-                    artist.AlbumCount = await dbConn.ExecuteScalarAsync<int>(
-                        "SELECT COUNT(*) FROM \"Albums\" WHERE \"ArtistId\" = @ArtistId", new { ArtistId = artist.Id });
+                    var filterValue = filter.Value?.ToString() ?? string.Empty;
+                    var filterValuePattern = filter.ValuePattern()?.ToString() ?? string.Empty;
+                    
+                    // Apply filters based on property name and operator
+                    query = filter.PropertyName.ToLower() switch
+                    {
+                        "name" => filter.OperatorValue.ToUpper() switch
+                        {
+                            "LIKE" => query.Where(x => EF.Functions.Like(x.Name, filterValuePattern)),
+                            "=" => query.Where(x => x.Name == filterValue),
+                            "!=" => query.Where(x => x.Name != filterValue),
+                            _ => query
+                        },
+                        "namenormalized" => filter.OperatorValue.ToUpper() switch
+                        {
+                            "LIKE" => query.Where(x => EF.Functions.Like(x.NameNormalized, filterValuePattern)),
+                            "=" => query.Where(x => x.NameNormalized == filterValue),
+                            "!=" => query.Where(x => x.NameNormalized != filterValue),
+                            _ => query
+                        },
+                        "sortname" => filter.OperatorValue.ToUpper() switch
+                        {
+                            "LIKE" => query.Where(x => EF.Functions.Like(x.SortName, filterValuePattern)),
+                            "=" => query.Where(x => x.SortName == filterValue),
+                            "!=" => query.Where(x => x.SortName != filterValue),
+                            _ => query
+                        },
+                        "musicbrainzid" => filter.OperatorValue.ToUpper() switch
+                        {
+                            "=" => query.Where(x => x.MusicBrainzId.ToString() == filterValue),
+                            "!=" => query.Where(x => x.MusicBrainzId.ToString() != filterValue),
+                            _ => query
+                        },
+                        "spotifyid" => filter.OperatorValue.ToUpper() switch
+                        {
+                            "=" => query.Where(x => x.SpotifyId == filterValue),
+                            "!=" => query.Where(x => x.SpotifyId != filterValue),
+                            "LIKE" => query.Where(x => EF.Functions.Like(x.SpotifyId!, filterValuePattern)),
+                            _ => query
+                        },
+                        _ => query
+                    };
                 }
             }
+            
+            // Get total count
+            totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+            
+            if (!pagedRequest.IsTotalCountOnlyRequest)
+            {
+                // Apply ordering
+                if (pagedRequest.OrderBy?.Count > 0)
+                {
+                    var firstOrderBy = pagedRequest.OrderBy.First();
+                    var isDescending = firstOrderBy.Value.ToUpper() == "DESC";
+                    
+                    query = firstOrderBy.Key.ToLower() switch
+                    {
+                        "id" => isDescending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id),
+                        "name" => isDescending ? query.OrderByDescending(x => x.Name) : query.OrderBy(x => x.Name),
+                        "namenormalized" => isDescending ? query.OrderByDescending(x => x.NameNormalized) : query.OrderBy(x => x.NameNormalized),
+                        "sortname" => isDescending ? query.OrderByDescending(x => x.SortName) : query.OrderBy(x => x.SortName),
+                        _ => isDescending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id)
+                    };
+                    
+                    // Apply additional ordering if present
+                    foreach (var orderBy in pagedRequest.OrderBy.Skip(1))
+                    {
+                        var isDesc = orderBy.Value.ToUpper() == "DESC";
+                        var orderedQuery = (IOrderedQueryable<Artist>)query;
+                        
+                        query = orderBy.Key.ToLower() switch
+                        {
+                            "id" => isDesc ? orderedQuery.ThenByDescending(x => x.Id) : orderedQuery.ThenBy(x => x.Id),
+                            "name" => isDesc ? orderedQuery.ThenByDescending(x => x.Name) : orderedQuery.ThenBy(x => x.Name),
+                            "namenormalized" => isDesc ? orderedQuery.ThenByDescending(x => x.NameNormalized) : orderedQuery.ThenBy(x => x.NameNormalized),
+                            "sortname" => isDesc ? orderedQuery.ThenByDescending(x => x.SortName) : orderedQuery.ThenBy(x => x.SortName),
+                            _ => orderedQuery
+                        };
+                    }
+                }
+                else
+                {
+                    query = query.OrderBy(x => x.Id);
+                }
+                
+                // Apply pagination and get results with album counts in a single query
+                artists = await query
+                    .Skip(pagedRequest.SkipValue)
+                    .Take(pagedRequest.TakeValue)
+                    .Select(x => new Artist
+                    {
+                        Id = x.Id,
+                        Name = x.Name,
+                        NameNormalized = x.NameNormalized,
+                        SortName = x.SortName,
+                        AlternateNames = x.AlternateNames,
+                        ItunesId = x.ItunesId,
+                        AmgId = x.AmgId,
+                        DiscogsId = x.DiscogsId,
+                        WikiDataId = x.WikiDataId,
+                        MusicBrainzId = x.MusicBrainzId,
+                        LastFmId = x.LastFmId,
+                        SpotifyId = x.SpotifyId,
+                        IsLocked = x.IsLocked,
+                        LastRefreshed = x.LastRefreshed,
+                        AlbumCount = scopedContext.Albums.Count(a => a.ArtistId == x.Id) // This will be optimized by EF Core
+                    })
+                    .ToArrayAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }
         }
-
-        SqlMapper.ResetTypeHandlers();
-
+        
         return new PagedResult<Artist>
         {
-            TotalCount = albumCount,
-            TotalPages = pagedRequest.TotalPages(albumCount),
+            TotalCount = totalCount,
+            TotalPages = pagedRequest.TotalPages(totalCount),
             Data = artists
         };
     }
@@ -647,14 +732,17 @@ public class ArtistSearchEngineService(
         await using (var scopedContext = await artistSearchEngineServiceDbContextFactory
                          .CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
-            var dbConn = scopedContext.Database.GetDbConnection();
+            // Delete albums for selected artists using EF Core
             foreach (var artist in selectedArtists)
             {
-                var sql = """
-                          DELETE FROM "Albums" WHERE "ArtistId" = @artistId;
-                          """;
-                await dbConn.ExecuteAsync(sql, new { artistId = artist.Id }).ConfigureAwait(false);
+                var albumsToDelete = await scopedContext.Albums
+                    .Where(a => a.ArtistId == artist.Id)
+                    .ToListAsync(cancellationToken)
+                    .ConfigureAwait(false);
+                    
+                scopedContext.Albums.RemoveRange(albumsToDelete);
             }
+            await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
             var now = DateTime.UtcNow;
             foreach (var artist in selectedArtists)

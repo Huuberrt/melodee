@@ -18,7 +18,6 @@
     </PackageVersion>
     <PackageVersion Include="Crc32.NET" Version="1.2.0" />
     <PackageVersion Include="CsvHelper" Version="33.1.0" />
-    <PackageVersion Include="Dapper" Version="2.1.66" />
     <PackageVersion Include="EntityFrameworkCore.Sqlite.NodaTime" Version="9.1.0" />
     <PackageVersion Include="Fastenshtein" Version="1.0.10" />
     <PackageVersion Include="FbNetExternalEngine.Integration" Version="6.0.0" />
