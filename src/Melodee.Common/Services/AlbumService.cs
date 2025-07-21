@@ -1055,4 +1055,67 @@ public class AlbumService(
 
         return query;
     }
+
+    /// <summary>
+    /// Get all genres from albums and songs for OpenSubsonic API
+    /// </summary>
+    public async Task<MelodeeModels.OperationResult<Dictionary<string, (int songCount, int albumCount)>>> GetGenresAsync(CancellationToken cancellationToken = default)
+    {
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        // Get all albums and songs with their genres using EF Core
+        var albums = await scopedContext.Albums
+            .AsNoTracking()
+            .Where(a => a.Genres != null && a.Genres.Length > 0)
+            .Select(a => a.Genres)
+            .ToArrayAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var songs = await scopedContext.Songs
+            .AsNoTracking()
+            .Where(s => s.Genres != null && s.Genres.Length > 0)
+            .Select(s => s.Genres)
+            .ToArrayAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        // Flatten and collect all unique genres
+        var genreCounts = new Dictionary<string, (int songCount, int albumCount)>();
+
+        // Process album genres
+        foreach (var albumGenres in albums.Where(g => g != null))
+        {
+            foreach (var genre in albumGenres!)
+            {
+                if (genreCounts.ContainsKey(genre))
+                {
+                    genreCounts[genre] = (genreCounts[genre].songCount, genreCounts[genre].albumCount + 1);
+                }
+                else
+                {
+                    genreCounts[genre] = (0, 1);
+                }
+            }
+        }
+
+        // Process song genres  
+        foreach (var songGenres in songs.Where(g => g != null))
+        {
+            foreach (var genre in songGenres!)
+            {
+                if (genreCounts.ContainsKey(genre))
+                {
+                    genreCounts[genre] = (genreCounts[genre].songCount + 1, genreCounts[genre].albumCount);
+                }
+                else
+                {
+                    genreCounts[genre] = (1, 0);
+                }
+            }
+        }
+
+        return new MelodeeModels.OperationResult<Dictionary<string, (int songCount, int albumCount)>>
+        {
+            Data = genreCounts
+        };
+    }
 }

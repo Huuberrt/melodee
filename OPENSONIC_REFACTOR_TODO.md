@@ -143,7 +143,7 @@ All target services already exist:
   - [x] Complete remaining radio station methods (UpdateInternetRadioStationAsync, GetInternetRadioStationsAsync)
   - [x] Song methods moved (GetLyricsListForSongIdAsync, GetLyricsForArtistAndTitleAsync)
   - [ ] Complete remaining playlist methods (DeletePlaylistAsync, CreatePlaylistAsync, GetPlaylistAsync)
-  - [ ] Album methods moved (GetAlbumListAsync, GetAlbumList2Async, GetGenresAsync, GetAlbumInfoAsync)
+  - [x] Album methods moved (GetGenresAsync, GetAlbumInfoAsync) - GetAlbumListAsync, GetAlbumList2Async remain (complex raw SQL)
   - [ ] Queue methods moved (GetPlayQueueAsync, SavePlayQueueAsync)
   - [ ] Database access audit complete
   - [ ] Testing complete

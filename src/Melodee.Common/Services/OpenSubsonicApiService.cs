@@ -62,6 +62,7 @@ public class OpenSubsonicApiService(
     PlaylistService playlistService,
     ShareService shareService,
     RadioStationService radioStationService,
+    UserQueueService userQueueService,
     IBus bus,
     ILyricPlugin lyricPlugin
 )
@@ -1261,7 +1262,6 @@ public class OpenSubsonicApiService(
         };
     }
 
-    // TODO: This should be moved to AlbumService in the future.
     /// <summary>
     ///     Returns all genres.
     /// </summary>
@@ -1276,60 +1276,16 @@ public class OpenSubsonicApiService(
 
         var data = new List<Genre>();
 
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        var genresResult = await albumService.GetGenresAsync(cancellationToken);
+        if (genresResult.IsSuccess)
         {
-            // Get all albums and songs with their genres using EF Core
-            var albums = await scopedContext.Albums
-                .AsNoTracking()
-                .Where(a => a.Genres != null && a.Genres.Length > 0)
-                .Select(a => a.Genres)
-                .ToArrayAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            var songs = await scopedContext.Songs
-                .AsNoTracking()
-                .Where(s => s.Genres != null && s.Genres.Length > 0)
-                .Select(s => s.Genres)
-                .ToArrayAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            // Flatten and collect all unique genres
             var allGenresSet = new HashSet<string>();
-            var genreCounts = new Dictionary<string, (int songCount, int albumCount)>();
+            var genreCounts = genresResult.Data;
 
-            // Process album genres
-            foreach (var albumGenres in albums.Where(g => g != null))
+            // Create unique sorted genres
+            foreach (var genre in genreCounts.Keys)
             {
-                foreach (var genre in albumGenres!)
-                {
-                    allGenresSet.Add(genre);
-                    if (genreCounts.ContainsKey(genre))
-                    {
-                        genreCounts[genre] = (genreCounts[genre].songCount, genreCounts[genre].albumCount + 1);
-                    }
-                    else
-                    {
-                        genreCounts[genre] = (0, 1);
-                    }
-                }
-            }
-
-            // Process song genres  
-            foreach (var songGenres in songs.Where(g => g != null))
-            {
-                foreach (var genre in songGenres!)
-                {
-                    allGenresSet.Add(genre);
-                    if (genreCounts.ContainsKey(genre))
-                    {
-                        genreCounts[genre] = (genreCounts[genre].songCount + 1, genreCounts[genre].albumCount);
-                    }
-                    else
-                    {
-                        genreCounts[genre] = (1, 0);
-                    }
-                }
+                allGenresSet.Add(genre);
             }
 
             var allGenres = allGenresSet.OrderBy(g => g).ToArray();
@@ -3082,7 +3038,6 @@ public class OpenSubsonicApiService(
         };
     }
 
-    // TODO: This should be moved to AlbumService in the future.
     public async Task<ResponseModel> GetAlbumInfoAsync(string id, ApiRequest apiRequest,
         CancellationToken cancellationToken)
     {
@@ -3093,27 +3048,26 @@ public class OpenSubsonicApiService(
         }
 
         AlbumInfo? data = null;
-
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        var apiKey = ApiKeyFromId(id);
+        
+        if (IsApiIdForSong(id))
         {
-            var apiKey = ApiKeyFromId(id);
-            if (IsApiIdForSong(id))
+            // Some players send the first song to get an albums details. No idea why. 
+            var songApiKey = ApiKeyFromId(id);
+            if (songApiKey != null)
             {
-                // Some players send the first song to get an albums details. No idea why. 
-                var songApiKey = ApiKeyFromId(id);
-                if (songApiKey != null)
-                {
-                    var songInfo = await DatabaseSongIdsInfoForSongApiKey(songApiKey.Value, cancellationToken)
-                        .ConfigureAwait(false);
-                    apiKey = songInfo?.AlbumApiKey ?? apiKey;
-                }
+                var songInfo = await DatabaseSongIdsInfoForSongApiKey(songApiKey.Value, cancellationToken)
+                    .ConfigureAwait(false);
+                apiKey = songInfo?.AlbumApiKey ?? apiKey;
             }
+        }
 
-            var album = await scopedContext.Albums.FirstOrDefaultAsync(x => x.ApiKey == apiKey, cancellationToken)
-                .ConfigureAwait(false);
-            if (album != null)
+        if (apiKey != null)
+        {
+            var albumResult = await albumService.GetByApiKeyAsync(apiKey.Value, cancellationToken);
+            if (albumResult.IsSuccess && albumResult.Data != null)
             {
+                var album = albumResult.Data;
                 var configuration = await Configuration.Value;
 
                 data = new AlbumInfo(album.ToApiKey(),
