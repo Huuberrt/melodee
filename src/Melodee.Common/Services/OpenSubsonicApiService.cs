@@ -1,4 +1,3 @@
-using Dapper;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
@@ -767,7 +766,6 @@ public class OpenSubsonicApiService(
             if (IsApiIdForDynamicPlaylist(id))
             {
                 var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
-                var dbConn = scopedContext.Database.GetDbConnection();
                 var dynamicPlaylist = await libraryService
                     .GetDynamicPlaylistAsync(apiKey ?? Guid.Empty, cancellationToken).ConfigureAwait(false);
                 var dp = dynamicPlaylist.Data;
@@ -790,6 +788,7 @@ public class OpenSubsonicApiService(
                 var offset = 0;
                 var fetch = dp.SongLimit ?? 100;
 
+                // Use EF Core FromSqlRaw for better security and maintainability
                 var sql = $"""
                            SELECT s."Id", s."ApiKey", s."IsLocked", s."Title", s."TitleNormalized", s."SongNumber", a."ReleaseDate",
                                   a."Name" as "AlbumName", a."ApiKey" as "AlbumApiKey", ar."Name" as "ArtistName", ar."ApiKey" as "ArtistApiKey",
@@ -797,14 +796,15 @@ public class OpenSubsonicApiService(
                            FROM "Songs" s
                            join "Albums" a on (s."AlbumId" = a."Id")
                            join "Artists" ar on (a."ArtistId" = ar."Id")
-                           left join "UserSongs" us on (s."Id" = us."SongId")
+                           left join "UserSongs" us on (s."Id" = us."SongId" and us."UserId" = {authResponse.UserInfo.Id})
                            where {dpWhere}
                            order by {dpOrderBy}
                            offset {offset} rows fetch next {fetch} rows only;
                            """;
-                var songDataInfosForDp = (await dbConn
-                    .QueryAsync<SongDataInfo>(sql)
-                    .ConfigureAwait(false)).ToArray();
+                var songDataInfosForDp = await scopedContext.Database
+                    .SqlQueryRaw<SongDataInfo>(sql)
+                    .ToArrayAsync(cancellationToken)
+                    .ConfigureAwait(false);
 
                 var songs = await scopedContext
                     .Songs
@@ -890,7 +890,6 @@ public class OpenSubsonicApiService(
             await using (var scopedContext =
                          await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
             {
-                var dbConn = scopedContext.Database.GetDbConnection();
                 var sqlParameters = new Dictionary<string, object?>
                 {
                     { "genre", albumListRequest.Genre },
@@ -970,12 +969,15 @@ public class OpenSubsonicApiService(
                 }
 
                 sql = $"{selectSql} {whereSql} {orderSql} {limitSql}";
-                data = (await dbConn
-                    .QueryAsync<AlbumList>(sql, sqlParameters)
-                    .ConfigureAwait(false)).ToArray();
+                data = await scopedContext.Database
+                    .SqlQueryRaw<AlbumList>(sql, sqlParameters.Values.Where(v => v != null).Cast<object>().ToArray())
+                    .ToArrayAsync(cancellationToken)
+                    .ConfigureAwait(false);
 
-                totalCount = await dbConn
-                    .ExecuteScalarAsync<long>($"SELECT COUNT(*) FROM \"Albums\" {whereSql};")
+                var countSql = $"SELECT COUNT(*) FROM \"Albums\" a JOIN \"Artists\" aa on (a.\"ArtistId\" = aa.\"Id\") {whereSql}";
+                totalCount = await scopedContext.Database
+                    .SqlQueryRaw<long>(countSql, sqlParameters.Values.Where(v => v != null).Cast<object>().ToArray())
+                    .FirstAsync(cancellationToken)
                     .ConfigureAwait(false);
             }
         }
@@ -1020,7 +1022,6 @@ public class OpenSubsonicApiService(
             await using (var scopedContext =
                          await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
             {
-                var dbConn = scopedContext.Database.GetDbConnection();
                 var sqlParameters = new Dictionary<string, object?>
                 {
                     { "genre", albumListRequest.Genre },
@@ -1112,18 +1113,21 @@ public class OpenSubsonicApiService(
                 }
 
                 sql = $"{selectSql} {whereSql} {orderSql} {limitSql}";
-                data = (await dbConn
-                    .QueryAsync<AlbumList2>(sql, sqlParameters)
-                    .ConfigureAwait(false)).ToArray();
+                data = await scopedContext.Database
+                    .SqlQueryRaw<AlbumList2>(sql, sqlParameters.Values.Where(v => v != null).Cast<object>().ToArray())
+                    .ToArrayAsync(cancellationToken)
+                    .ConfigureAwait(false);
 
-                sql = """
+                var countSql = """
                       SELECT COUNT(a.*)
                       FROM "Albums" a 
                       JOIN "Artists" aa on (a."ArtistId" = aa."Id")
                       JOIN "Libraries" l on (aa."LibraryId" = l."Id")
                       """;
-                totalCount = await dbConn
-                    .ExecuteScalarAsync<long>($"{sql} {whereSql}", sqlParameters)
+                var countSqlWithWhere = $"{countSql} {whereSql}";
+                totalCount = await scopedContext.Database
+                    .SqlQueryRaw<long>(countSqlWithWhere, sqlParameters.Values.Where(v => v != null).Cast<object>().ToArray())
+                    .FirstAsync(cancellationToken)
                     .ConfigureAwait(false);
             }
 
@@ -1294,44 +1298,72 @@ public class OpenSubsonicApiService(
         await using (var scopedContext =
                      await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
-            var dbConn = scopedContext.Database.GetDbConnection();
-            var allGenres = await dbConn.QueryAsync<string>("""
-                                                            select distinct "Genres" 
-                                                            from 
-                                                            (
-                                                            	select unnest("Genres") as "Genres"
-                                                            	from "Albums"
-                                                            	union ALL
-                                                            	select  unnest("Genres") as "Genres"
-                                                            	from "Songs"
-                                                            ) t
-                                                            group by "Genres"
-                                                            order by "Genres";
-                                                            """, cancellationToken).ConfigureAwait(false);
-            var songGenres =
-                (await dbConn
-                    .QueryAsync<Genre>(
-                        "select genre as Value, count(1) as \"SongCount\" from \"Songs\", unnest(\"Genres\") as genre group by genre order by genre;",
-                        cancellationToken).ConfigureAwait(false)).ToArray();
-            var albumGenres =
-                (await dbConn
-                    .QueryAsync<Genre>(
-                        "select genre as Value, count(1) as \"AlbumCount\" from \"Albums\", unnest(\"Genres\") as genre group by genre order by genre;",
-                        cancellationToken).ConfigureAwait(false)).ToArray();
+            // Get all albums and songs with their genres using EF Core
+            var albums = await scopedContext.Albums
+                .AsNoTracking()
+                .Where(a => a.Genres != null && a.Genres.Length > 0)
+                .Select(a => a.Genres)
+                .ToArrayAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var songs = await scopedContext.Songs
+                .AsNoTracking()
+                .Where(s => s.Genres != null && s.Genres.Length > 0)
+                .Select(s => s.Genres)
+                .ToArrayAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            // Flatten and collect all unique genres
+            var allGenresSet = new HashSet<string>();
+            var genreCounts = new Dictionary<string, (int songCount, int albumCount)>();
+
+            // Process album genres
+            foreach (var albumGenres in albums.Where(g => g != null))
+            {
+                foreach (var genre in albumGenres!)
+                {
+                    allGenresSet.Add(genre);
+                    if (genreCounts.ContainsKey(genre))
+                    {
+                        genreCounts[genre] = (genreCounts[genre].songCount, genreCounts[genre].albumCount + 1);
+                    }
+                    else
+                    {
+                        genreCounts[genre] = (0, 1);
+                    }
+                }
+            }
+
+            // Process song genres  
+            foreach (var songGenres in songs.Where(g => g != null))
+            {
+                foreach (var genre in songGenres!)
+                {
+                    allGenresSet.Add(genre);
+                    if (genreCounts.ContainsKey(genre))
+                    {
+                        genreCounts[genre] = (genreCounts[genre].songCount + 1, genreCounts[genre].albumCount);
+                    }
+                    else
+                    {
+                        genreCounts[genre] = (1, 0);
+                    }
+                }
+            }
+
+            var allGenres = allGenresSet.OrderBy(g => g).ToArray();
 
             foreach (var genre in allGenres)
             {
                 var genreNormalized = genre.ToNormalizedString() ?? genre;
                 if (data.All(x => x.ValueNormalized != genreNormalized))
                 {
-                    var songCount = songGenres.Where(x => x.ValueNormalized == genreNormalized).Sum(x => x.SongCount);
-                    var albumCount = albumGenres.Where(x => x.ValueNormalized == genreNormalized)
-                        .Sum(x => x.AlbumCount);
+                    var counts = genreCounts.TryGetValue(genre, out var count) ? count : (0, 0);
                     data.Add(new Genre
                         {
                             Value = genre.CleanString() ?? genre,
-                            SongCount = songCount,
-                            AlbumCount = albumCount
+                            SongCount = counts.Item1,
+                            AlbumCount = counts.Item2
                         }
                     );
                 }
@@ -1873,18 +1905,17 @@ public class OpenSubsonicApiService(
             // If the apikey is blank then remove any current saved que
             if (apiKeys == null)
             {
-                var sql = """
-                          delete from "PlayQues" pq
-                          using "Users" u, "Songs" s
-                          where pq."UserId" = u."Id"
-                          and pq."SongId" = s."Id"
-                          and u."UserNameNormalized" = @userNameNormalized
-                          and s."ApiKey" = @apiKey
-                          """;
-                var dbConn = scopedContext.Database.GetDbConnection();
-                await dbConn.ExecuteAsync(sql,
-                        new { apiKey = apiKeys, userNameNormalized = apiRequest.Username.ToNormalizedString() })
-                    .ConfigureAwait(false);
+                var user = await userService.GetByUsernameAsync(apiRequest.Username!, cancellationToken).ConfigureAwait(false);
+                if (user.IsSuccess && user.Data != null)
+                {
+                    var playQuesToDelete = await scopedContext.PlayQues
+                        .Where(pq => pq.UserId == user.Data.Id)
+                        .ToArrayAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                    
+                    scopedContext.PlayQues.RemoveRange(playQuesToDelete);
+                    await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                }
                 result = true;
             }
             else
@@ -2428,24 +2459,40 @@ public class OpenSubsonicApiService(
         await using (var scopedContext =
                      await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
-            var dbConn = scopedContext.Database.GetDbConnection();
-            var sql = """
-                      select a."Id", a."ApiKey", LEFT(a."SortName", 1) as "Index", a."Name", 'artist_' || a."ApiKey" as "CoverArt", 
-                             a."CalculatedRating", a."AlbumCount", a."PlayedCount" as "PlayCount", a."CreatedAt" as "CreatedAt", a."LastUpdatedAt" as "LastUpdatedAt", a."LastPlayedAt" as "Played", a."Directory",
-                             (SELECT ua."StarredAt" FROM "UserArtists" ua WHERE a."Id" = ua."ArtistId" and ua."UserId" = @userId and ua."IsStarred") as "UserStarred", 
-                             (SELECT ua."Rating" FROM "UserArtists" ua WHERE a."Id" = ua."ArtistId" and ua."UserId" = @userId) as "UserRating"
-                      from "Artists" a
-                      where ((@libraryId = 0) or (@libraryId > 0 and a."LibraryId" = @libraryId))
-                      and (EXTRACT(EPOCH from a."LastUpdatedAt") >= 0)
-                      order by a."SortOrder", a."SortName"
-                      """;
-            var indexes = await dbConn.QueryAsync<DatabaseDirectoryInfo>(sql,
-                    new { libraryId, modifiedSince = ifModifiedSince ?? 0, userId = authResponse.UserInfo.Id })
-                .ConfigureAwait(false);
+            // Build EF Core query for artist indexes
+            var artistQuery = scopedContext.Artists
+                .Include(a => a.UserArtists.Where(ua => ua.UserId == authResponse.UserInfo.Id))
+                .AsNoTracking()
+                .Where(a => libraryId == 0 || a.LibraryId == libraryId)
+                .OrderBy(a => a.SortOrder)
+                .ThenBy(a => a.SortName);
+
+            var artists = await artistQuery.ToArrayAsync(cancellationToken).ConfigureAwait(false);
+
+            var indexes = artists.Select(a =>
+            {
+                var userArtist = a.UserArtists.FirstOrDefault();
+                return new DatabaseDirectoryInfo(
+                    a.Id,
+                    a.ApiKey,
+                    a.SortName?.Length > 0 ? a.SortName.Substring(0, 1) : string.Empty,
+                    a.Name,
+                    $"artist_{a.ApiKey}",
+                    a.CalculatedRating,
+                    a.AlbumCount,
+                    a.PlayedCount,
+                    a.CreatedAt,
+                    a.LastUpdatedAt,
+                    a.LastPlayedAt,
+                    a.Directory,
+                    userArtist?.IsStarred == true ? userArtist.StarredAt : null,
+                    userArtist?.Rating
+                );
+            }).ToArray();
 
             var configuration = await Configuration.Value;
 
-            var artists = new List<ArtistIndex>();
+            var artistIndexes = new List<ArtistIndex>();
             foreach (var grouped in indexes.GroupBy(x => x.Index))
             {
                 var aa = new List<Artist>();
@@ -2461,7 +2508,7 @@ public class OpenSubsonicApiService(
                         info.UserStarred?.ToString()));
                 }
 
-                artists.Add(new ArtistIndex(grouped.Key, aa.Take(indexLimit).ToArray()));
+                artistIndexes.Add(new ArtistIndex(grouped.Key, aa.Take(indexLimit).ToArray()));
             }
 
             if (!isArtistIndex)
@@ -2470,7 +2517,7 @@ public class OpenSubsonicApiService(
                     (await Configuration.Value).GetValue<string>(SettingRegistry.ProcessingIgnoredArticles) ??
                     string.Empty, lastModified,
                     [],
-                    artists.ToArray(),
+                    artistIndexes.ToArray(),
                     []);
             }
             else
@@ -2478,7 +2525,7 @@ public class OpenSubsonicApiService(
                 data = new Artists(
                     (await Configuration.Value).GetValue<string>(SettingRegistry.ProcessingIgnoredArticles) ??
                     string.Empty, lastModified,
-                    artists.ToArray());
+                    artistIndexes.ToArray());
             }
         }
 
@@ -2870,36 +2917,25 @@ public class OpenSubsonicApiService(
         await using (var scopedContext =
                      await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
-            var dbConn = scopedContext.Database.GetDbConnection();
-            var totalCountSql = """
-                                select COUNT(s."Id")
-                                from "Songs" s
-                                join "Albums" a on (s."AlbumId" = a."Id")
-                                join "Artists" aa on (a."ArtistId" = aa."Id")
-                                where @genre = any(a."Genres") or @genre = any(s."Genres")
-                                """;
-            var sql = """
-                      select s."Id"
-                      from "Songs" s
-                      join "Albums" a on (s."AlbumId" = a."Id")
-                      join "Artists" aa on (a."ArtistId" = aa."Id")
-                      where @genre = any(a."Genres") or @genre = any(s."Genres")
-                      offset @offset rows fetch next @takeSize rows only;
-                      """;
+            // Build EF Core query for songs by genre
+            var songQuery = scopedContext.Songs
+                .Include(x => x.Album).ThenInclude(x => x.Artist)
+                .Include(x => x.UserSongs.Where(ua => ua.UserId == authResponse.UserInfo.Id))
+                .AsNoTracking()
+                .Where(s => (s.Genres != null && s.Genres.Contains(genre)) || 
+                           (s.Album.Genres != null && s.Album.Genres.Contains(genre)));
 
-            totalCount = await dbConn
-                .ExecuteScalarAsync<long>(totalCountSql, new { genre })
+            // Get total count
+            totalCount = await songQuery.CountAsync(cancellationToken).ConfigureAwait(false);
+
+            // Apply pagination and get songs
+            var takeSize = (count ?? indexLimit) < indexLimit ? (count ?? indexLimit) : indexLimit;
+            var dbSongs = await songQuery
+                .Skip(offset ?? 0)
+                .Take(takeSize)
+                .ToArrayAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            var dbSongIds =
-                (await dbConn
-                    .QueryAsync<int>(sql, new { genre, offset, takeSize = count < indexLimit ? count : indexLimit })
-                    .ConfigureAwait(false)).ToArray();
-            var dbSongs = await (from s in scopedContext.Songs
-                    .Include(x => x.Album).ThenInclude(x => x.Artist)
-                    .Include(x => x.UserSongs.Where(ua => ua.UserId == authResponse.UserInfo.Id))
-                join ss in dbSongIds on s.Id equals ss
-                select s).ToArrayAsync(cancellationToken).ConfigureAwait(false);
             songs = dbSongs.Select(x => x.ToApiChild(x.Album, x.UserSongs.FirstOrDefault())).ToArray();
         }
 
@@ -3193,32 +3229,30 @@ public class OpenSubsonicApiService(
                 indexLimit = short.MaxValue;
             }
 
-            var dbConn = scopedContext.Database.GetDbConnection();
-            var sql = """
-                      select s."Id"
-                      from "Songs" s
-                      join "Albums" a on (s."AlbumId" = a."Id")
-                      join "Artists" aa on (a."ArtistId" = aa."Id")
-                      where (@genre = any(a."Genres") or @genre = any(s."Genres") or @genre = '')
-                      and (DATE_PART('year', a."ReleaseDate"::date) between @fromYear and @toYear)
-                      order by Random()
-                      offset 0 rows fetch next @takeSize rows only;
-                      """;
+            var takeSize = size < indexLimit ? size : indexLimit;
+            var genreFilter = genre ?? string.Empty;
+            var fromYearFilter = fromYear ?? 0;
+            var toYearFilter = toYear ?? 9999;
 
-            var dbSongIds = (await dbConn.QueryAsync<int>(sql,
-                    new
-                    {
-                        genre = genre ?? string.Empty,
-                        takeSize = size < indexLimit ? size : indexLimit,
-                        fromYear = fromYear ?? 0,
-                        toYear = toYear ?? 9999
-                    })
-                .ConfigureAwait(false)).ToArray();
-            var dbSongs = await (from s in scopedContext.Songs
-                    .Include(x => x.Album).ThenInclude(x => x.Artist)
-                    .Include(x => x.UserSongs.Where(ua => ua.UserId == authResponse.UserInfo.Id))
-                join ss in dbSongIds on s.Id equals ss
-                select s).ToArrayAsync(cancellationToken).ConfigureAwait(false);
+            // Build EF Core query for random songs with filters
+            var songQuery = scopedContext.Songs
+                .Include(x => x.Album).ThenInclude(x => x.Artist)
+                .Include(x => x.UserSongs.Where(ua => ua.UserId == authResponse.UserInfo.Id))
+                .AsNoTracking()
+                .Where(s => 
+                    (string.IsNullOrEmpty(genreFilter) || 
+                     (s.Genres != null && s.Genres.Contains(genreFilter)) ||
+                     (s.Album.Genres != null && s.Album.Genres.Contains(genreFilter))) &&
+                    s.Album.ReleaseDate.Year >= fromYearFilter &&
+                    s.Album.ReleaseDate.Year <= toYearFilter);
+
+            // Get random songs using OrderBy(Guid.NewGuid()) as EF Core equivalent to Random()
+            var dbSongs = await songQuery
+                .OrderBy(x => Guid.NewGuid())
+                .Take(takeSize)
+                .ToArrayAsync(cancellationToken)
+                .ConfigureAwait(false);
+
             songs = dbSongs.Select(x => x.ToApiChild(x.Album, x.UserSongs.FirstOrDefault())).ToArray();
         }
 
