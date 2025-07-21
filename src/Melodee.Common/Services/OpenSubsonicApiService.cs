@@ -390,27 +390,24 @@ public class OpenSubsonicApiService(
         Error? notAuthorizedError = null;
         var result = false;
 
-        await using (var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        var apiKey = ApiKeyFromId(id);
+        var shareResult = await shareService.GetByApiKeyAsync(apiKey, cancellationToken).ConfigureAwait(false);
+        
+        if (shareResult.IsSuccess && shareResult.Data != null)
         {
-            var apiKey = ApiKeyFromId(id);
-            var share = await scopedContext
-                .Shares
-                .FirstOrDefaultAsync(x => x.ApiKey == apiKey, cancellationToken)
-                .ConfigureAwait(false);
-            if (share != null)
-            {
-                share.Description = description;
-                share.ExpiresAt = expires != null ? Instant.FromUnixTimeMilliseconds(expires.Value) : share.ExpiresAt;
-                var updateResult = await shareService.UpdateAsync(share, cancellationToken).ConfigureAwait(false);
-                notAuthorizedError =
-                    updateResult is
-                    {
-                        IsSuccess: false, Type: OperationResponseType.Unauthorized or OperationResponseType.AccessDenied
-                    }
-                        ? Error.UserNotAuthorizedError
-                        : Error.InvalidApiKeyError;
-                result = updateResult.IsSuccess;
-            }
+            var share = shareResult.Data;
+            share.Description = description;
+            share.ExpiresAt = expires != null ? Instant.FromUnixTimeMilliseconds(expires.Value) : share.ExpiresAt;
+            
+            var updateResult = await shareService.UpdateAsync(share, cancellationToken).ConfigureAwait(false);
+            notAuthorizedError =
+                updateResult is
+                {
+                    IsSuccess: false, Type: OperationResponseType.Unauthorized or OperationResponseType.AccessDenied
+                }
+                    ? Error.UserNotAuthorizedError
+                    : Error.InvalidApiKeyError;
+            result = updateResult.IsSuccess;
         }
 
         return new ResponseModel
@@ -446,27 +443,21 @@ public class OpenSubsonicApiService(
         Error? notAuthorizedError = null;
         var result = false;
 
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        var apiKey = ApiKeyFromId(id);
+        var shareResult = await shareService.GetByApiKeyAsync(apiKey, cancellationToken).ConfigureAwait(false);
+        
+        if (shareResult.IsSuccess && shareResult.Data != null)
         {
-            var apiKey = ApiKeyFromId(id);
-            var share = await scopedContext
-                .Shares
-                .FirstOrDefaultAsync(x => x.ApiKey == apiKey, cancellationToken)
-                .ConfigureAwait(false);
-            if (share != null)
-            {
-                var deleteResult = await shareService
-                    .DeleteAsync(authResponse.UserInfo.Id, [share.Id], cancellationToken).ConfigureAwait(false);
-                notAuthorizedError =
-                    deleteResult is
-                    {
-                        IsSuccess: false, Type: OperationResponseType.Unauthorized or OperationResponseType.AccessDenied
-                    }
-                        ? Error.UserNotAuthorizedError
-                        : Error.InvalidApiKeyError;
-                result = deleteResult.IsSuccess;
-            }
+            var deleteResult = await shareService
+                .DeleteAsync(authResponse.UserInfo.Id, [shareResult.Data.Id], cancellationToken).ConfigureAwait(false);
+            notAuthorizedError =
+                deleteResult is
+                {
+                    IsSuccess: false, Type: OperationResponseType.Unauthorized or OperationResponseType.AccessDenied
+                }
+                    ? Error.UserNotAuthorizedError
+                    : Error.InvalidApiKeyError;
+            result = deleteResult.IsSuccess;
         }
 
         return new ResponseModel
@@ -477,7 +468,6 @@ public class OpenSubsonicApiService(
                 notAuthorizedError ?? (result ? null : Error.InvalidApiKeyError))
         };
     }
-
 
     /// <summary>
     ///     Returns all playlists a user is allowed to play.
@@ -491,32 +481,21 @@ public class OpenSubsonicApiService(
         }
 
         var data = new List<Playlist>();
-        var sql = string.Empty;
 
         try
         {
-            await using (var scopedContext =
-                         await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+            var playlistsResult = await playlistService.GetPlaylistsForUserAsync(authResponse.UserInfo.Id, cancellationToken);
+            if (playlistsResult.IsSuccess && playlistsResult.Data != null)
             {
-                var playLists = await scopedContext
-                    .Playlists
-                    .Include(x => x.User)
-                    .Include(x => x.Songs).ThenInclude(x => x.Song).ThenInclude(x => x.Album).ThenInclude(x => x.Artist)
-                    .Include(x => x.Songs).ThenInclude(x => x.Song).ThenInclude(x =>
-                        x.UserSongs.Where(ua => ua.UserId == authResponse.UserInfo.Id))
-                    .Where(x => x.UserId == authResponse.UserInfo.Id)
-                    .AsSplitQuery()
-                    .ToArrayAsync(cancellationToken)
-                    .ConfigureAwait(false);
-                data = playLists.Select(x => x.ToApiPlaylist(false)).ToList();
-
-                var dynamicPlaylists = await playlistService.DynamicListAsync(authResponse.UserInfo, new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
-                data.AddRange(dynamicPlaylists.Data.Select(x => x.ToApiPlaylist(false, true)));
+                data = playlistsResult.Data.Select(x => x.ToApiPlaylist(false)).ToList();
             }
+
+            var dynamicPlaylists = await playlistService.DynamicListAsync(authResponse.UserInfo, new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
+            data.AddRange(dynamicPlaylists.Data.Select(x => x.ToApiPlaylist(false, true)));
         }
         catch (Exception e)
         {
-            Logger.Error(e, "Failed to get Playlists SQL [{Sql}] Request [{ApiResult}]", sql, apiRequest);
+            Logger.Error(e, "Failed to get Playlists Request [{ApiResult}]", apiRequest);
         }
 
         return new ResponseModel
@@ -604,34 +583,29 @@ public class OpenSubsonicApiService(
             }
         }
 
-        // Handle metadata updates with direct database access (TODO: Move to PlaylistService in future)
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        // Handle metadata updates using PlaylistService
+        if (updateRequest.Name != null || updateRequest.Comment != null || updateRequest.Public.HasValue)
         {
-            var playlist = await scopedContext
-                .Playlists
-                .Include(x => x.User)
-                .FirstOrDefaultAsync(x => x.ApiKey == apiKey, cancellationToken)
-                .ConfigureAwait(false);
-            
-            if (playlist != null)
+            var updateResult = await playlistService.UpdatePlaylistMetadataAsync(
+                apiKey.Value,
+                authResponse.UserInfo.Id,
+                updateRequest.Name,
+                updateRequest.Comment,
+                updateRequest.Public,
+                cancellationToken).ConfigureAwait(false);
+
+            if (updateResult.IsSuccess)
             {
-                if (playlist.UserId != authResponse.UserInfo.Id)
-                {
-                    notAuthorizedError = Error.UserNotAuthorizedError;
-                }
-                else
-                {
-                    // Update playlist metadata
-                    playlist.Comment = updateRequest.Comment;
-                    playlist.IsPublic = updateRequest.Public ?? playlist.IsPublic;
-                    playlist.Name = updateRequest.Name ?? playlist.Name;
-                    playlist.LastUpdatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow);
-                    
-                    await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                    result = true;
-                }
+                result = true;
             }
+            else if (updateResult.Type == OperationResponseType.AccessDenied)
+            {
+                notAuthorizedError = Error.UserNotAuthorizedError;
+            }
+        }
+        else
+        {
+            result = true; // No metadata to update, consider successful
         }
 
         return new ResponseModel
@@ -643,6 +617,7 @@ public class OpenSubsonicApiService(
         };
     }
 
+    // TODO: This should be moved to PlaylistService in the future.
     /// <summary>
     ///     Deletes a saved playlist.
     /// </summary>
@@ -691,6 +666,7 @@ public class OpenSubsonicApiService(
         };
     }
 
+    // TODO: This should be moved to PlaylistService in the future.
     public async Task<ResponseModel> CreatePlaylistAsync(
         string? id,
         string? name,
@@ -742,6 +718,7 @@ public class OpenSubsonicApiService(
         return await GetPlaylistAsync(playListId, apiRequest, cancellationToken);
     }
 
+    // TODO: This should be moved to PlaylistService in the future.
     /// <summary>
     ///     Returns a listing of files in a saved playlist.
     /// </summary>
@@ -870,6 +847,7 @@ public class OpenSubsonicApiService(
         };
     }
 
+    // TODO: This should be moved to AlbumService in the future.
     public async Task<ResponseModel> GetAlbumListAsync(
         GetAlbumListRequest albumListRequest,
         ApiRequest apiRequest,
@@ -999,6 +977,7 @@ public class OpenSubsonicApiService(
         };
     }
 
+    // TODO: This should be moved to AlbumService in the future.
     /// <summary>
     ///     Returns a list of random, newest, highest rated etc. albums.
     /// </summary>
@@ -1281,6 +1260,7 @@ public class OpenSubsonicApiService(
         };
     }
 
+    // TODO: This should be moved to AlbumService in the future.
     /// <summary>
     ///     Returns all genres.
     /// </summary>
@@ -1844,6 +1824,7 @@ public class OpenSubsonicApiService(
         };
     }
 
+    // TODO: This should be moved to UserQueueService in the future.
     public async Task<ResponseModel> GetPlayQueueAsync(ApiRequest apiRequest,
         CancellationToken cancellationToken = default)
     {
@@ -1887,6 +1868,7 @@ public class OpenSubsonicApiService(
         }
     }
 
+    // TODO: This should be moved to UserQueueService in the future.
     public async Task<ResponseModel> SavePlayQueueAsync(string[]? apiIds, string? currentApiId, double? position,
         ApiRequest apiRequest, CancellationToken cancellationToken)
     {
@@ -3042,6 +3024,7 @@ public class OpenSubsonicApiService(
         };
     }
 
+    // TODO: This should be moved to ArtistService in the future.
     public async Task<ResponseModel> GetArtistInfoAsync(string id,
         int? numberOfSimilarArtistsToReturn,
         bool isArtistInfo2,
@@ -3110,6 +3093,7 @@ public class OpenSubsonicApiService(
         };
     }
 
+    // TODO: This should be moved to AlbumService in the future.
     public async Task<ResponseModel> GetAlbumInfoAsync(string id, ApiRequest apiRequest,
         CancellationToken cancellationToken)
     {
@@ -3269,6 +3253,7 @@ public class OpenSubsonicApiService(
         };
     }
 
+    // TODO: This should be moved to RadioStationService in the future.
     public async Task<ResponseModel> DeleteInternetRadioStationAsync(string id, ApiRequest apiRequest,
         CancellationToken cancellationToken)
     {
@@ -3319,6 +3304,7 @@ public class OpenSubsonicApiService(
         };
     }
 
+    // TODO: This should be moved to RadioStationService in the future.
     public async Task<ResponseModel> CreateInternetRadioStationAsync(string name, string streamUrl, string? homePageUrl,
         ApiRequest apiRequest, CancellationToken cancellationToken)
     {
@@ -3371,6 +3357,7 @@ public class OpenSubsonicApiService(
         };
     }
 
+    // TODO: This should be moved to RadioStationService in the future.
     public async Task<ResponseModel> UpdateInternetRadioStationAsync(string id, string name, string streamUrl,
         string? homePageUrl, ApiRequest apiRequest, CancellationToken cancellationToken)
     {
@@ -3426,6 +3413,7 @@ public class OpenSubsonicApiService(
         };
     }
 
+    // TODO: This should be moved to RadioStationService in the future.
     public async Task<ResponseModel> GetInternetRadioStationsAsync(ApiRequest apiRequest, CancellationToken cancellationToken)
     {
         var authResponse = await AuthenticateSubsonicApiAsync(apiRequest, cancellationToken);
@@ -3465,6 +3453,7 @@ public class OpenSubsonicApiService(
         };
     }
 
+    // TODO: This should be moved to SongService in the future.
     public async Task<ResponseModel> GetLyricsListForSongIdAsync(string id, ApiRequest apiRequest, CancellationToken cancellationToken)
     {
         var authResponse = await AuthenticateSubsonicApiAsync(apiRequest, cancellationToken);
@@ -3512,6 +3501,7 @@ public class OpenSubsonicApiService(
         };
     }
 
+    // TODO: This should be moved to SongService in the future.
     public async Task<ResponseModel> GetLyricsForArtistAndTitleAsync(string? artist, string? title, ApiRequest apiRequest, CancellationToken cancellationToken)
     {
         var authResponse = await AuthenticateSubsonicApiAsync(apiRequest, cancellationToken);

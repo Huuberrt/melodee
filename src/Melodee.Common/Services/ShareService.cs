@@ -111,6 +111,25 @@ public class ShareService(
         };
     }
 
+    public async Task<MelodeeModels.OperationResult<Share?>> GetByApiKeyAsync(Guid apiKey,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Default(apiKey, nameof(apiKey));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        
+        var share = await scopedContext.Shares
+            .Include(s => s.User)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.ApiKey == apiKey, cancellationToken)
+            .ConfigureAwait(false);
+
+        return new MelodeeModels.OperationResult<Share?>
+        {
+            Data = share
+        };
+    }
+
     public async Task<MelodeeModels.OperationResult<Share?>> GetAsync(int id,
         CancellationToken cancellationToken = default)
     {

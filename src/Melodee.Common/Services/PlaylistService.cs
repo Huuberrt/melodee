@@ -659,4 +659,88 @@ public class PlaylistService(
             Data = result
         };
     }
+
+    /// <summary>
+    /// Get playlists for a user with full include structure needed for OpenSubsonic API
+    /// </summary>
+    public async Task<MelodeeModels.OperationResult<Playlist[]>> GetPlaylistsForUserAsync(int userId, CancellationToken cancellationToken = default)
+    {
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var playlists = await scopedContext
+            .Playlists
+            .Include(x => x.User)
+            .Include(x => x.Songs).ThenInclude(x => x.Song).ThenInclude(x => x.Album).ThenInclude(x => x.Artist)
+            .Include(x => x.Songs).ThenInclude(x => x.Song).ThenInclude(x =>
+                x.UserSongs.Where(ua => ua.UserId == userId))
+            .Where(x => x.UserId == userId)
+            .AsSplitQuery()
+            .AsNoTracking()
+            .ToArrayAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return new MelodeeModels.OperationResult<Playlist[]>
+        {
+            Data = playlists
+        };
+    }
+
+    /// <summary>
+    /// Update playlist metadata (name, comment, isPublic) for OpenSubsonic API
+    /// </summary>
+    public async Task<MelodeeModels.OperationResult<bool>> UpdatePlaylistMetadataAsync(
+        Guid playlistApiKey, 
+        int currentUserId, 
+        string? name = null, 
+        string? comment = null, 
+        bool? isPublic = null, 
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(_ => playlistApiKey == Guid.Empty, playlistApiKey, nameof(playlistApiKey));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var playlist = await scopedContext
+            .Playlists
+            .Include(x => x.User)
+            .FirstOrDefaultAsync(x => x.ApiKey == playlistApiKey, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (playlist == null)
+        {
+            return new MelodeeModels.OperationResult<bool>("Playlist not found.")
+            {
+                Data = false,
+                Type = MelodeeModels.OperationResponseType.NotFound
+            };
+        }
+
+        if (playlist.UserId != currentUserId)
+        {
+            return new MelodeeModels.OperationResult<bool>("Access denied.")
+            {
+                Data = false,
+                Type = MelodeeModels.OperationResponseType.AccessDenied
+            };
+        }
+
+        // Update playlist metadata
+        if (name != null) playlist.Name = name;
+        if (comment != null) playlist.Comment = comment;
+        if (isPublic.HasValue) playlist.IsPublic = isPublic.Value;
+        
+        playlist.LastUpdatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow);
+
+        var result = await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false) > 0;
+        
+        if (result)
+        {
+            await ClearCacheAsync(playlist.Id, cancellationToken).ConfigureAwait(false);
+        }
+
+        return new MelodeeModels.OperationResult<bool>
+        {
+            Data = result
+        };
+    }
 }
