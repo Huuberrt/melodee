@@ -1881,7 +1881,7 @@ public class OpenSubsonicApiService(
                 ResponseData = authResponse.ResponseData with
                 {
                     Data = current == null ? null : data,
-                    DataPropertyName = current == null ? string.Empty : "playQueue"
+                    DataPropertyName = "playQueue"
                 }
             };
         }
@@ -3246,19 +3246,19 @@ public class OpenSubsonicApiService(
                     s.Album.ReleaseDate.Year >= fromYearFilter &&
                     s.Album.ReleaseDate.Year <= toYearFilter);
 
-            // Get random songs using OrderBy(Guid.NewGuid()) as EF Core equivalent to Random()
-            var dbSongs = await songQuery
-                .OrderBy(x => Guid.NewGuid())
-                .Take(takeSize)
+            // Get random songs - first get all matching songs, then shuffle in memory
+            var allDbSongs = await songQuery
                 .ToArrayAsync(cancellationToken)
                 .ConfigureAwait(false);
+            // Shuffle and take the required number
+            var random = new Random();
+            var dbSongs = allDbSongs.OrderBy(x => random.Next()).Take(takeSize).ToArray();
 
             songs = dbSongs.Select(x => x.ToApiChild(x.Album, x.UserSongs.FirstOrDefault())).ToArray();
         }
 
         return new ResponseModel
         {
-            IsSuccess = songs.Length > 0,
             UserInfo = authResponse.UserInfo,
             ResponseData = await DefaultApiResponse() with
             {

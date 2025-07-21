@@ -5,6 +5,7 @@ using Melodee.Common.Extensions;
 using Melodee.Common.Models;
 using Melodee.Common.Models.OpenSubsonic;
 using Melodee.Common.Models.OpenSubsonic.Requests;
+using UserPlayer = Melodee.Common.Models.Scrobbling.UserPlayer;
 using Melodee.Common.Models.OpenSubsonic.Enums;
 using Melodee.Common.Utility;
 using NodaTime;
@@ -102,7 +103,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
             await context.SaveChangesAsync();
         }
 
-        var authResult = await GetOpenSubsonicApiService().AuthenticateSubsonicApiAsync(GetApiRequest(username, salt, HashHelper.CreateMd5($"wrongpassword{salt}") ?? string.Empty));
+        var authResult = await GetOpenSubsonicApiService().AuthenticateSubsonicApiAsync(GetApiRequestWithAuth(username, salt, HashHelper.CreateMd5($"wrongpassword{salt}") ?? string.Empty));
         Assert.NotNull(authResult);
         Assert.False(authResult.IsSuccess);
     }
@@ -134,7 +135,6 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         {
             var library = new Library
             {
-                Id = 1,
                 Name = "Test Library",
                 Path = "/test",
                 Type = (int)LibraryType.Storage,
@@ -217,7 +217,6 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         {
             var library = new Library
             {
-                Id = 1,
                 Name = "Test Library",
                 Path = "/test",
                 Type = (int)LibraryType.Storage,
@@ -313,7 +312,6 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         {
             var library = new Library
             {
-                Id = 1,
                 Name = "Test Library",
                 Path = "/test",
                 Type = (int)LibraryType.Storage,
@@ -394,7 +392,6 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         {
             var library = new Library
             {
-                Id = 1,
                 Name = "Test Library",
                 Path = "/test",
                 Type = (int)LibraryType.Storage,
@@ -473,7 +470,6 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         {
             var library = new Library
             {
-                Id = 1,
                 Name = "Test Library",
                 Path = "/test",
                 Type = (int)LibraryType.Storage,
@@ -536,7 +532,6 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         {
             var library = new Library
             {
-                Id = 1,
                 Name = "Test Library",
                 Path = "/test",
                 Type = (int)LibraryType.Storage,
@@ -600,7 +595,6 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         {
             var library = new Library
             {
-                Id = 1,
                 Name = "Test Library",
                 Path = "/test",
                 Type = (int)LibraryType.Storage,
@@ -642,7 +636,6 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         {
             var library = new Library
             {
-                Id = 1,
                 Name = "Test Library",
                 Path = "/test",
                 Type = (int)LibraryType.Storage,
@@ -771,7 +764,6 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         {
             var library = new Library
             {
-                Id = 1,
                 Name = "Test Library",
                 Path = "/test",
                 Type = (int)LibraryType.Storage,
@@ -1089,7 +1081,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         var username = "invalidUser";
         var password = "invalidPassword";
 
-        var result = await GetOpenSubsonicApiService().AuthenticateSubsonicApiAsync(GetApiRequest(username, "123456", password), CancellationToken.None);
+        var result = await GetOpenSubsonicApiService().AuthenticateSubsonicApiAsync(GetApiRequestWithAuth(username, "123456", password), CancellationToken.None);
         
         Assert.NotNull(result);
         Assert.False(result.IsSuccess);
@@ -1189,5 +1181,25 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         await using var context = await MockFactory().CreateDbContextAsync();
         var song = context.Songs.FirstOrDefault();
         return song?.ApiKey ?? Guid.NewGuid();
+    }
+    
+    private ApiRequest GetApiRequestWithAuth(string username, string salt, string password)
+    {
+        return new ApiRequest(
+            [],
+            true, // RequiresAuthentication = true
+            username,
+            "1.16.1",
+            "json",
+            null,
+            null,
+            password,
+            salt,
+            null,
+            null,
+            new UserPlayer(null,
+                null,
+                null,
+                null));
     }
 }
