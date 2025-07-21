@@ -13,6 +13,7 @@ using Melodee.Common.Models.Collection;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Plugins.Conversion.Image;
 using Melodee.Common.Serialization;
+using Melodee.Common.Utility;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Extensions;
 using Microsoft.EntityFrameworkCore;
@@ -1061,6 +1062,7 @@ public class ArtistService(
         {
             return new MelodeeModels.OperationResult<(Artist, Artist[])>("Artist not found.")
             {
+                Data = (null!, Array.Empty<Artist>()),
                 Type = MelodeeModels.OperationResponseType.NotFound
             };
         }

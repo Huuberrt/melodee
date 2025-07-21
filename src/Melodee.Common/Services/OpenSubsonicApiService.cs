@@ -393,7 +393,17 @@ public class OpenSubsonicApiService(
         var result = false;
 
         var apiKey = ApiKeyFromId(id);
-        var shareResult = await shareService.GetByApiKeyAsync(apiKey, cancellationToken).ConfigureAwait(false);
+        if (apiKey == null)
+        {
+            return new ResponseModel
+            {
+                UserInfo = UserInfo.BlankUserInfo,
+                IsSuccess = false,
+                ResponseData = await NewApiResponse(false, string.Empty, string.Empty, Error.InvalidApiKeyError)
+            };
+        }
+        
+        var shareResult = await shareService.GetByApiKeyAsync(apiKey.Value, cancellationToken).ConfigureAwait(false);
         
         if (shareResult.IsSuccess && shareResult.Data != null)
         {
@@ -446,7 +456,17 @@ public class OpenSubsonicApiService(
         var result = false;
 
         var apiKey = ApiKeyFromId(id);
-        var shareResult = await shareService.GetByApiKeyAsync(apiKey, cancellationToken).ConfigureAwait(false);
+        if (apiKey == null)
+        {
+            return new ResponseModel
+            {
+                UserInfo = UserInfo.BlankUserInfo,
+                IsSuccess = false,
+                ResponseData = await NewApiResponse(false, string.Empty, string.Empty, Error.InvalidApiKeyError)
+            };
+        }
+        
+        var shareResult = await shareService.GetByApiKeyAsync(apiKey.Value, cancellationToken).ConfigureAwait(false);
         
         if (shareResult.IsSuccess && shareResult.Data != null)
         {
@@ -1781,7 +1801,6 @@ public class OpenSubsonicApiService(
         };
     }
 
-    // TODO: This should be moved to UserQueueService in the future.
     public async Task<ResponseModel> GetPlayQueueAsync(ApiRequest apiRequest,
         CancellationToken cancellationToken = default)
     {
@@ -1791,41 +1810,19 @@ public class OpenSubsonicApiService(
             return authResponse with { UserInfo = UserInfo.BlankUserInfo };
         }
 
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        var data = await userQueueService.GetPlayQueueForUserAsync(apiRequest.Username!, cancellationToken);
+
+        return new ResponseModel
         {
-            var user = await userService.GetByUsernameAsync(apiRequest.Username!, cancellationToken)
-                .ConfigureAwait(false);
-            var usersPlayQues = await scopedContext
-                .PlayQues.Include(x => x.Song).ThenInclude(x => x.Album).ThenInclude(x => x.Artist)
-                .Where(x => x.UserId == user.Data!.Id)
-                .ToArrayAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            var current = usersPlayQues.FirstOrDefault(x => x.IsCurrentSong);
-            var data = new PlayQueue
+            UserInfo = UserInfo.BlankUserInfo,
+            ResponseData = authResponse.ResponseData with
             {
-                Current = current?.PlayQueId ?? 0,
-                Position = current?.Position ?? 0,
-                ChangedBy = current?.ChangedBy ?? user.Data!.UserName,
-                Changed = current?.LastUpdatedAt.ToString() ?? string.Empty,
-                Username = user.Data!.UserName,
-                Entry = usersPlayQues.Select(x => x.Song.ToApiChild(x.Song.Album, null)).ToArray()
-            };
-
-            return new ResponseModel
-            {
-                UserInfo = UserInfo.BlankUserInfo,
-                ResponseData = authResponse.ResponseData with
-                {
-                    Data = current == null ? null : data,
-                    DataPropertyName = "playQueue"
-                }
-            };
-        }
+                Data = data,
+                DataPropertyName = "playQueue"
+            }
+        };
     }
 
-    // TODO: This should be moved to UserQueueService in the future.
     public async Task<ResponseModel> SavePlayQueueAsync(string[]? apiIds, string? currentApiId, double? position,
         ApiRequest apiRequest, CancellationToken cancellationToken)
     {
@@ -1835,93 +1832,14 @@ public class OpenSubsonicApiService(
             return authResponse with { UserInfo = UserInfo.BlankUserInfo };
         }
 
-        bool result;
-        var apiKeys = apiIds?.Select(x => ApiKeyFromId(x)!.Value).ToArray();
-        var current = ApiKeyFromId(currentApiId);
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
-        {
-            // If the apikey is blank then remove any current saved que
-            if (apiKeys == null)
-            {
-                var user = await userService.GetByUsernameAsync(apiRequest.Username!, cancellationToken).ConfigureAwait(false);
-                if (user.IsSuccess && user.Data != null)
-                {
-                    var playQuesToDelete = await scopedContext.PlayQues
-                        .Where(pq => pq.UserId == user.Data.Id)
-                        .ToArrayAsync(cancellationToken)
-                        .ConfigureAwait(false);
-                    
-                    scopedContext.PlayQues.RemoveRange(playQuesToDelete);
-                    await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                }
-                result = true;
-            }
-            else
-            {
-                var foundQuesSongApiKeys = new List<Guid>();
-                var user = await userService.GetByUsernameAsync(apiRequest.Username!, cancellationToken)
-                    .ConfigureAwait(false);
-                var usersPlayQues = await scopedContext
-                    .PlayQues.Include(x => x.Song)
-                    .Where(x => x.UserId == user.Data!.Id)
-                    .ToArrayAsync(cancellationToken)
-                    .ConfigureAwait(false);
-                var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
-                var changedByValue = apiRequest.ApiRequestPlayer.Client ?? user.Data!.UserName;
-                if (usersPlayQues.Length > 0)
-                {
-                    foreach (var userPlay in usersPlayQues)
-                    {
-                        if (!apiKeys.Contains(userPlay.Song.ApiKey))
-                        {
-                            scopedContext.PlayQues.Remove(userPlay);
-                            continue;
-                        }
-
-                        if (userPlay.Song.ApiKey == current)
-                        {
-                            userPlay.Position = position ?? 0;
-                        }
-
-                        userPlay.IsCurrentSong = userPlay.Song.ApiKey == current;
-                        userPlay.LastUpdatedAt = now;
-                        userPlay.ChangedBy = changedByValue;
-                        foundQuesSongApiKeys.Add(userPlay.Song.ApiKey);
-                    }
-                }
-
-                var addedPlayQues = new List<dbModels.PlayQueue>();
-                foreach (var apiKeyToAdd in apiKeys.Except(foundQuesSongApiKeys))
-                {
-                    var song = await scopedContext.Songs
-                        .FirstOrDefaultAsync(x => x.ApiKey == apiKeyToAdd, cancellationToken).ConfigureAwait(false);
-                    if (song != null)
-                    {
-                        addedPlayQues.Add(new dbModels.PlayQueue
-                        {
-                            PlayQueId = addedPlayQues.Count + 1,
-                            CreatedAt = now,
-                            IsCurrentSong = song.ApiKey == current,
-                            UserId = user.Data!.Id,
-                            SongId = song.Id,
-                            SongApiKey = song.ApiKey,
-                            ChangedBy = changedByValue,
-                            Position = apiKeyToAdd == current && position.HasValue ? position.Value : 0
-                        });
-                    }
-                }
-
-                if (addedPlayQues.Count > 0)
-                {
-                    await scopedContext.PlayQues.AddRangeAsync(addedPlayQues, cancellationToken).ConfigureAwait(false);
-                }
-
-                await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                result = true;
-            }
-        }
-
+        var result = await userQueueService.SavePlayQueueForUserAsync(
+            apiRequest.Username!, 
+            apiIds, 
+            currentApiId, 
+            position, 
+            apiRequest.ApiRequestPlayer.Client,
+            cancellationToken);
+        
         return new ResponseModel
         {
             UserInfo = UserInfo.BlankUserInfo,

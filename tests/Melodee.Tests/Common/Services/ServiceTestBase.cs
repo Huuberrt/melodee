@@ -246,6 +246,8 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             GetArtistSearchEngineService(),
             GetPlaylistService(),
             GetShareService(),
+            GetRadioStationService(),
+            GetUserQueueService(),
             MockBus(),
             GetLyricPlugin());
     }
@@ -448,5 +450,25 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Data);
+    }
+
+    protected RadioStationService GetRadioStationService()
+    {
+        return new RadioStationService(Logger, CacheManager, MockFactory());
+    }
+
+    protected UserQueueService GetUserQueueService()
+    {
+        return new UserQueueService(
+            Logger,
+            CacheManager,
+            MockFactory(),
+            MockConfigurationFactory(),
+            GetLibraryService(),
+            GetArtistService(),
+            GetAlbumService(),
+            GetSongService(),
+            GetUserService(),
+            MockBus());
     }
 }

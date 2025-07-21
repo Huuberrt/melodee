@@ -644,6 +644,7 @@ public class SongService(
         {
             return new MelodeeModels.OperationResult<(Song, string, string)>("Song not found.")
             {
+                Data = (null!, string.Empty, string.Empty),
                 Type = MelodeeModels.OperationResponseType.NotFound
             };
         }
@@ -678,6 +679,7 @@ public class SongService(
         {
             return new MelodeeModels.OperationResult<(Song, string, string)>("Artist not found.")
             {
+                Data = (null!, string.Empty, string.Empty),
                 Type = MelodeeModels.OperationResponseType.NotFound
             };
         }
@@ -687,6 +689,7 @@ public class SongService(
         {
             return new MelodeeModels.OperationResult<(Song, string, string)>("Song not found.")
             {
+                Data = (null!, string.Empty, string.Empty),
                 Type = MelodeeModels.OperationResponseType.NotFound
             };
         }

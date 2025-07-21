@@ -168,7 +168,8 @@ builder.Services
     .AddScoped<MelodeeMetadataMaker>()
     .AddScoped<AlbumRescanEventHandler>()
     .AddScoped<AlbumAddEventHandler>()
-    .AddScoped<ILyricPlugin, LyricPlugin>();
+    .AddScoped<ILyricPlugin, LyricPlugin>()
+    .AddScoped<UserQueueService>();
 
 #endregion
 

@@ -84,6 +84,7 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddScoped<SongService>();
         services.AddScoped<PlaylistService>();
         services.AddScoped<UserService>();
+        services.AddScoped<UserQueueService>();
 
         return services.BuildServiceProvider();
     }
