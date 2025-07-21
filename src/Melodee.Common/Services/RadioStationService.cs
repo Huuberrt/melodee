@@ -378,4 +378,72 @@ public class RadioStationService(
             Data = result
         };
     }
+
+    public async Task<MelodeeModels.OperationResult<RadioStation?>> GetByApiKeyAsync(Guid apiKey,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(_ => apiKey == Guid.Empty, apiKey, nameof(apiKey));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        
+        var radioStation = await scopedContext.RadioStations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.ApiKey == apiKey, cancellationToken)
+            .ConfigureAwait(false);
+
+        return new MelodeeModels.OperationResult<RadioStation?>
+        {
+            Data = radioStation
+        };
+    }
+
+    public async Task<MelodeeModels.OperationResult<bool>> DeleteByApiKeyAsync(Guid apiKey, int currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(_ => apiKey == Guid.Empty, apiKey, nameof(apiKey));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var radioStation = await scopedContext.RadioStations
+            .FirstOrDefaultAsync(x => x.ApiKey == apiKey, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (radioStation == null)
+        {
+            return new MelodeeModels.OperationResult<bool>("Radio station not found.")
+            {
+                Data = false,
+                Type = MelodeeModels.OperationResponseType.NotFound
+            };
+        }
+
+        scopedContext.RadioStations.Remove(radioStation);
+        var result = await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false) > 0;
+
+        if (result)
+        {
+            CacheManager.Remove(CacheKeyDetailTemplate.FormatSmart(radioStation.Id));
+            CacheManager.Remove(CacheKeyDetailByApiKeyTemplate.FormatSmart(radioStation.ApiKey));
+        }
+
+        return new MelodeeModels.OperationResult<bool>
+        {
+            Data = result
+        };
+    }
+
+    public async Task<MelodeeModels.OperationResult<RadioStation?>> CreateAsync(string name, string streamUrl, string? homePageUrl,
+        CancellationToken cancellationToken = default)
+    {
+        var radioStation = new RadioStation
+        {
+            Name = name,
+            StreamUrl = streamUrl,
+            HomePageUrl = homePageUrl,
+            ApiKey = Guid.NewGuid(),
+            CreatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow)
+        };
+
+        return await AddAsync(radioStation, cancellationToken);
+    }
 }

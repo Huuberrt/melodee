@@ -1041,4 +1041,54 @@ public class ArtistService(
             return new MelodeeModels.ImageBytesAndEtag(imageBytes, (artist.Data.LastUpdatedAt ?? artist.Data.CreatedAt).ToEtag());
         }, cancellationToken, configuration.CacheDuration(), Artist.CacheRegion);
     }
+
+    /// <summary>
+    /// Get artist with similar artists for OpenSubsonic API
+    /// </summary>
+    public async Task<MelodeeModels.OperationResult<(Artist artist, Artist[] similarArtists)>> GetArtistWithSimilarAsync(
+        Guid apiKey, 
+        int? numberOfSimilarArtists = null, 
+        CancellationToken cancellationToken = default)
+    {
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var artist = await scopedContext.Artists
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.ApiKey == apiKey, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (artist == null)
+        {
+            return new MelodeeModels.OperationResult<(Artist, Artist[])>("Artist not found.")
+            {
+                Type = MelodeeModels.OperationResponseType.NotFound
+            };
+        }
+
+        Artist[] similarArtists = [];
+        
+        if (numberOfSimilarArtists > 0)
+        {
+            var similarArtistRelationType = SafeParser.ToNumber<int>(ArtistRelationType.Similar);
+            var similarDbArtists = await scopedContext.ArtistRelation
+                .Include(x => x.RelatedArtist)
+                .Where(x => x.ArtistId == artist.Id)
+                .Where(x => x.ArtistRelationType == similarArtistRelationType)
+                .OrderBy(x => x.Artist.SortName)
+                .Take(numberOfSimilarArtists.Value)
+                .AsNoTracking()
+                .ToArrayAsync(cancellationToken)
+                .ConfigureAwait(false);
+                
+            if (similarDbArtists.Any())
+            {
+                similarArtists = similarDbArtists.Select(x => x.RelatedArtist).ToArray();
+            }
+        }
+
+        return new MelodeeModels.OperationResult<(Artist, Artist[])>
+        {
+            Data = (artist, similarArtists)
+        };
+    }
 }

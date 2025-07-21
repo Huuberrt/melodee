@@ -61,6 +61,7 @@ public class OpenSubsonicApiService(
     ArtistSearchEngineService artistSearchEngineService,
     PlaylistService playlistService,
     ShareService shareService,
+    RadioStationService radioStationService,
     IBus bus,
     ILyricPlugin lyricPlugin
 )
@@ -3024,7 +3025,6 @@ public class OpenSubsonicApiService(
         };
     }
 
-    // TODO: This should be moved to ArtistService in the future.
     public async Task<ResponseModel> GetArtistInfoAsync(string id,
         int? numberOfSimilarArtistsToReturn,
         bool isArtistInfo2,
@@ -3038,32 +3038,21 @@ public class OpenSubsonicApiService(
         }
 
         ArtistInfo? data = null;
-
-        await using (var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        var apiKey = ApiKeyFromId(id);
+        
+        if (apiKey != null)
         {
-            var apiKey = ApiKeyFromId(id);
-            var artist = await scopedContext.Artists.FirstOrDefaultAsync(x => x.ApiKey == apiKey, cancellationToken)
-                .ConfigureAwait(false);
-            if (artist != null)
+            var artistResult = await artistService.GetArtistWithSimilarAsync(apiKey.Value, numberOfSimilarArtistsToReturn, cancellationToken);
+            
+            if (artistResult.IsSuccess)
             {
+                var (artist, similarArtists) = artistResult.Data;
                 var configuration = await Configuration.Value;
 
-                Artist[]? similarArtists = null;
-                if (numberOfSimilarArtistsToReturn > 0)
+                Artist[]? similarArtistModels = null;
+                if (similarArtists.Any())
                 {
-                    var similarArtistRelationType = SafeParser.ToNumber<int>(ArtistRelationType.Similar);
-                    var similarDbArtists = await scopedContext.ArtistRelation
-                        .Include(x => x.RelatedArtist)
-                        .Where(x => x.ArtistId == artist.Id)
-                        .Where(x => x.ArtistRelationType == similarArtistRelationType)
-                        .OrderBy(x => x.Artist.SortName)
-                        .Take(numberOfSimilarArtistsToReturn.Value)
-                        .ToArrayAsync(cancellationToken)
-                        .ConfigureAwait(false);
-                    if (similarDbArtists.Any())
-                    {
-                        similarArtists = similarDbArtists.Select(x => x.RelatedArtist.ToApiArtist()).ToArray();
-                    }
+                    similarArtistModels = similarArtists.Select(x => x.ToApiArtist()).ToArray();
                 }
 
                 data = new ArtistInfo(artist.ToApiKey(),
@@ -3076,7 +3065,7 @@ public class OpenSubsonicApiService(
                     artist.Biography,
                     artist.MusicBrainzId,
                     artist.LastFmId,
-                    similarArtists,
+                    similarArtistModels,
                     isArtistInfo2);
             }
         }
@@ -3253,7 +3242,6 @@ public class OpenSubsonicApiService(
         };
     }
 
-    // TODO: This should be moved to RadioStationService in the future.
     public async Task<ResponseModel> DeleteInternetRadioStationAsync(string id, ApiRequest apiRequest,
         CancellationToken cancellationToken)
     {
@@ -3279,20 +3267,11 @@ public class OpenSubsonicApiService(
             };
         }
 
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        var apiKey = ApiKeyFromId(id);
+        if (apiKey != null)
         {
-            var apiKey = ApiKeyFromId(id);
-            var radioStation = await scopedContext
-                .RadioStations
-                .FirstOrDefaultAsync(x => x.ApiKey == apiKey, cancellationToken)
-                .ConfigureAwait(false);
-            if (radioStation != null)
-            {
-                scopedContext.RadioStations.Remove(radioStation);
-                await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                result = true;
-            }
+            var deleteResult = await radioStationService.DeleteByApiKeyAsync(apiKey.Value, authResponse.UserInfo.Id, cancellationToken);
+            result = deleteResult.IsSuccess;
         }
 
         return new ResponseModel
@@ -3304,7 +3283,6 @@ public class OpenSubsonicApiService(
         };
     }
 
-    // TODO: This should be moved to RadioStationService in the future.
     public async Task<ResponseModel> CreateInternetRadioStationAsync(string name, string streamUrl, string? homePageUrl,
         ApiRequest apiRequest, CancellationToken cancellationToken)
     {
@@ -3328,21 +3306,11 @@ public class OpenSubsonicApiService(
         }
 
         Error? notAuthorizedError = null;
-        bool result;
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        var createResult = await radioStationService.CreateAsync(name, streamUrl, homePageUrl, cancellationToken);
+        var result = createResult.IsSuccess;
+        
+        if (result)
         {
-            var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
-
-            var radioStation = new dbModels.RadioStation
-            {
-                Name = name,
-                StreamUrl = streamUrl,
-                CreatedAt = now
-            };
-            await scopedContext.RadioStations.AddAsync(radioStation, cancellationToken).ConfigureAwait(false);
-            await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            result = true;
             Logger.Information("User [{UserInfo}] created radio station [{Name}].",
                 authResponse.UserInfo,
                 name);

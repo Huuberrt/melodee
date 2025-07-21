@@ -10,17 +10,7 @@ namespace Melodee.Common.Services;
 /// <summary>
 /// Handles user queue operations.
 /// </summary>
-/// <param name="logger"></param>
-/// <param name="cacheManager"></param>
-/// <param name="contextFactory"></param>
-/// <param name="configurationFactory"></param>
-/// <param name="libraryService"></param>
-/// <param name="artistService"></param>
-/// <param name="albumService"></param>
-/// <param name="songService"></param>
-/// <param name="playlistService"></param>
-/// <param name="bus"></param>
-public class UserQueService(
+public class UserQueueService(
     ILogger logger,
     ICacheManager cacheManager,
     IDbContextFactory<MelodeeDbContext> contextFactory,
@@ -29,7 +19,6 @@ public class UserQueService(
     ArtistService artistService,
     AlbumService albumService,
     SongService songService,
-    PlaylistService playlistService,
     IBus bus)
     : ServiceBase(logger, cacheManager, contextFactory)
 {
