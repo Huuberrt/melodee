@@ -14,6 +14,54 @@ public sealed class StatisticsService(
     IDbContextFactory<MelodeeDbContext> contextFactory)
     : ServiceBase(logger, cacheManager, contextFactory)
 {
+    public async Task<OperationResult<Statistic?>> GetAlbumCountAsync(CancellationToken cancellationToken = default)
+    {
+        var stats = await GetStatisticsAsync(cancellationToken).ConfigureAwait(false);
+        if (!stats.IsSuccess)
+        {
+            return new OperationResult<Statistic?>
+            {
+                Data = null
+            };
+        }
+        return new OperationResult<Statistic?>
+        {
+            Data = stats.Data.FirstOrDefault(x => x is { Type: StatisticType.Count, Category: StatisticCategory.CountAlbum })
+        };
+    }
+    
+    public async Task<OperationResult<Statistic?>> GetArtistCountAsync(CancellationToken cancellationToken = default)
+    {
+        var stats = await GetStatisticsAsync(cancellationToken).ConfigureAwait(false);
+        if (!stats.IsSuccess)
+        {
+            return new OperationResult<Statistic?>
+            {
+                Data = null
+            };
+        }
+        return new OperationResult<Statistic?>
+        {
+            Data = stats.Data.FirstOrDefault(x => x is { Type: StatisticType.Count, Category: StatisticCategory.CountArtist })
+        };
+    }    
+    
+    public async Task<OperationResult<Statistic?>> GetSongCountAsync(CancellationToken cancellationToken = default)
+    {
+        var stats = await GetStatisticsAsync(cancellationToken).ConfigureAwait(false);
+        if (!stats.IsSuccess)
+        {
+            return new OperationResult<Statistic?>
+            {
+                Data = null
+            };
+        }
+        return new OperationResult<Statistic?>
+        {
+            Data = stats.Data.FirstOrDefault(x => x is { Type: StatisticType.Count, Category: StatisticCategory.CountSong })
+        };
+    }      
+    
     public async Task<OperationResult<Statistic[]>> GetStatisticsAsync(CancellationToken cancellationToken = default)
     {
         var results = new List<Statistic>();
@@ -66,17 +114,17 @@ public sealed class StatisticsService(
 
         // Build results efficiently
         results.AddRange([
-            new Statistic(StatisticType.Count, "Albums", albumsCountTask.Result, null, null, 1, "album", true),
-            new Statistic(StatisticType.Count, "Artists", artistsCountTask.Result, null, null, 2, "artist", true),
+            new Statistic(StatisticType.Count, "Albums", albumsCountTask.Result, null, null, 1, "album", true, StatisticCategory.CountAlbum),
+            new Statistic(StatisticType.Count, "Artists", artistsCountTask.Result, null, null, 2, "artist", true, StatisticCategory.CountArtist),
             new Statistic(StatisticType.Count, "Contributors", contributorsCountTask.Result, null, null, 3, "contacts_product"),
             new Statistic(StatisticType.Count, "Genres", genresCountTask.Result, null, null, 4, "genres"),
             new Statistic(StatisticType.Count, "Libraries", librariesCountTask.Result, null, null, 5, "library_music"),
             new Statistic(StatisticType.Count, "Playlists", playlistsCountTask.Result, null, null, 6, "playlist_play", true),
             new Statistic(StatisticType.Count, "Radio Stations", radioStationsCountTask.Result, null, null, 7, "radio"),
             new Statistic(StatisticType.Count, "Shares", sharesCountTask.Result, null, null, 8, "share"),
-            new Statistic(StatisticType.Count, "Songs", songsCountTask.Result, null, null, 9, "music_note", true),
+            new Statistic(StatisticType.Count, "Songs", songsCountTask.Result, null, null, 9, "music_note", true, StatisticCategory.CountSong),
             new Statistic(StatisticType.Count, "Songs: Played count", songsPlayedCountTask.Result, null, null, 10, "analytics"),
-            new Statistic(StatisticType.Count, "Users", usersCountTask.Result, null, null, 11, "group"),
+            new Statistic(StatisticType.Count, "Users", usersCountTask.Result, null, null, 11, "group", false, StatisticCategory.CountUsers),
             new Statistic(StatisticType.Count, "Users: Favorited artists", userArtistsFavoritedTask.Result, null, null, 12, "analytics"),
             new Statistic(StatisticType.Count, "Users: Favorited albums", userAlbumsFavoritedTask.Result, null, null, 13, "analytics"),
             new Statistic(StatisticType.Count, "Users: Favorited songs", userSongsFavoritedTask.Result, null, null, 14, "analytics"),

@@ -5,11 +5,6 @@ namespace Melodee.Tests.Common.Services;
 
 public class StatisticsServiceTests : ServiceTestBase
 {
-    private StatisticsService GetStatisticsService()
-    {
-        return new StatisticsService(Logger, CacheManager, MockFactory());
-    }
-
     [Fact]
     public async Task GetStatisticsAsync_ShouldReturnAllStatistics_WhenDatabaseIsEmpty()
     {

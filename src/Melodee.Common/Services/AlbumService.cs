@@ -678,7 +678,8 @@ public class AlbumService(
         }
     }
 
-    public async Task<MelodeeModels.OperationResult<bool>> RescanAsync(int[] albumIds,
+    public async Task<MelodeeModels.OperationResult<bool>> RescanAsync(
+        int[] albumIds,
         CancellationToken cancellationToken = default)
     {
         Guard.Against.NullOrEmpty(albumIds, nameof(albumIds));
@@ -716,7 +717,9 @@ public class AlbumService(
         };
     }
 
-    public async Task<MelodeeModels.OperationResult<bool>> LockUnlockAlbumAsync(int albumId, bool doLock,
+    public async Task<MelodeeModels.OperationResult<bool>> LockUnlockAlbumAsync(
+        int albumId, 
+        bool doLock,
         CancellationToken cancellationToken = default)
     {
         Guard.Against.Expression(x => x < 1, albumId, nameof(albumId));
@@ -799,7 +802,10 @@ public class AlbumService(
         };
     }
 
-    public async Task<MelodeeModels.ImageBytesAndEtag> GetAlbumImageBytesAndEtagAsync(Guid? apiKey, string? size = null, CancellationToken cancellationToken = default)
+    public async Task<MelodeeModels.ImageBytesAndEtag> GetAlbumImageBytesAndEtagAsync(
+        Guid? apiKey, 
+        string? size = null, 
+        CancellationToken cancellationToken = default)
     {
         Guard.Against.Null(apiKey, nameof(apiKey));
         Guard.Against.Expression(x => x == Guid.Empty, apiKey.Value, nameof(apiKey));

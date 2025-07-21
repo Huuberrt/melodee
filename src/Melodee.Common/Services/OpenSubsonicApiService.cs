@@ -63,6 +63,7 @@ public class OpenSubsonicApiService(
     ShareService shareService,
     RadioStationService radioStationService,
     UserQueueService userQueueService,
+    StatisticsService statisticsService,
     IBus bus,
     ILyricPlugin lyricPlugin
 )
@@ -782,8 +783,7 @@ public class OpenSubsonicApiService(
 
         try
         {
-            await using (var scopedContext =
-                         await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+            await using (var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
             {
                 var sqlParameters = new Dictionary<string, object?>
                 {
@@ -915,8 +915,7 @@ public class OpenSubsonicApiService(
 
         try
         {
-            await using (var scopedContext =
-                         await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+            await using (var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
             {
                 var sqlParameters = new Dictionary<string, object?>
                 {
@@ -1942,8 +1941,7 @@ public class OpenSubsonicApiService(
 
         var nowPlaying = await scrobbleService.GetNowPlaying(cancellationToken).ConfigureAwait(false);
         var data = new List<Child>();
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        await using (var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
             var nowPlayingSongApiKeys = nowPlaying.Data.Select(x => x.Scrobble.SongApiKey).ToList();
             var nowPlayingSongs = await (from s in scopedContext
@@ -1993,7 +1991,10 @@ public class OpenSubsonicApiService(
         };
     }
 
-    public async Task<ResponseModel> SearchAsync(SearchRequest request, bool isSearch3, ApiRequest apiRequest,
+    public async Task<ResponseModel> SearchAsync(
+        SearchRequest request, 
+        bool isSearch3, 
+        ApiRequest apiRequest,
         CancellationToken cancellationToken)
     {
         var authResponse = await AuthenticateSubsonicApiAsync(apiRequest, cancellationToken);
@@ -2027,18 +2028,17 @@ public class OpenSubsonicApiService(
         // Handle total count requests for empty queries
         if (request.Query.Nullify() == null)
         {
-            await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
             if (request.AlbumCount == 1)
             {
-                totalCount = await scopedContext.Albums.LongCountAsync(cancellationToken);
+                totalCount = (await statisticsService.GetAlbumCountAsync(cancellationToken).ConfigureAwait(false)).Data?.DataAsLong ?? 0;
             }
             else if (request.ArtistCount == 1)
             {
-                totalCount = await scopedContext.Artists.LongCountAsync(cancellationToken);
+                totalCount = (await statisticsService.GetArtistCountAsync(cancellationToken).ConfigureAwait(false)).Data?.DataAsLong ?? 0;
             }
             else if (request.SongCount == 1)
             {
-                totalCount = await scopedContext.Songs.LongCountAsync(cancellationToken);
+                totalCount = (await statisticsService.GetSongCountAsync(cancellationToken).ConfigureAwait(false)).Data?.DataAsLong ?? 0;
             }
         }
 

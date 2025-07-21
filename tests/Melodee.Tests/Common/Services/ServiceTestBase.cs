@@ -248,6 +248,7 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             GetShareService(),
             GetRadioStationService(),
             GetUserQueueService(),
+            GetStatisticsService(),
             MockBus(),
             GetLyricPlugin());
     }
@@ -282,6 +283,11 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             MockHttpClientFactory(),
             GetMediaEditService(),
             MockFileSystemService());
+    }
+
+    protected StatisticsService GetStatisticsService()
+    {
+        return new StatisticsService(Logger, CacheManager, MockFactory());
     }
 
     protected LyricPlugin GetLyricPlugin()
