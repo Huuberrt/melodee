@@ -28,6 +28,18 @@ public class SongService(
     private const string CacheKeyDetailByTitleNormalizedTemplate = "urn:song:titlenormalized:{0}";
     private const string CacheKeyDetailTemplate = "urn:song:{0}";
 
+    // public async Task<dynamic[]?> DatabaseSongInfosForAlbumApiKey(Guid albumApiKey, CancellationToken cancellationToken = default)
+    // {
+    //     await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+    //
+    //     return await scopedContext.Songs
+    //         .Include(s => s.Album)
+    //         .Where(s => s.Album.ApiKey == albumApiKey)
+    //         .Select(s => new { s.Id, Name = s.Title })
+    //         .ToArrayAsync(cancellationToken)
+    //         .ConfigureAwait(false);
+    // }    
+    
     public async Task<MelodeeModels.PagedResult<SongDataInfo>> ListNowPlayingAsync(MelodeeModels.PagedRequest pagedRequest, CancellationToken cancellationToken = default)
     {
         var songCount = 0;
@@ -490,6 +502,125 @@ public class SongService(
                 },
                 numberOfBytesRead > 0,
                 trackBytes
+            )
+        };
+    }
+
+    public async Task<MelodeeModels.OperationResult<StreamResponse>> GetStreamForSongAsync(
+        MelodeeModels.UserInfo user, 
+        Guid apiKey, 
+        long rangeBegin = 0,
+        long rangeEnd = 0,
+        string? format = null,
+        int? maxBitRate = null,
+        bool isDownloadRequest = false,
+        CancellationToken cancellationToken = default)
+    {
+        var song = await GetByApiKeyAsync(apiKey, cancellationToken).ConfigureAwait(false);
+        if (song.Data == null)
+        {
+            return new MelodeeModels.OperationResult<StreamResponse>("Unknown song")
+            {
+                Type = MelodeeModels.OperationResponseType.NotFound,
+                Data = new StreamResponse
+                (
+                    new Dictionary<string, StringValues>([]),
+                    false,
+                    []
+                )
+            };
+        }
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        // Use EF Core query instead of raw SQL
+        var songStreamInfo = await scopedContext.Songs
+            .Where(s => s.ApiKey == apiKey)
+            .Include(s => s.Album)
+            .ThenInclude(a => a.Artist)
+            .ThenInclude(ar => ar.Library)
+            .AsNoTracking()
+            .Select(s => new SongStreamInfo(
+                s.Album.Artist.Library.Path + s.Album.Artist.Directory + s.Album.Directory + s.FileName,
+                s.FileSize,
+                s.Duration / 1000.0,
+                s.BitRate,
+                s.ContentType
+            ))
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!(songStreamInfo?.TrackFileInfo.Exists ?? false))
+        {
+            Logger.Warning("[{ServiceName}] Stream request for song that was not found. User [{User}] Song ApiKey [{ApiKey}]",
+                nameof(SongService), user.ToString(), apiKey);
+            return new MelodeeModels.OperationResult<StreamResponse>
+            {
+                Data = new StreamResponse
+                (
+                    new Dictionary<string, StringValues>([]),
+                    false,
+                    []
+                )
+            };
+        }
+
+        // Handle range requests
+        rangeEnd = rangeEnd == 0 ? songStreamInfo.FileSize : rangeEnd;
+        var bytesToRead = (int)(rangeEnd - rangeBegin) + 1;
+        if (bytesToRead > songStreamInfo.FileSize)
+        {
+            bytesToRead = (int)songStreamInfo.FileSize;
+        }
+
+        // Handle transcoding (placeholder for future implementation)
+        if (format != null || maxBitRate != null)
+        {
+            if (maxBitRate != null && maxBitRate != songStreamInfo.BitRate)
+            {
+                Logger.Warning("[{ServiceName}] Transcoding requested but not implemented. MaxBitRate [{MaxBitRate}] vs Song BitRate [{SongBitRate}]",
+                    nameof(SongService), maxBitRate, songStreamInfo.BitRate);
+                // For now, continue with original file
+            }
+        }
+
+        var trackBytes = new byte[bytesToRead];
+        var numberOfBytesRead = 0;
+        await using (var fs = songStreamInfo.TrackFileInfo.OpenRead())
+        {
+            try
+            {
+                fs.Seek(rangeBegin, SeekOrigin.Begin);
+                numberOfBytesRead = await fs.ReadAsync(trackBytes.AsMemory(0, bytesToRead), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Reading song [{SongInfo}] range [{RangeBegin}-{RangeEnd}]", songStreamInfo, rangeBegin, rangeEnd);
+            }
+        }
+
+        var headers = new Dictionary<string, StringValues>
+        {
+            { "Access-Control-Allow-Origin", "*" },
+            { "Accept-Ranges", "bytes" },
+            { "Cache-Control", "no-store, must-revalidate, no-cache, max-age=0" },
+            { "Content-Duration", songStreamInfo.Duration.ToString(CultureInfo.InvariantCulture) },
+            { "Content-Length", numberOfBytesRead.ToString() },
+            { "Content-Range", $"bytes {rangeBegin}-{rangeEnd}/{songStreamInfo.FileSize}" },
+            { "Content-Type", songStreamInfo.ContentType },
+            { "Expires", "Mon, 01 Jan 1990 00:00:00 GMT" }
+        };
+
+        return new MelodeeModels.OperationResult<StreamResponse>
+        {
+            Data = new StreamResponse
+            (
+                headers,
+                numberOfBytesRead > 0,
+                trackBytes,
+                isDownloadRequest ? songStreamInfo.TrackFileInfo.Name : null,
+                isDownloadRequest ? songStreamInfo.ContentType : null
             )
         };
     }

@@ -381,7 +381,7 @@ public class SongServiceTests : ServiceTestBase
         );
 
         // Act
-        var result = await _songService.GetStreamForSongAsync(user, nonExistentApiKey);
+        var result = await _songService.GetStreamForSongAsync(user, nonExistentApiKey, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);

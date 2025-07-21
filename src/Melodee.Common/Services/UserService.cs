@@ -373,18 +373,6 @@ public sealed class UserService(
             : await GetAsync(id.Value, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<dynamic[]?> DatabaseSongInfosForAlbumApiKey(Guid albumApiKey, CancellationToken cancellationToken = default)
-    {
-        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-
-        return await scopedContext.Songs
-            .Include(s => s.Album)
-            .Where(s => s.Album.ApiKey == albumApiKey)
-            .Select(s => new { s.Id, Name = s.Title })
-            .ToArrayAsync(cancellationToken)
-            .ConfigureAwait(false);
-    }
-
     public async Task<UserArtist?> UserArtistAsync(int userId, Guid artistApiKey,
         CancellationToken cancellationToken = default)
     {
@@ -714,6 +702,116 @@ public sealed class UserService(
         };
     }
 
+    public async Task<MelodeeModels.OperationResult<bool>> SetAlbumRatingAsync(int userId, Guid albumApiKey, int rating,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x < 1, userId, nameof(userId));
+
+        var result = false;
+        var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
+        await using (var scopedContext =
+                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var album = await albumService.GetByApiKeyAsync(albumApiKey, cancellationToken).ConfigureAwait(false);
+            if (album.Data != null)
+            {
+                var userAlbum = await scopedContext.UserAlbums
+                    .FirstOrDefaultAsync(x => x.UserId == userId && x.AlbumId == album.Data.Id, cancellationToken)
+                    .ConfigureAwait(false);
+                if (userAlbum == null)
+                {
+                    userAlbum = new UserAlbum
+                    {
+                        UserId = userId,
+                        AlbumId = album.Data.Id,
+                        CreatedAt = now
+                    };
+                    scopedContext.UserAlbums.Add(userAlbum);
+                }
+
+                userAlbum.Rating = rating;
+                userAlbum.LastUpdatedAt = now;
+                result = await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false) > 0;
+
+                var avgRating = await scopedContext.UserAlbums
+                    .Where(ua => ua.AlbumId == userAlbum.AlbumId)
+                    .AverageAsync(ua => (decimal?)ua.Rating, cancellationToken)
+                    .ConfigureAwait(false);
+
+                await scopedContext.Albums
+                    .Where(a => a.Id == userAlbum.AlbumId)
+                    .ExecuteUpdateAsync(a =>
+                        a.SetProperty(aa => aa.CalculatedRating, avgRating), cancellationToken)
+                    .ConfigureAwait(false);
+
+                await albumService.ClearCacheAsync(userAlbum.AlbumId, cancellationToken).ConfigureAwait(false);
+
+                var user = await GetAsync(userId, cancellationToken).ConfigureAwait(false);
+                ClearCache(user.Data!);
+            }
+        }
+
+        return new MelodeeModels.OperationResult<bool>
+        {
+            Data = result
+        };
+    }
+
+    public async Task<MelodeeModels.OperationResult<bool>> SetSongRatingAsync(int userId, Guid songApiKey, int rating,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x < 1, userId, nameof(userId));
+
+        var result = false;
+        var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
+        await using (var scopedContext =
+                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var song = await songService.GetByApiKeyAsync(songApiKey, cancellationToken).ConfigureAwait(false);
+            if (song.Data != null)
+            {
+                var userSong = await scopedContext.UserSongs
+                    .FirstOrDefaultAsync(x => x.UserId == userId && x.SongId == song.Data.Id, cancellationToken)
+                    .ConfigureAwait(false);
+                if (userSong == null)
+                {
+                    userSong = new UserSong
+                    {
+                        UserId = userId,
+                        SongId = song.Data.Id,
+                        CreatedAt = now
+                    };
+                    scopedContext.UserSongs.Add(userSong);
+                }
+
+                userSong.Rating = rating;
+                userSong.LastUpdatedAt = now;
+                result = await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false) > 0;
+
+                var avgRating = await scopedContext.UserSongs
+                    .Where(us => us.SongId == userSong.SongId)
+                    .AverageAsync(us => (decimal?)us.Rating, cancellationToken)
+                    .ConfigureAwait(false);
+
+                await scopedContext.Songs
+                    .Where(s => s.Id == userSong.SongId)
+                    .ExecuteUpdateAsync(s =>
+                        s.SetProperty(ss => ss.CalculatedRating, avgRating), cancellationToken)
+                    .ConfigureAwait(false);
+
+                await songService.ClearCacheAsync(userSong.SongId, cancellationToken).ConfigureAwait(false);
+
+                var user = await GetAsync(userId, cancellationToken).ConfigureAwait(false);
+                ClearCache(user.Data!);
+            }
+        }
+
+        return new MelodeeModels.OperationResult<bool>
+        {
+            Data = result
+        };
+    }
+
     public async Task<MelodeeModels.OperationResult<bool>> SaveProfileImageAsync(int userId, byte[] imageBytes,
         CancellationToken cancellationToken = default)
     {
@@ -900,6 +998,55 @@ public sealed class UserService(
 
         var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
 
+        await bus.SendLocal(new UserLoginEvent(user.Data!.Id, user.Data.UserName)).ConfigureAwait(false);
+
+        // Sets return object so consumer sees new value, actual update to DB happens in another non-blocking thread.
+        user.Data.LastActivityAt = now;
+        user.Data.LastLoginAt = now;
+        return user;
+    }
+
+    public async Task<MelodeeModels.OperationResult<User?>> ValidateTokenAsync(string username, string token, string salt, CancellationToken cancellationToken = default)
+    {
+        Guard.Against.NullOrWhiteSpace(username, nameof(username));
+        Guard.Against.NullOrWhiteSpace(token, nameof(token));
+        Guard.Against.NullOrWhiteSpace(salt, nameof(salt));
+
+        var user = await GetByUsernameAsync(username, cancellationToken).ConfigureAwait(false);
+        if (!user.IsSuccess || user.Data == null)
+        {
+            return new MelodeeModels.OperationResult<User?>("User not found")
+            {
+                Data = null,
+                Type = MelodeeModels.OperationResponseType.NotFound
+            };
+        }
+
+        if (user.Data.IsLocked)
+        {
+            return new MelodeeModels.OperationResult<User?>("User is locked")
+            {
+                Data = null,
+                Type = MelodeeModels.OperationResponseType.Unauthorized
+            };
+        }
+
+        var configuration = await configurationFactory.GetConfigurationAsync(cancellationToken);
+        var usersPassword = user.Data.Decrypt(user.Data.PasswordEncrypted, configuration);
+        var expectedToken = HashHelper.CreateMd5($"{usersPassword}{salt}");
+        var isAuthenticated = string.Equals(expectedToken, token, StringComparison.OrdinalIgnoreCase);
+
+        if (!isAuthenticated)
+        {
+            Log.Warning("[{ServiceName}] ValidateTokenAsync [{Username}] failed token validation", nameof(UserService), username);
+            return new MelodeeModels.OperationResult<User?>
+            {
+                Data = null,
+                Type = MelodeeModels.OperationResponseType.Unauthorized
+            };
+        }
+
+        var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
         await bus.SendLocal(new UserLoginEvent(user.Data!.Id, user.Data.UserName)).ConfigureAwait(false);
 
         // Sets return object so consumer sees new value, actual update to DB happens in another non-blocking thread.

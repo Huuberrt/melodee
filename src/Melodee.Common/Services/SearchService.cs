@@ -183,4 +183,112 @@ public sealed class SearchService(
                 totalMusicBrainzArtists)
         };
     }
+
+    public async Task<OperationResult<OpenSubsonicSearchResult>> DoOpenSubsonicSearchAsync(
+        Guid userApiKey,
+        string? searchQuery,
+        int artistOffset = 0,
+        int artistCount = 20,
+        int albumOffset = 0,
+        int albumCount = 20,
+        int songOffset = 0,
+        int songCount = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await userService.GetByApiKeyAsync(userApiKey, cancellationToken).ConfigureAwait(false);
+        if (!user.IsSuccess || user.Data == null)
+        {
+            return new OperationResult<OpenSubsonicSearchResult>("User not found")
+            {
+                Type = OperationResponseType.NotFound,
+                Data = new OpenSubsonicSearchResult([], [], [])
+            };
+        }
+
+        var searchTermNormalized = searchQuery?.ToNormalizedString() ?? searchQuery ?? string.Empty;
+        var artistResults = new List<ArtistDataInfo>();
+        var albumResults = new List<AlbumDataInfo>();
+        var songResults = new List<SongDataInfo>();
+
+        // Handle empty query case - return all data as per OpenSubsonic spec
+        if (searchQuery.Nullify() == null)
+        {
+            searchTermNormalized = string.Empty;
+        }
+
+        // Search artists
+        if (artistCount > 0)
+        {
+            var artistRequest = new PagedRequest
+            {
+                Page = (artistOffset / artistCount) + 1,
+                PageSize = (short)artistCount
+            };
+
+            if (searchQuery.Nullify() != null)
+            {
+                artistRequest.FilterBy = 
+                [
+                    new FilterOperatorInfo(nameof(ArtistDataInfo.NameNormalized), FilterOperator.Contains, searchTermNormalized),
+                    new FilterOperatorInfo(nameof(ArtistDataInfo.AlternateNames), FilterOperator.Contains, searchTermNormalized, FilterOperatorInfo.OrJoinOperator)
+                ];
+            }
+
+            var artistResult = await artistService.ListAsync(artistRequest, cancellationToken).ConfigureAwait(false);
+            artistResults = artistResult.Data.OrderBy(x => x.Name).ToList();
+        }
+
+        // Search albums
+        if (albumCount > 0)
+        {
+            var albumRequest = new PagedRequest
+            {
+                Page = (albumOffset / albumCount) + 1,
+                PageSize = (short)albumCount
+            };
+
+            if (searchQuery.Nullify() != null)
+            {
+                albumRequest.FilterBy = 
+                [
+                    new FilterOperatorInfo(nameof(AlbumDataInfo.NameNormalized), FilterOperator.Contains, searchTermNormalized),
+                    new FilterOperatorInfo(nameof(AlbumDataInfo.AlternateNames), FilterOperator.Contains, searchTermNormalized, FilterOperatorInfo.OrJoinOperator)
+                ];
+            }
+
+            var albumResult = await albumService.ListAsync(albumRequest, null, cancellationToken).ConfigureAwait(false);
+            albumResults = albumResult.Data.OrderBy(x => x.Name).ToList();
+        }
+
+        // Search songs
+        if (songCount > 0)
+        {
+            var songRequest = new PagedRequest
+            {
+                Page = (songOffset / songCount) + 1,
+                PageSize = (short)songCount
+            };
+
+            if (searchQuery.Nullify() != null)
+            {
+                songRequest.FilterBy = 
+                [
+                    new FilterOperatorInfo(nameof(SongDataInfo.TitleNormalized), FilterOperator.Contains, searchTermNormalized)
+                ];
+            }
+
+            var songResult = await songService.ListAsync(songRequest, user.Data.Id, cancellationToken).ConfigureAwait(false);
+            songResults = songResult.Data.OrderBy(x => x.ArtistName).ThenBy(x => x.AlbumName).ToList();
+        }
+
+        return new OperationResult<OpenSubsonicSearchResult>
+        {
+            Data = new OpenSubsonicSearchResult(artistResults.ToArray(), albumResults.ToArray(), songResults.ToArray())
+        };
+    }
 }
+
+public record OpenSubsonicSearchResult(
+    ArtistDataInfo[] Artists,
+    AlbumDataInfo[] Albums,
+    SongDataInfo[] Songs);

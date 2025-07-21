@@ -244,6 +244,7 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             GetArtistService(),
             GetAlbumService(),
             GetSongService(),
+            GetSearchService(),
             new Mock<IScheduler>().Object,
             GetScrobbleService(),
             GetLibraryService(),
@@ -299,6 +300,11 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
     protected SongService GetSongService()
     {
         return new SongService(Logger, CacheManager, MockFactory(), GetNowPlayingRepository());
+    }
+
+    protected SearchService GetSearchService()
+    {
+        return new SearchService(Logger, CacheManager, MockFactory(), GetUserService(), GetArtistService(), GetAlbumService(), GetSongService(), MockMusicBrainzRepository(), MockBus());
     }
 
     protected PlaylistService GetPlaylistService()
@@ -414,6 +420,11 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
         var busMock = new Mock<IBus>();
         busMock.Setup(b => b.SendLocal(It.IsAny<object>(), It.IsAny<Dictionary<string, string>>())).Returns(Task.CompletedTask);
         return busMock.Object;
+    }
+
+    protected IMusicBrainzRepository MockMusicBrainzRepository()
+    {
+        return new Mock<IMusicBrainzRepository>().Object;
     }
 
     protected IMelodeeConfigurationFactory MockConfigurationFactory()
