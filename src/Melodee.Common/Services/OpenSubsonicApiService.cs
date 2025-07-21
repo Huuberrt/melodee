@@ -1314,8 +1314,9 @@ public class OpenSubsonicApiService(
 
         var badEtag = Instant.MinValue.ToEtag();
         var sizeValue = size.Nullify() == null ? ImageSize.Large : SafeParser.ToEnum<ImageSize>(size);
-
-        var imageBytesAndEtag = await CacheManager.GetAsync(GenerateImageCacheKeyForApiId(apiId, sizeValue), async () =>
+        
+        var cacheKey = GenerateImageCacheKeyForApiId(apiId, sizeValue);
+        var imageBytesAndEtag = await CacheManager.GetAsync(cacheKey, async () =>
         {
             using (Operation.At(LogEventLevel.Debug)
                        .Time("GetImageForApiKeyId: [{Username}] Size [{Size}]", apiId, sizeValue))
@@ -1458,7 +1459,7 @@ public class OpenSubsonicApiService(
 
                 return new ImageBytesAndEtag(result, eTag);
             }
-        }, cancellationToken, new TimeSpan(0, 0, 120, 0), ImageCacheRegion);
+        }, cancellationToken, (await Configuration.Value).CacheDuration(), ImageCacheRegion);
 
         return new ResponseModel
         {

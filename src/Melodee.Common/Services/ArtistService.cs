@@ -43,7 +43,8 @@ public class ArtistService(
     private const string CacheKeyDetailTemplate = "urn:artist:{0}";
     private const string CacheKeyArtistImageBytesAndEtagTemplate = "urn:artist:imagebytesandetag:{0}:{1}";
 
-    public async Task<MelodeeModels.PagedResult<ArtistDataInfo>> ListAsync(MelodeeModels.PagedRequest pagedRequest,
+    public async Task<MelodeeModels.PagedResult<ArtistDataInfo>> ListAsync(
+        MelodeeModels.PagedRequest pagedRequest,
         CancellationToken cancellationToken = default)
     {
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
@@ -208,7 +209,8 @@ public class ArtistService(
         };
     }
 
-    public async Task<MelodeeModels.OperationResult<Artist?>> GetAsync(int id,
+    public async Task<MelodeeModels.OperationResult<Artist?>> GetAsync(
+        int id,
         CancellationToken cancellationToken = default)
     {
         Guard.Against.Expression(x => x < 1, id, nameof(id));
@@ -260,7 +262,8 @@ public class ArtistService(
         return await GetAsync(id.Value, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<MelodeeModels.OperationResult<Artist?>> GetByNameNormalized(string nameNormalized,
+    public async Task<MelodeeModels.OperationResult<Artist?>> GetByNameNormalized(
+        string nameNormalized,
         CancellationToken cancellationToken = default)
     {
         Guard.Against.NullOrEmpty(nameNormalized, nameof(nameNormalized));
@@ -293,8 +296,13 @@ public class ArtistService(
     /// <summary>
     ///     Find the Artist using various given Ids.
     /// </summary>
-    public async Task<MelodeeModels.OperationResult<Artist?>> FindArtistAsync(int? byId, Guid byApiKey, string? byName,
-        Guid? byMusicBrainzId, string? bySpotifyId, CancellationToken cancellationToken = default)
+    public async Task<MelodeeModels.OperationResult<Artist?>> FindArtistAsync(
+        int? byId, 
+        Guid byApiKey, 
+        string? byName,
+        Guid? byMusicBrainzId, 
+        string? bySpotifyId, 
+        CancellationToken cancellationToken = default)
     {
         int? id = null;
 
@@ -370,7 +378,8 @@ public class ArtistService(
         return await GetAsync(id.Value, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<MelodeeModels.OperationResult<Artist?>> GetByApiKeyAsync(Guid apiKey,
+    public async Task<MelodeeModels.OperationResult<Artist?>> GetByApiKeyAsync(
+        Guid apiKey,
         CancellationToken cancellationToken = default)
     {
         Guard.Against.Expression(x => x == Guid.Empty, apiKey, nameof(apiKey));
@@ -452,7 +461,8 @@ public class ArtistService(
         };
     }
 
-    public async Task<MelodeeModels.OperationResult<bool>> DeleteAsync(int[] artistIds,
+    public async Task<MelodeeModels.OperationResult<bool>> DeleteAsync(
+        int[] artistIds,
         CancellationToken cancellationToken = default)
     {
         Guard.Against.NullOrEmpty(artistIds, nameof(artistIds));
@@ -518,7 +528,8 @@ public class ArtistService(
         };
     }
 
-    public async Task<MelodeeModels.OperationResult<bool>> UpdateAsync(Artist artist,
+    public async Task<MelodeeModels.OperationResult<bool>> UpdateAsync(
+        Artist artist,
         CancellationToken cancellationToken = default)
     {
         Guard.Against.Null(artist, nameof(artist));
@@ -608,7 +619,8 @@ public class ArtistService(
         };
     }
 
-    public async Task<MelodeeModels.OperationResult<Artist?>> AddArtistAsync(Artist artist,
+    public async Task<MelodeeModels.OperationResult<Artist?>> AddArtistAsync(
+        Artist artist,
         CancellationToken cancellationToken = default)
     {
         Guard.Against.Null(artist, nameof(artist));

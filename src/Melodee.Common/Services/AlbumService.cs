@@ -63,10 +63,10 @@ public class AlbumService(
     public async Task ClearCacheAsync(int albumId, CancellationToken cancellationToken = default)
     {
         var album = await GetAsync(albumId, cancellationToken).ConfigureAwait(false);
-        ClearCache(album.Data!, cancellationToken);
+        ClearCache(album.Data!);
     }    
 
-    public void ClearCache(Album album, CancellationToken cancellationToken = default)
+    public void ClearCache(Album album)
     {
         CacheManager.Remove(CacheKeyDetailByApiKeyTemplate.FormatSmart(album.ApiKey), Album.CacheRegion);
         CacheManager.Remove(CacheKeyDetailByNameNormalizedTemplate.FormatSmart(album.NameNormalized), Album.CacheRegion);
@@ -80,7 +80,7 @@ public class AlbumService(
 
 
         // This is needed because the OpenSubsonicApiService caches the image bytes after potentially resizing
-        CacheManager.Remove(OpenSubsonicApiService.ImageCacheRegion);
+        CacheManager.ClearRegion(OpenSubsonicApiService.ImageCacheRegion);
 
         if (album.MusicBrainzId != null)
         {
