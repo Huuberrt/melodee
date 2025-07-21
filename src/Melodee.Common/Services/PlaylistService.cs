@@ -5,6 +5,7 @@ using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Data.Models.Extensions;
 using Melodee.Common.Extensions;
+using Melodee.Common.Models;
 using Melodee.Common.Models.Collection;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Serialization;
@@ -440,6 +441,218 @@ public class PlaylistService(
             result = await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false) > 0;
         }
 
+
+        return new MelodeeModels.OperationResult<bool>
+        {
+            Data = result
+        };
+    }
+
+    /// <summary>
+    /// Gets a playlist by API key for internal operations (no user access control).
+    /// </summary>
+    private async Task<MelodeeModels.OperationResult<Playlist?>> GetByApiKeyInternalAsync(Guid apiKey, CancellationToken cancellationToken)
+    {
+        var id = await CacheManager.GetAsync(CacheKeyDetailByApiKeyTemplate.FormatSmart(apiKey), async () =>
+        {
+            await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            return await scopedContext.Playlists
+                .AsNoTracking()
+                .Where(p => p.ApiKey == apiKey)
+                .Select(p => p.Id)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }, cancellationToken).ConfigureAwait(false);
+
+        return id > 0 ? await GetAsync(id, cancellationToken).ConfigureAwait(false) : new MelodeeModels.OperationResult<Playlist?> { Data = null };
+    }
+
+    /// <summary>
+    /// Gets the image bytes and ETag for a playlist.
+    /// </summary>
+    public async Task<ImageBytesAndEtag> GetPlaylistImageBytesAndEtagAsync(Guid playlistApiKey, string? size, CancellationToken cancellationToken = default)
+    {
+        var playlist = await GetByApiKeyInternalAsync(playlistApiKey, cancellationToken).ConfigureAwait(false);
+        
+        if (!playlist.IsSuccess || playlist.Data == null)
+        {
+            return new ImageBytesAndEtag(null, null);
+        }
+
+        var playlistLibrary = await libraryService.GetPlaylistLibraryAsync(cancellationToken).ConfigureAwait(false);
+        if (!playlistLibrary.IsSuccess || playlistLibrary.Data == null)
+        {
+            return new ImageBytesAndEtag(null, null);
+        }
+
+        var playlistImageFilename = playlist.Data.ToImageFileName(playlistLibrary.Data.Path);
+        var playlistImageFileInfo = new FileInfo(playlistImageFilename);
+        
+        if (playlistImageFileInfo.Exists)
+        {
+            var imageBytes = await File.ReadAllBytesAsync(playlistImageFileInfo.FullName, cancellationToken).ConfigureAwait(false);
+            var etag = playlistImageFileInfo.LastWriteTimeUtc.ToEtag();
+            return new ImageBytesAndEtag(imageBytes, etag);
+        }
+
+        return new ImageBytesAndEtag(null, null);
+    }
+
+    /// <summary>
+    /// Adds songs to a playlist.
+    /// </summary>
+    public async Task<MelodeeModels.OperationResult<bool>> AddSongsToPlaylistAsync(Guid playlistApiKey, IEnumerable<Guid> songApiKeys, CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x == Guid.Empty, playlistApiKey, nameof(playlistApiKey));
+        Guard.Against.NullOrEmpty(songApiKeys, nameof(songApiKeys));
+
+        var result = false;
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var playlist = await scopedContext.Playlists
+            .Include(x => x.Songs)
+            .FirstOrDefaultAsync(x => x.ApiKey == playlistApiKey, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (playlist != null)
+        {
+            var songs = await scopedContext.Songs
+                .Where(x => songApiKeys.Contains(x.ApiKey))
+                .ToArrayAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            foreach (var song in songs)
+            {
+                var existingPlaylistSong = playlist.Songs.FirstOrDefault(x => x.SongId == song.Id);
+                if (existingPlaylistSong == null)
+                {
+                    playlist.Songs.Add(new PlaylistSong
+                    {
+                        PlaylistOrder = playlist.Songs.Count + 1,
+                        Song = song
+                    });
+                }
+            }
+
+            playlist.Duration = playlist.Songs.Sum(x => x.Song.Duration);
+            playlist.SongCount = (short)playlist.Songs.Count;
+            playlist.LastUpdatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow);
+
+            result = await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false) > 0;
+            
+            if (result)
+            {
+                await ClearCacheAsync(playlist.Id, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        return new MelodeeModels.OperationResult<bool>
+        {
+            Data = result
+        };
+    }
+
+    /// <summary>
+    /// Removes songs from a playlist by song API keys.
+    /// </summary>
+    public async Task<MelodeeModels.OperationResult<bool>> RemoveSongsFromPlaylistAsync(Guid playlistApiKey, IEnumerable<Guid> songApiKeys, CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x == Guid.Empty, playlistApiKey, nameof(playlistApiKey));
+        Guard.Against.NullOrEmpty(songApiKeys, nameof(songApiKeys));
+
+        var result = false;
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var playlist = await scopedContext.Playlists
+            .Include(x => x.Songs).ThenInclude(x => x.Song)
+            .FirstOrDefaultAsync(x => x.ApiKey == playlistApiKey, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (playlist != null)
+        {
+            var songsToRemove = playlist.Songs
+                .Where(ps => songApiKeys.Contains(ps.Song.ApiKey))
+                .ToList();
+
+            foreach (var playlistSong in songsToRemove)
+            {
+                playlist.Songs.Remove(playlistSong);
+            }
+
+            // Reorder remaining songs
+            var remainingSongs = playlist.Songs.OrderBy(x => x.PlaylistOrder).ToList();
+            for (int i = 0; i < remainingSongs.Count; i++)
+            {
+                remainingSongs[i].PlaylistOrder = i + 1;
+            }
+
+            playlist.Duration = playlist.Songs.Sum(x => x.Song.Duration);
+            playlist.SongCount = (short)playlist.Songs.Count;
+            playlist.LastUpdatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow);
+
+            result = await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false) > 0;
+            
+            if (result)
+            {
+                await ClearCacheAsync(playlist.Id, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        return new MelodeeModels.OperationResult<bool>
+        {
+            Data = result
+        };
+    }
+
+    /// <summary>
+    /// Removes songs from a playlist by playlist song indexes.
+    /// </summary>
+    public async Task<MelodeeModels.OperationResult<bool>> RemoveSongsByIndexFromPlaylistAsync(Guid playlistApiKey, IEnumerable<int> songIndexes, CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x == Guid.Empty, playlistApiKey, nameof(playlistApiKey));
+        Guard.Against.NullOrEmpty(songIndexes, nameof(songIndexes));
+
+        var result = false;
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var playlist = await scopedContext.Playlists
+            .Include(x => x.Songs).ThenInclude(x => x.Song)
+            .FirstOrDefaultAsync(x => x.ApiKey == playlistApiKey, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (playlist != null)
+        {
+            var orderedSongs = playlist.Songs.OrderBy(x => x.PlaylistOrder).ToList();
+            var songsToRemove = new List<PlaylistSong>();
+
+            foreach (var index in songIndexes.Where(i => i >= 0 && i < orderedSongs.Count))
+            {
+                songsToRemove.Add(orderedSongs[index]);
+            }
+
+            foreach (var playlistSong in songsToRemove)
+            {
+                playlist.Songs.Remove(playlistSong);
+            }
+
+            // Reorder remaining songs
+            var remainingSongs = playlist.Songs.OrderBy(x => x.PlaylistOrder).ToList();
+            for (int i = 0; i < remainingSongs.Count; i++)
+            {
+                remainingSongs[i].PlaylistOrder = i + 1;
+            }
+
+            playlist.Duration = playlist.Songs.Sum(x => x.Song.Duration);
+            playlist.SongCount = (short)playlist.Songs.Count;
+            playlist.LastUpdatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow);
+
+            result = await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false) > 0;
+            
+            if (result)
+            {
+                await ClearCacheAsync(playlist.Id, cancellationToken).ConfigureAwait(false);
+            }
+        }
 
         return new MelodeeModels.OperationResult<bool>
         {
