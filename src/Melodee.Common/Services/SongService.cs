@@ -624,4 +624,76 @@ public class SongService(
             )
         };
     }
+
+    /// <summary>
+    /// Get song with full path info for lyrics processing
+    /// </summary>
+    public async Task<MelodeeModels.OperationResult<(Song song, string libraryPath, string artistDirectory)>> GetSongWithPathInfoAsync(
+        Guid apiKey, 
+        CancellationToken cancellationToken = default)
+    {
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var song = await scopedContext.Songs
+            .Include(x => x.Album).ThenInclude(x => x.Artist).ThenInclude(x => x.Library)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.ApiKey == apiKey, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (song == null)
+        {
+            return new MelodeeModels.OperationResult<(Song, string, string)>("Song not found.")
+            {
+                Type = MelodeeModels.OperationResponseType.NotFound
+            };
+        }
+
+        return new MelodeeModels.OperationResult<(Song, string, string)>
+        {
+            Data = (song, song.Album.Artist.Library.Path, song.Album.Artist.Directory)
+        };
+    }
+
+    /// <summary>
+    /// Get song by artist and title for lyrics processing
+    /// </summary>
+    public async Task<MelodeeModels.OperationResult<(Song song, string libraryPath, string artistDirectory)>> GetSongByArtistAndTitleAsync(
+        string artistName, 
+        string songTitle,
+        CancellationToken cancellationToken = default)
+    {
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var artistNameNormalized = artistName.ToNormalizedString() ?? artistName;
+        var titleNormalized = songTitle.ToNormalizedString() ?? songTitle;
+
+        var artist = await scopedContext.Artists
+            .Include(x => x.Library)
+            .Include(x => x.Albums).ThenInclude(x => x.Songs)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.NameNormalized == artistNameNormalized, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (artist == null)
+        {
+            return new MelodeeModels.OperationResult<(Song, string, string)>("Artist not found.")
+            {
+                Type = MelodeeModels.OperationResponseType.NotFound
+            };
+        }
+
+        var song = artist.Albums.SelectMany(x => x.Songs).FirstOrDefault(x => x.TitleNormalized == titleNormalized);
+        if (song == null)
+        {
+            return new MelodeeModels.OperationResult<(Song, string, string)>("Song not found.")
+            {
+                Type = MelodeeModels.OperationResponseType.NotFound
+            };
+        }
+
+        return new MelodeeModels.OperationResult<(Song, string, string)>
+        {
+            Data = (song, artist.Library.Path, artist.Directory)
+        };
+    }
 }

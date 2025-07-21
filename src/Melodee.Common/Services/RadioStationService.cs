@@ -446,4 +446,64 @@ public class RadioStationService(
 
         return await AddAsync(radioStation, cancellationToken);
     }
+
+    public async Task<MelodeeModels.OperationResult<bool>> UpdateByApiKeyAsync(
+        Guid apiKey, 
+        string name, 
+        string streamUrl, 
+        string? homePageUrl,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(_ => apiKey == Guid.Empty, apiKey, nameof(apiKey));
+        Guard.Against.NullOrEmpty(name, nameof(name));
+        Guard.Against.NullOrEmpty(streamUrl, nameof(streamUrl));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var radioStation = await scopedContext.RadioStations
+            .FirstOrDefaultAsync(x => x.ApiKey == apiKey, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (radioStation == null)
+        {
+            return new MelodeeModels.OperationResult<bool>("Radio station not found.")
+            {
+                Data = false,
+                Type = MelodeeModels.OperationResponseType.NotFound
+            };
+        }
+
+        radioStation.Name = name;
+        radioStation.StreamUrl = streamUrl;
+        radioStation.HomePageUrl = homePageUrl;
+        radioStation.LastUpdatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow);
+
+        var result = await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false) > 0;
+
+        if (result)
+        {
+            CacheManager.Remove(CacheKeyDetailTemplate.FormatSmart(radioStation.Id));
+            CacheManager.Remove(CacheKeyDetailByApiKeyTemplate.FormatSmart(radioStation.ApiKey));
+        }
+
+        return new MelodeeModels.OperationResult<bool>
+        {
+            Data = result
+        };
+    }
+
+    public async Task<MelodeeModels.OperationResult<RadioStation[]>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var radioStations = await scopedContext.RadioStations
+            .AsNoTracking()
+            .ToArrayAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return new MelodeeModels.OperationResult<RadioStation[]>
+        {
+            Data = radioStations
+        };
+    }
 }

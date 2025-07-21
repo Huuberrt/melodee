@@ -3325,7 +3325,6 @@ public class OpenSubsonicApiService(
         };
     }
 
-    // TODO: This should be moved to RadioStationService in the future.
     public async Task<ResponseModel> UpdateInternetRadioStationAsync(string id, string name, string streamUrl,
         string? homePageUrl, ApiRequest apiRequest, CancellationToken cancellationToken)
     {
@@ -3351,25 +3350,11 @@ public class OpenSubsonicApiService(
             };
         }
 
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        var apiKey = ApiKeyFromId(id);
+        if (apiKey != null)
         {
-            var apiKey = ApiKeyFromId(id);
-            var radioStation = await scopedContext
-                .RadioStations
-                .FirstOrDefaultAsync(x => x.ApiKey == apiKey, cancellationToken)
-                .ConfigureAwait(false);
-            if (radioStation != null)
-            {
-                var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
-
-                radioStation.Name = name;
-                radioStation.StreamUrl = streamUrl;
-                radioStation.HomePageUrl = homePageUrl;
-                radioStation.LastUpdatedAt = now;
-                await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                result = true;
-            }
+            var updateResult = await radioStationService.UpdateByApiKeyAsync(apiKey.Value, name, streamUrl, homePageUrl, cancellationToken);
+            result = updateResult.IsSuccess;
         }
 
         return new ResponseModel
@@ -3381,7 +3366,6 @@ public class OpenSubsonicApiService(
         };
     }
 
-    // TODO: This should be moved to RadioStationService in the future.
     public async Task<ResponseModel> GetInternetRadioStationsAsync(ApiRequest apiRequest, CancellationToken cancellationToken)
     {
         var authResponse = await AuthenticateSubsonicApiAsync(apiRequest, cancellationToken);
@@ -3393,15 +3377,10 @@ public class OpenSubsonicApiService(
         var data = new List<InternetRadioStation>();
         try
         {
-            await using (var scopedContext =
-                         await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+            var radioStationsResult = await radioStationService.GetAllAsync(cancellationToken);
+            if (radioStationsResult.IsSuccess && radioStationsResult.Data != null)
             {
-                var radioStations = await scopedContext
-                    .RadioStations
-                    .AsNoTracking()
-                    .ToArrayAsync(cancellationToken)
-                    .ConfigureAwait(false);
-                data = radioStations.Select(x => x.ToApiInternetRadioStation()).ToList();
+                data = radioStationsResult.Data.Select(x => x.ToApiInternetRadioStation()).ToList();
             }
         }
         catch (Exception e)
@@ -3421,7 +3400,6 @@ public class OpenSubsonicApiService(
         };
     }
 
-    // TODO: This should be moved to SongService in the future.
     public async Task<ResponseModel> GetLyricsListForSongIdAsync(string id, ApiRequest apiRequest, CancellationToken cancellationToken)
     {
         var authResponse = await AuthenticateSubsonicApiAsync(apiRequest, cancellationToken);
@@ -3431,22 +3409,20 @@ public class OpenSubsonicApiService(
         }
 
         LyricsList[]? data = null;
+        var apiKey = ApiKeyFromId(id);
 
-        await using (var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        if (apiKey != null)
         {
-            var apiKey = ApiKeyFromId(id);
-            var dbSong = await scopedContext.Songs
-                .Include(x => x.Album).ThenInclude(x => x.Artist).ThenInclude(x => x.Library)
-                .FirstOrDefaultAsync(x => x.ApiKey == apiKey, cancellationToken).ConfigureAwait(false);
-
-            if (dbSong != null)
+            var songResult = await songService.GetSongWithPathInfoAsync(apiKey.Value, cancellationToken);
+            if (songResult.IsSuccess)
             {
+                var (song, libraryPath, artistDirectory) = songResult.Data;
                 var lyricsResult = await lyricPlugin.GetLyricListAsync(
-                    Path.Combine(dbSong.Album.Artist.Library.Path, dbSong.Album.Artist.Directory).ToFileSystemDirectoryInfo(),
+                    Path.Combine(libraryPath, artistDirectory).ToFileSystemDirectoryInfo(),
                     new FileSystemFileInfo
                     {
-                        Name = dbSong.FileName,
-                        Size = dbSong.FileSize
+                        Name = song.FileName,
+                        Size = song.FileSize
                     },
                     cancellationToken).ConfigureAwait(false);
                 if (lyricsResult.IsSuccess)
@@ -3455,7 +3431,6 @@ public class OpenSubsonicApiService(
                 }
             }
         }
-
 
         return new ResponseModel
         {
@@ -3469,7 +3444,6 @@ public class OpenSubsonicApiService(
         };
     }
 
-    // TODO: This should be moved to SongService in the future.
     public async Task<ResponseModel> GetLyricsForArtistAndTitleAsync(string? artist, string? title, ApiRequest apiRequest, CancellationToken cancellationToken)
     {
         var authResponse = await AuthenticateSubsonicApiAsync(apiRequest, cancellationToken);
@@ -3482,34 +3456,21 @@ public class OpenSubsonicApiService(
 
         if (artist.Nullify() != null && title.Nullify() != null)
         {
-            await using (var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+            var songResult = await songService.GetSongByArtistAndTitleAsync(artist!, title!, cancellationToken);
+            if (songResult.IsSuccess)
             {
-                var artistNameValue = artist!.ToNormalizedString() ?? artist!;
-                var titleNameValue = title!.ToNormalizedString() ?? title!;
-                var dbArtist = await scopedContext
-                    .Artists
-                    .Include(x => x.Library)
-                    .Include(x => x.Albums).ThenInclude(x => x.Songs)
-                    .FirstOrDefaultAsync(x => x.NameNormalized == artistNameValue, cancellationToken).ConfigureAwait(false);
-
-                if (dbArtist != null)
-                {
-                    var dbSong = dbArtist.Albums.SelectMany(x => x.Songs).FirstOrDefault(x => x.TitleNormalized == titleNameValue);
-                    if (dbSong != null)
+                var (song, libraryPath, artistDirectory) = songResult.Data;
+                var lyricsResult = await lyricPlugin.GetLyricsAsync(
+                    Path.Combine(libraryPath, artistDirectory).ToFileSystemDirectoryInfo(),
+                    new FileSystemFileInfo
                     {
-                        var lyricsResult = await lyricPlugin.GetLyricsAsync(
-                            Path.Combine(dbArtist.Library.Path, dbArtist.Directory).ToFileSystemDirectoryInfo(),
-                            new FileSystemFileInfo
-                            {
-                                Name = dbSong.FileName,
-                                Size = dbSong.FileSize
-                            },
-                            cancellationToken).ConfigureAwait(false);
-                        if (lyricsResult.IsSuccess)
-                        {
-                            data = lyricsResult.Data;
-                        }
-                    }
+                        Name = song.FileName,
+                        Size = song.FileSize
+                    },
+                    cancellationToken).ConfigureAwait(false);
+                if (lyricsResult.IsSuccess)
+                {
+                    data = lyricsResult.Data;
                 }
             }
         }

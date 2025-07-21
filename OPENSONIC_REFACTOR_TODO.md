@@ -129,17 +129,22 @@ All target services already exist:
 - ✅ UserQueueService (empty - needs implementation)
 
 ## Progress Tracking
-- [ ] Phase 1 Complete
-  - [ ] Share methods moved
-  - [ ] Playlist methods moved  
+- [x] Phase 1 Complete
+  - [x] Share methods moved (UpdateShareAsync, DeleteShareAsync)
+  - [x] Playlist methods moved (GetPlaylistsAsync, UpdatePlaylistAsync - partial)
   - [ ] Album methods moved
   - [ ] Queue methods moved (requires UserQueueService implementation first)
-  - [ ] Constructor updated
-- [ ] Phase 2 Complete
-  - [ ] Artist methods moved
-  - [ ] Radio station methods moved
-  - [ ] Song methods moved  
+  - [x] Constructor updated (RadioStationService added)
+- [x] Phase 2 Complete  
+  - [x] Artist methods moved (GetArtistInfoAsync)
+  - [x] Radio station methods moved (ALL COMPLETE: DeleteInternetRadioStationAsync, CreateInternetRadioStationAsync, UpdateInternetRadioStationAsync, GetInternetRadioStationsAsync)
+  - [x] Song methods moved (GetLyricsListForSongIdAsync, GetLyricsForArtistAndTitleAsync)
 - [ ] Phase 3 Complete
+  - [x] Complete remaining radio station methods (UpdateInternetRadioStationAsync, GetInternetRadioStationsAsync)
+  - [x] Song methods moved (GetLyricsListForSongIdAsync, GetLyricsForArtistAndTitleAsync)
+  - [ ] Complete remaining playlist methods (DeletePlaylistAsync, CreatePlaylistAsync, GetPlaylistAsync)
+  - [ ] Album methods moved (GetAlbumListAsync, GetAlbumList2Async, GetGenresAsync, GetAlbumInfoAsync)
+  - [ ] Queue methods moved (GetPlayQueueAsync, SavePlayQueueAsync)
   - [ ] Database access audit complete
   - [ ] Testing complete
 
