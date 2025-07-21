@@ -639,11 +639,12 @@ public class OpenSubsonicApiService(
         };
     }
 
-    // TODO: This should be moved to PlaylistService in the future.
     /// <summary>
     ///     Deletes a saved playlist.
     /// </summary>
-    public async Task<ResponseModel> DeletePlaylistAsync(string id, ApiRequest apiRequest,
+    public async Task<ResponseModel> DeletePlaylistAsync(
+        string id, 
+        ApiRequest apiRequest,
         CancellationToken cancellationToken)
     {
         var authResponse = await AuthenticateSubsonicApiAsync(apiRequest, cancellationToken);
@@ -652,43 +653,37 @@ public class OpenSubsonicApiService(
             return authResponse with { UserInfo = UserInfo.BlankUserInfo };
         }
 
-        Error? notAuthorizedError = null;
-        var result = false;
-
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        var apiKey = ApiKeyFromId(id);
+        if (apiKey == null)
         {
-            var apiKey = ApiKeyFromId(id);
-            var playlist = await scopedContext
-                .Playlists
-                .Include(x => x.User)
-                .FirstOrDefaultAsync(x => x.ApiKey == apiKey, cancellationToken)
-                .ConfigureAwait(false);
-            if (playlist != null)
+            return new ResponseModel
             {
-                if (playlist.UserId != authResponse.UserInfo.Id)
-                {
-                    notAuthorizedError = Error.UserNotAuthorizedError;
-                }
-                else
-                {
-                    scopedContext.Playlists.Remove(playlist);
-                    await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                    result = true;
-                }
+                UserInfo = UserInfo.BlankUserInfo,
+                IsSuccess = false,
+                ResponseData = await NewApiResponse(false, string.Empty, string.Empty, Error.InvalidApiKeyError)
+            };
+        }
+
+        var deleteResult = await playlistService.DeleteByApiKeyAsync(apiKey.Value, authResponse.UserInfo.Id, cancellationToken);
+        Error? notAuthorizedError = null;
+        
+        if (!deleteResult.IsSuccess)
+        {
+            if (deleteResult.Messages?.Any(m => m.Contains("not authorized")) == true)
+            {
+                notAuthorizedError = Error.UserNotAuthorizedError;
             }
         }
 
         return new ResponseModel
         {
             UserInfo = UserInfo.BlankUserInfo,
-            IsSuccess = result,
-            ResponseData = await NewApiResponse(result, string.Empty, string.Empty,
-                notAuthorizedError ?? (result ? null : Error.InvalidApiKeyError))
+            IsSuccess = deleteResult.Data,
+            ResponseData = await NewApiResponse(deleteResult.Data, string.Empty, string.Empty,
+                notAuthorizedError ?? (deleteResult.Data ? null : Error.InvalidApiKeyError))
         };
     }
 
-    // TODO: This should be moved to PlaylistService in the future.
     public async Task<ResponseModel> CreatePlaylistAsync(
         string? id,
         string? name,
@@ -703,44 +698,29 @@ public class OpenSubsonicApiService(
         }
 
         var playListId = string.Empty;
-        await using (var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        var isCreatingPlaylist = id.Nullify() == null && name.Nullify() != null;
+        
+        if (isCreatingPlaylist)
         {
-            var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
-            var isCreatingPlaylist = id.Nullify() == null && name.Nullify() != null;
-            if (isCreatingPlaylist)
+            // creating new with name and songs 
+            var songApiKeysForPlaylist = songId?
+                .Where(x => x.Nullify() != null)
+                .Select(ApiKeyFromId)
+                .Where(x => x.HasValue)
+                .Select(x => x!.Value)
+                .ToArray() ?? Array.Empty<Guid>();
+
+            var createResult = await playlistService.CreatePlaylistAsync(name!, authResponse.UserInfo.Id, songApiKeysForPlaylist, cancellationToken);
+            if (createResult.IsSuccess && createResult.Data != null)
             {
-                // creating new with name and songs 
-                var songApiKeysForPlaylist =
-                    songId?.Where(x => x.Nullify() != null).Select(ApiKeyFromId).ToArray() ?? [];
-                var songsForPlaylist = await scopedContext.Songs.Where(x => songApiKeysForPlaylist.Contains(x.ApiKey))
-                    .ToArrayAsync(cancellationToken).ConfigureAwait(false);
-                var newPlaylist = new dbModels.Playlist
-                {
-                    CreatedAt = now,
-                    Name = name!,
-                    UserId = authResponse.UserInfo.Id,
-                    SongCount = SafeParser.ToNumber<short>(songsForPlaylist.Length),
-                    Duration = songsForPlaylist.Sum(x => x.Duration),
-                    Songs = songsForPlaylist.Select((x, i) => new dbModels.PlaylistSong
-                    {
-                        SongId = x.Id,
-                        SongApiKey = x.ApiKey,
-                        PlaylistOrder = i
-                    }).ToArray()
-                };
-                await scopedContext.Playlists.AddAsync(newPlaylist, cancellationToken).ConfigureAwait(false);
-                await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                playListId = newPlaylist.ToApiKey();
-                Logger.Information("User [{UserInfo}] created playlist [{Name}] with [{SongCount}] songs.",
-                    authResponse.UserInfo, name, songsForPlaylist.Length);
+                playListId = createResult.Data;
             }
-            // updating either new name or songs on playlist
         }
+        // TODO: Handle updating existing playlist (not implemented in original either)
 
         return await GetPlaylistAsync(playListId, apiRequest, cancellationToken);
     }
 
-    // TODO: This should be moved to PlaylistService in the future.
     /// <summary>
     ///     Returns a listing of files in a saved playlist.
     /// </summary>
@@ -755,111 +735,26 @@ public class OpenSubsonicApiService(
             return authResponse with { UserInfo = UserInfo.BlankUserInfo };
         }
 
-        Playlist? data;
-
-        await using (var scopedContext =
-                     await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        var apiKey = ApiKeyFromId(id);
+        if (apiKey == null)
         {
-            var apiKey = ApiKeyFromId(id);
-
-            if (IsApiIdForDynamicPlaylist(id))
+            Logger.Warning("Invalid playlist id [{Id}] for Request [{Request}]", id, apiRequest);
+            return new ResponseModel
             {
-                var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
-                var dynamicPlaylist = await libraryService
-                    .GetDynamicPlaylistAsync(apiKey ?? Guid.Empty, cancellationToken).ConfigureAwait(false);
-                var dp = dynamicPlaylist.Data;
-                if (dp == null)
+                UserInfo = UserInfo.BlankUserInfo,
+                ResponseData = authResponse.ResponseData with
                 {
-                    Logger.Warning("Invalid dynamic playlist id [{Id}] for Request [{Request}]", apiKey, apiRequest);
-                    return new ResponseModel
-                    {
-                        UserInfo = UserInfo.BlankUserInfo,
-                        ResponseData = authResponse.ResponseData with
-                        {
-                            Error = Error.InvalidApiKeyError
-                        }
-                    };
+                    Error = Error.InvalidApiKeyError
                 }
-
-                var dpWhere = dp.PrepareSongSelectionWhere(authResponse.UserInfo);
-                var dpOrderBy = dp.SongSelectionOrder ?? "RANDOM()";
-
-                var offset = 0;
-                var fetch = dp.SongLimit ?? 100;
-
-                // Use EF Core FromSqlRaw for better security and maintainability
-                var sql = $"""
-                           SELECT s."Id", s."ApiKey", s."IsLocked", s."Title", s."TitleNormalized", s."SongNumber", a."ReleaseDate",
-                                  a."Name" as "AlbumName", a."ApiKey" as "AlbumApiKey", ar."Name" as "ArtistName", ar."ApiKey" as "ArtistApiKey",
-                                  s."FileSize", s."Duration", s."CreatedAt", s."Tags", us."IsStarred" as "UserStarred", us."Rating" as "UserRating"
-                           FROM "Songs" s
-                           join "Albums" a on (s."AlbumId" = a."Id")
-                           join "Artists" ar on (a."ArtistId" = ar."Id")
-                           left join "UserSongs" us on (s."Id" = us."SongId" and us."UserId" = {authResponse.UserInfo.Id})
-                           where {dpWhere}
-                           order by {dpOrderBy}
-                           offset {offset} rows fetch next {fetch} rows only;
-                           """;
-                var songDataInfosForDp = await scopedContext.Database
-                    .SqlQueryRaw<SongDataInfo>(sql)
-                    .ToArrayAsync(cancellationToken)
-                    .ConfigureAwait(false);
-
-                var songs = await scopedContext
-                    .Songs
-                    .Include(x => x.UserSongs.Where(ua => ua.UserId == authResponse.UserInfo.Id))
-                    .Include(x => x.Album).ThenInclude(x => x.Artist).ThenInclude(x => x.Library)
-                    .Where(x => songDataInfosForDp.Select(y => y.Id).Contains(x.Id))
-                    .ToArrayAsync(cancellationToken)
-                    .ConfigureAwait(false);
-                var dpSongs = new List<dbModels.PlaylistSong>();
-                foreach (var songDataInfo in songDataInfosForDp.Select((x, i) => new { x, i }))
-                {
-                    var song = songs.FirstOrDefault(x => x.Id == songDataInfo.x.Id);
-                    if (song != null)
-                    {
-                        dpSongs.Add(songDataInfo.x.ToPlaylistSong(songDataInfo.i, song));
-                    }
-                }
-
-                data = new dbModels.Playlist
-                {
-                    Id = 1,
-                    IsLocked = false,
-                    SortOrder = 0,
-                    ApiKey = dp.Id,
-                    CreatedAt = now,
-                    Description = dp.Comment,
-                    Name = dp.Name,
-                    Comment = null,
-                    User = ServiceUser.Instance.Value,
-                    IsPublic = true,
-                    SongCount = SafeParser.ToNumber<short>(songDataInfosForDp.Count()),
-                    Duration = songDataInfosForDp.Sum(x => x.Duration),
-                    AllowedUserIds = authResponse.UserInfo.UserName,
-                    Songs = dpSongs
-                }.ToApiPlaylist(true, true);
-            }
-
-            else
-            {
-                var playlist = await scopedContext
-                    .Playlists
-                    .Include(x => x.User)
-                    .Include(x => x.Songs).ThenInclude(x => x.Song).ThenInclude(x => x.Album).ThenInclude(x => x.Artist)
-                    .Include(x => x.Songs).ThenInclude(x => x.Song).ThenInclude(x =>
-                        x.UserSongs.Where(ua => ua.UserId == authResponse.UserInfo.Id))
-                    .FirstOrDefaultAsync(x => x.ApiKey == apiKey, cancellationToken)
-                    .ConfigureAwait(false);
-
-                data = playlist?.ToApiPlaylist();
-            }
+            };
         }
+
+        var playlistResult = await playlistService.GetByApiKeyAsync(authResponse.UserInfo, apiKey.Value, cancellationToken);
+        var data = playlistResult.Data;
 
         return new ResponseModel
         {
             UserInfo = authResponse.UserInfo,
-
             ResponseData = await DefaultApiResponse() with
             {
                 IsSuccess = data != null,

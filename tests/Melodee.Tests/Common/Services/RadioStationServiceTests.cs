@@ -1,17 +1,11 @@
 using Melodee.Common.Data.Models;
 using Melodee.Common.Models;
-using Melodee.Common.Services;
 using NodaTime;
 
 namespace Melodee.Tests.Common.Services;
 
 public class RadioStationServiceTests : ServiceTestBase
 {
-    private RadioStationService GetRadioStationService()
-    {
-        return new RadioStationService(Logger, CacheManager, MockFactory());
-    }
-
     private RadioStation CreateValidRadioStation(string name = "Test Station", string streamUrl = "http://stream.example.com/radio")
     {
         return new RadioStation

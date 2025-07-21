@@ -743,4 +743,98 @@ public class PlaylistService(
             Data = result
         };
     }
+
+    /// <summary>
+    /// Delete playlist by API key with user authorization check
+    /// </summary>
+    public async Task<MelodeeModels.OperationResult<bool>> DeleteByApiKeyAsync(Guid playlistApiKey, int userId, CancellationToken cancellationToken = default)
+    {
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        
+        var playlist = await scopedContext
+            .Playlists
+            .Include(x => x.User)
+            .FirstOrDefaultAsync(x => x.ApiKey == playlistApiKey, cancellationToken)
+            .ConfigureAwait(false);
+            
+        if (playlist == null)
+        {
+            return new MelodeeModels.OperationResult<bool>("Playlist not found.")
+            {
+                Data = false
+            };
+        }
+
+        if (playlist.UserId != userId)
+        {
+            return new MelodeeModels.OperationResult<bool>("User not authorized to delete this playlist.")
+            {
+                Data = false
+            };
+        }
+
+        scopedContext.Playlists.Remove(playlist);
+        await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        await ClearCacheAsync(playlist.Id, cancellationToken).ConfigureAwait(false);
+
+        Logger.Information("User [{UserId}] deleted playlist [{PlaylistName}]", userId, playlist.Name);
+
+        return new MelodeeModels.OperationResult<bool>
+        {
+            Data = true
+        };
+    }
+
+    /// <summary>
+    /// Create a new playlist with songs
+    /// </summary>
+    public async Task<MelodeeModels.OperationResult<string?>> CreatePlaylistAsync(
+        string name, 
+        int userId, 
+        IEnumerable<Guid>? songApiKeys = null,
+        CancellationToken cancellationToken = default)
+    {
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        
+        var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
+        var songApiKeyArray = songApiKeys?.ToArray() ?? Array.Empty<Guid>();
+        
+        // Get songs for the playlist if provided
+        var songsForPlaylist = Array.Empty<Data.Models.Song>();
+        if (songApiKeyArray.Length > 0)
+        {
+            songsForPlaylist = await scopedContext.Songs
+                .Where(x => songApiKeyArray.Contains(x.ApiKey))
+                .ToArrayAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        var newPlaylist = new Playlist
+        {
+            CreatedAt = now,
+            Name = name,
+            UserId = userId,
+            SongCount = SafeParser.ToNumber<short>(songsForPlaylist.Length),
+            Duration = songsForPlaylist.Sum(x => x.Duration),
+            Songs = songsForPlaylist.Select((x, i) => new PlaylistSong
+            {
+                SongId = x.Id,
+                SongApiKey = x.ApiKey,
+                PlaylistOrder = i
+            }).ToArray()
+        };
+
+        await scopedContext.Playlists.AddAsync(newPlaylist, cancellationToken).ConfigureAwait(false);
+        await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        var playlistApiKey = newPlaylist.ToApiKey();
+        
+        Logger.Information("User [{UserId}] created playlist [{Name}] with [{SongCount}] songs.", userId, name, songsForPlaylist.Length);
+
+        return new MelodeeModels.OperationResult<string?>
+        {
+            Data = playlistApiKey
+        };
+    }
 }
