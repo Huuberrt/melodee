@@ -534,7 +534,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         Assert.Null(result.ResponseData.Error);
         
         // Ensure album list response is valid and contains albums
-        var albumList = result.ResponseData?.Data as IList<Album>;
+        var albumList = result.ResponseData?.Data as IList<AlbumList>;
         Assert.NotNull(albumList);
         Assert.NotEmpty(albumList);
         Assert.All(albumList, album => Assert.NotNull(album.Name));

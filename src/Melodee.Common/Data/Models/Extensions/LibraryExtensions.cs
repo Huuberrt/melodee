@@ -5,9 +5,9 @@ namespace Melodee.Common.Data.Models.Extensions;
 
 public static class LibraryExtensions
 {
-    public static string ToApiKey(this Library artist)
+    public static string ToApiKey(this Library library)
     {
-        return $"library{OpenSubsonicServer.ApiIdSeparator}{artist.ApiKey}";
+        return $"library{OpenSubsonicServer.ApiIdSeparator}{library.ApiKey}";
     }
 
 
