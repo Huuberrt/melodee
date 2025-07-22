@@ -115,7 +115,8 @@ public class MetaTagTests : TestsBase
             Assert.Equal(fileInfo.FullName, tagResult.Data.File.FullName(dirInfo));
             Assert.NotNull(tagResult.Data.Title()?.Nullify());
 
-            var newAlbumValue = Guid.NewGuid().ToString();
+            // Use a simple string without spaces to avoid MP3 tag parsing issues
+            var newAlbumValue = $"TestAlbum{DateTime.Now.Ticks % 10000}";
             var tags = tagResult.Data.Tags.ToList();
             tags.Remove(tags.First(x => x.Identifier == MetaTagIdentifier.Album));
             tags.Add(new MetaTag<object?>

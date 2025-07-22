@@ -1,5 +1,7 @@
 using Melodee.Common.Data.Models;
+using Melodee.Common.Enums;
 using Melodee.Common.Models;
+using Melodee.Common.Models.Collection;
 using NodaTime;
 
 namespace Melodee.Tests.Common.Services;
@@ -350,6 +352,373 @@ public class PlaylistServiceTests : ServiceTestBase
 
         AssertResultIsSuccessful(result);
         Assert.True(result.Data.Count() <= 5);
+    }
+
+    [Fact]
+    public async Task SongsForPlaylistAsync_VerifiesCorrectReturnType_ReturnsSongDataInfoArray()
+    {
+        var service = GetPlaylistService();
+        var userInfo = new UserInfo(5, Guid.NewGuid(), "testuser", "test@melodee.net", string.Empty, string.Empty);
+        
+        // Create a test user and playlist
+        await using var context = await MockFactory().CreateDbContextAsync();
+        var testUser = new User
+        {
+            UserName = "testuser",
+            UserNameNormalized = "TESTUSER",
+            Email = "test@example.com",
+            EmailNormalized = "TEST@EXAMPLE.COM",
+            PublicKey = "testkey",
+            PasswordEncrypted = "encryptedpassword",
+            ApiKey = Guid.NewGuid(),
+            CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+            IsAdmin = false,
+            IsLocked = false
+        };
+        context.Users.Add(testUser);
+        await context.SaveChangesAsync();
+        
+        var testApiKey = Guid.NewGuid();
+        var testPlaylist = new Playlist
+        {
+            ApiKey = testApiKey,
+            Name = "Test Playlist",
+            IsPublic = true,
+            CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+            User = testUser,
+            Songs = new List<PlaylistSong>()
+        };
+        context.Playlists.Add(testPlaylist);
+        await context.SaveChangesAsync();
+
+        var result = await service.SongsForPlaylistAsync(testApiKey, userInfo, new PagedRequest());
+
+        AssertResultIsSuccessful(result);
+        Assert.IsType<SongDataInfo[]>(result.Data);
+        Assert.NotNull(result.Data);
+        Assert.True(result.TotalCount >= 0);
+    }
+    
+    [Fact]
+    public async Task SongsForPlaylistAsync_WithSongs()
+    {
+        var service = GetPlaylistService();
+        var userInfo = new UserInfo(5, Guid.NewGuid(), "testuser", "test@melodee.net", string.Empty, string.Empty);
+        
+        // Create everything in the same context to avoid FK constraint issues
+        await using var context = await MockFactory().CreateDbContextAsync();
+        
+        // Create library first
+        var library = new Library
+        {
+            ApiKey = Guid.NewGuid(),
+            Name = "Test Library",
+            Path = "/test/library/",
+            Type = (int)LibraryType.Storage,
+            CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+            LastUpdatedAt = SystemClock.Instance.GetCurrentInstant()
+        };
+        context.Libraries.Add(library);
+        await context.SaveChangesAsync();
+        
+        // Create artist
+        var artist = new Melodee.Common.Data.Models.Artist
+        {
+            ApiKey = Guid.NewGuid(),
+            Name = "Test Artist",
+            NameNormalized = "testartist",
+            LibraryId = library.Id,
+            Directory = "/testartist/",
+            CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+            LastUpdatedAt = SystemClock.Instance.GetCurrentInstant()
+        };
+        context.Artists.Add(artist);
+        await context.SaveChangesAsync();
+        
+        // Create album
+        var album = new Melodee.Common.Data.Models.Album
+        {
+            ApiKey = Guid.NewGuid(),
+            Name = "Test Album",
+            NameNormalized = "testalbum",
+            ArtistId = artist.Id,
+            Directory = "/testalbum/",
+            ReleaseDate = new LocalDate(2023, 1, 1),
+            CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+            LastUpdatedAt = SystemClock.Instance.GetCurrentInstant()
+        };
+        context.Albums.Add(album);
+        await context.SaveChangesAsync();
+        
+        // Create 10 test songs
+        var testSongs = new List<Melodee.Common.Data.Models.Song>();
+        for (int i = 0; i < 10; i++)
+        {
+            var song = new Melodee.Common.Data.Models.Song
+            {
+                ApiKey = Guid.NewGuid(),
+                Title = $"Test Song {i + 1}",
+                TitleNormalized = $"testsong{i + 1}",
+                AlbumId = album.Id,
+                SongNumber = i + 1,
+                FileName = $"test{i + 1}.mp3",
+                FileSize = 1000000 + (i * 10000),
+                FileHash = $"testhash{i + 1}",
+                Duration = 180000 + (i * 1000),
+                SamplingRate = 44100,
+                BitRate = 320,
+                BitDepth = 16,
+                BPM = 120,
+                ContentType = "audio/mpeg",
+                CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+                LastUpdatedAt = SystemClock.Instance.GetCurrentInstant()
+            };
+            testSongs.Add(song);
+        }
+        context.Songs.AddRange(testSongs);
+        await context.SaveChangesAsync();
+        
+        // Create test user
+        var testUser = new User
+        {
+            UserName = "testuser",
+            UserNameNormalized = "TESTUSER",
+            Email = "test@example.com",
+            EmailNormalized = "TEST@EXAMPLE.COM",
+            PublicKey = "testkey",
+            PasswordEncrypted = "encryptedpassword",
+            ApiKey = Guid.NewGuid(),
+            CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+            IsAdmin = false,
+            IsLocked = false
+        };
+        context.Users.Add(testUser);
+        await context.SaveChangesAsync();
+        
+        // Create playlist with songs
+        var testApiKey = Guid.NewGuid();
+        var testPlaylist = new Playlist
+        {
+            ApiKey = testApiKey,
+            Name = "Test Playlist With Songs",
+            IsPublic = true,
+            CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+            User = testUser,
+            SongCount = 10,
+            Duration = testSongs.Sum(s => s.Duration),
+            Songs = testSongs.Select((song, index) => new PlaylistSong
+            {
+                SongId = song.Id,
+                SongApiKey = song.ApiKey,
+                PlaylistOrder = index + 1
+            }).ToList()
+        };
+        context.Playlists.Add(testPlaylist);
+        await context.SaveChangesAsync();
+
+        // Test first page (page 0)
+        var firstPageResult = await service.SongsForPlaylistAsync(testApiKey, userInfo, new PagedRequest
+        {
+            PageSize = 5,
+            Page = 0
+        });
+
+        AssertResultIsSuccessful(firstPageResult);
+        Assert.Equal(10, firstPageResult.TotalCount);
+        Assert.NotNull(firstPageResult.Data);
+        Assert.Equal(5, firstPageResult.Data.Count());
+        
+        // Test second page (page 1) 
+        var secondPageResult = await service.SongsForPlaylistAsync(testApiKey, userInfo, new PagedRequest
+        {
+            PageSize = 5,
+            Page = 1
+        });
+
+        AssertResultIsSuccessful(secondPageResult);
+        Assert.Equal(10, secondPageResult.TotalCount);
+        Assert.NotNull(secondPageResult.Data);
+        Assert.Equal(5, secondPageResult.Data.Count());
+        
+        // Verify songs have correct data
+        var allSongsResult = await service.SongsForPlaylistAsync(testApiKey, userInfo, new PagedRequest
+        {
+            PageSize = 100,
+            Page = 0
+        });
+        
+        AssertResultIsSuccessful(allSongsResult);
+        Assert.Equal(10, allSongsResult.TotalCount);
+        Assert.Equal(10, allSongsResult.Data.Count());
+        
+        // Verify songs are returned with proper data
+        var returnedSongs = allSongsResult.Data.ToArray();
+        Assert.All(returnedSongs, song => 
+        {
+            Assert.NotNull(song.Title);
+            Assert.NotEqual(Guid.Empty, song.ApiKey);
+            Assert.True(song.Duration > 0);
+        });
+    }
+
+    [Fact]
+    public async Task SongsForPlaylistAsync_WithDifferentPageSizes_HandlesPaginationCorrectly()
+    {
+        var service = GetPlaylistService();
+        var userInfo = new UserInfo(5, Guid.NewGuid(), "testuser", "test@melodee.net", string.Empty, string.Empty);
+        
+        // Create a test user and empty playlist
+        await using var context = await MockFactory().CreateDbContextAsync();
+        var testUser = new User
+        {
+            UserName = "testuser",
+            UserNameNormalized = "TESTUSER",
+            Email = "test@example.com",
+            EmailNormalized = "TEST@EXAMPLE.COM",
+            PublicKey = "testkey",
+            PasswordEncrypted = "encryptedpassword",
+            ApiKey = Guid.NewGuid(),
+            CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+            IsAdmin = false,
+            IsLocked = false
+        };
+        context.Users.Add(testUser);
+        await context.SaveChangesAsync();
+        
+        var testApiKey = Guid.NewGuid();
+        var testPlaylist = new Playlist
+        {
+            ApiKey = testApiKey,
+            Name = "Test Playlist",
+            IsPublic = true,
+            CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+            User = testUser,
+            Songs = new List<PlaylistSong>()
+        };
+        context.Playlists.Add(testPlaylist);
+        await context.SaveChangesAsync();
+
+        // Test different page sizes
+        var smallPageResult = await service.SongsForPlaylistAsync(testApiKey, userInfo, new PagedRequest
+        {
+            PageSize = 5,
+            Page = 0
+        });
+
+        var largePageResult = await service.SongsForPlaylistAsync(testApiKey, userInfo, new PagedRequest
+        {
+            PageSize = 100,
+            Page = 0
+        });
+
+        AssertResultIsSuccessful(smallPageResult);
+        AssertResultIsSuccessful(largePageResult);
+        Assert.Equal(smallPageResult.TotalCount, largePageResult.TotalCount);
+        Assert.True(smallPageResult.Data.Count() <= 5);
+        Assert.True(largePageResult.Data.Count() <= 100);
+    }
+
+    [Fact]
+    public async Task SongsForPlaylistAsync_WithCountOnlyRequest_ReturnsCorrectStructure()
+    {
+        var service = GetPlaylistService();
+        var userInfo = new UserInfo(5, Guid.NewGuid(), "testuser", "test@melodee.net", string.Empty, string.Empty);
+        
+        // Create a test user and playlist
+        await using var context = await MockFactory().CreateDbContextAsync();
+        var testUser = new User
+        {
+            UserName = "testuser",
+            UserNameNormalized = "TESTUSER",
+            Email = "test@example.com",
+            EmailNormalized = "TEST@EXAMPLE.COM",
+            PublicKey = "testkey",
+            PasswordEncrypted = "encryptedpassword",
+            ApiKey = Guid.NewGuid(),
+            CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+            IsAdmin = false,
+            IsLocked = false
+        };
+        context.Users.Add(testUser);
+        await context.SaveChangesAsync();
+        
+        var testApiKey = Guid.NewGuid();
+        var testPlaylist = new Playlist
+        {
+            ApiKey = testApiKey,
+            Name = "Test Playlist",
+            IsPublic = true,
+            CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+            User = testUser,
+            Songs = new List<PlaylistSong>()
+        };
+        context.Playlists.Add(testPlaylist);
+        await context.SaveChangesAsync();
+
+        var result = await service.SongsForPlaylistAsync(testApiKey, userInfo, new PagedRequest
+        {
+            IsTotalCountOnlyRequest = true
+        });
+
+        AssertResultIsSuccessful(result);
+        Assert.True(result.TotalCount >= 0);
+        Assert.NotNull(result.Data);
+        Assert.IsType<SongDataInfo[]>(result.Data);
+    }
+
+    [Fact]
+    public async Task SongsForPlaylistAsync_EnsuresDataConsistency_VerifiesResultStructure()
+    {
+        var service = GetPlaylistService();
+        var userInfo = new UserInfo(5, Guid.NewGuid(), "testuser", "test@melodee.net", string.Empty, string.Empty);
+        
+        // Create a test user and playlist
+        await using var context = await MockFactory().CreateDbContextAsync();
+        var testUser = new User
+        {
+            UserName = "testuser",
+            UserNameNormalized = "TESTUSER",
+            Email = "test@example.com",
+            EmailNormalized = "TEST@EXAMPLE.COM",
+            PublicKey = "testkey",
+            PasswordEncrypted = "encryptedpassword",
+            ApiKey = Guid.NewGuid(),
+            CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+            IsAdmin = false,
+            IsLocked = false
+        };
+        context.Users.Add(testUser);
+        await context.SaveChangesAsync();
+        
+        var testApiKey = Guid.NewGuid();
+        var testPlaylist = new Playlist
+        {
+            ApiKey = testApiKey,
+            Name = "Test Playlist",
+            IsPublic = true,
+            CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+            User = testUser,
+            Songs = new List<PlaylistSong>()
+        };
+        context.Playlists.Add(testPlaylist);
+        await context.SaveChangesAsync();
+
+        var result = await service.SongsForPlaylistAsync(testApiKey, userInfo, new PagedRequest
+        {
+            PageSize = 50
+        });
+
+        // Verify the result structure and consistency
+        AssertResultIsSuccessful(result);
+        Assert.NotNull(result.Data);
+        Assert.IsType<SongDataInfo[]>(result.Data);
+        Assert.True(result.TotalCount >= 0);
+        Assert.True(result.TotalPages >= 0);
+        
+        // For empty playlist, verify expected values
+        Assert.Empty(result.Data);
+        Assert.Equal(0, result.TotalCount);
+        Assert.Equal(0, result.TotalPages);
     }
 
     [Fact]

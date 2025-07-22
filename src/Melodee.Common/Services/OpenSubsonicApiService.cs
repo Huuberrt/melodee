@@ -750,14 +750,40 @@ public class OpenSubsonicApiService(
             };
         }
 
+        Playlist? data = null;
         var playlistResult = await playlistService.GetByApiKeyAsync(authResponse.UserInfo, apiKey.Value, cancellationToken);
-        var data = playlistResult.Data;
-
+        var playlist = playlistResult.Data;
+         
+        if (playlist != null)
+        {
+            data = playlist.ToApiPlaylist(false);
+            var playlistSongsResult = await playlistService.SongsForPlaylistAsync(playlist.ApiKey,
+                authResponse.UserInfo,
+                new PagedRequest
+                {
+                    PageSize = (await Configuration.Value).GetValue<short?>(SettingRegistry.PlaylistMaximumAllowedPageSize) ?? 1000
+                },
+                cancellationToken);
+            if (playlistSongsResult.IsSuccess)
+            {
+                data.SongCount = SafeParser.ToNumber<short>(playlistSongsResult.Data.Count());
+                await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+                var dbSongsForPlaylist = await scopedContext.Songs
+                    .Where(s => playlistSongsResult.Data.Select(ps => ps.ApiKey).Contains(s.ApiKey))
+                    .Include(s => s.Album).ThenInclude(x => x.Artist)
+                    .Include(x => x.UserSongs.Where(ua => ua.UserId == authResponse.UserInfo.Id))                    
+                    .ToListAsync(cancellationToken)
+                    .ConfigureAwait(false);
+                data.Entry = dbSongsForPlaylist.Select(x => x.ToApiChild(x.Album, x.UserSongs.FirstOrDefault())).ToArray();
+            }
+        }
+        
         return new ResponseModel
         {
             UserInfo = authResponse.UserInfo,
             ResponseData = await DefaultApiResponse() with
             {
+                Error = playlistResult.IsSuccess ? null : Error.InvalidApiKeyError,
                 IsSuccess = data != null,
                 Data = data,
                 DataPropertyName = apiRequest.IsXmlRequest ? string.Empty : "playlist"
@@ -1465,7 +1491,8 @@ public class OpenSubsonicApiService(
     ///     List the OpenSubsonic extensions supported by this server.
     ///     <remarks>Unlike all other APIs getOpenSubsonicExtensions must be publicly accessible.</remarks>
     /// </summary>
-    public async Task<ResponseModel> GetOpenSubsonicExtensionsAsync(ApiRequest apiApiRequest,
+    public async Task<ResponseModel> GetOpenSubsonicExtensionsAsync(
+        ApiRequest apiApiRequest,
         CancellationToken cancellationToken = default)
     {
         var authResponse = new ResponseModel

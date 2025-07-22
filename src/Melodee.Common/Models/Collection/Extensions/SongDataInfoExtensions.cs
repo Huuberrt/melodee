@@ -51,4 +51,5 @@ public static class SongDataInfoExtensions
             PlaylistOrder = playlistOrder
         };
     }
+
 }

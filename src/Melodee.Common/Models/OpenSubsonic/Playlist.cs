@@ -33,7 +33,7 @@ public record Playlist : IOpenSubsonicToXml
     /// <summary>
     ///     number of songs
     /// </summary>
-    public required int SongCount { get; init; }
+    public required int SongCount { get; set; }
 
     /// <summary>
     ///     Playlist duration in seconds
@@ -63,8 +63,9 @@ public record Playlist : IOpenSubsonicToXml
     /// <summary>
     ///     Songs on the playlist.
     /// </summary>
-    public Child[]? Entry { get; init; }
+    public Child[]? Entry { get; set; }
 
+    
     public string ToXml(string? nodeName = null)
     {
         var result = new StringBuilder(

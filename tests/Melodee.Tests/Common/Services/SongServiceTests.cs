@@ -527,7 +527,7 @@ public class SongServiceTests : ServiceTestBase
 
     #region Helper Methods
 
-    private async Task<Melodee.Common.Data.Models.Song> CreateTestSong()
+    public  async Task<Melodee.Common.Data.Models.Song> CreateTestSong()
     {
         var artist = await CreateTestArtist();
         var album = await CreateTestAlbum(artist);
@@ -558,7 +558,7 @@ public class SongServiceTests : ServiceTestBase
         return song;
     }
 
-    private async Task<Melodee.Common.Data.Models.Song[]> CreateMultipleTestSongs(int count)
+    public async Task<Melodee.Common.Data.Models.Song[]> CreateMultipleTestSongs(int count)
     {
         var songs = new List<Melodee.Common.Data.Models.Song>();
         var artist = await CreateTestArtist();
@@ -594,7 +594,7 @@ public class SongServiceTests : ServiceTestBase
         return songs.ToArray();
     }
 
-    private async Task<Melodee.Common.Data.Models.Song> CreateTestSongWithContributor(string contributorName)
+    public async Task<Melodee.Common.Data.Models.Song> CreateTestSongWithContributor(string contributorName)
     {
         var song = await CreateTestSong();
         
@@ -616,7 +616,7 @@ public class SongServiceTests : ServiceTestBase
         return song;
     }
 
-    private async Task<Melodee.Common.Data.Models.Artist> CreateTestArtist()
+    public  async Task<Melodee.Common.Data.Models.Artist> CreateTestArtist()
     {
         var library = await CreateTestLibrary();
         
@@ -637,7 +637,7 @@ public class SongServiceTests : ServiceTestBase
         return artist;
     }
 
-    private async Task<Melodee.Common.Data.Models.Album> CreateTestAlbum(Melodee.Common.Data.Models.Artist artist)
+    public async Task<Melodee.Common.Data.Models.Album> CreateTestAlbum(Melodee.Common.Data.Models.Artist artist)
     {
         var album = new Melodee.Common.Data.Models.Album
         {
@@ -657,7 +657,7 @@ public class SongServiceTests : ServiceTestBase
         return album;
     }
 
-    private async Task<Library> CreateTestLibrary()
+    public async Task<Library> CreateTestLibrary()
     {
         var library = new Library
         {

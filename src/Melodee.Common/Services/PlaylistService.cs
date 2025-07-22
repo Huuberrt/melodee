@@ -1,4 +1,5 @@
 using Ardalis.GuardClauses;
+using Dapper;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
@@ -44,7 +45,10 @@ public class PlaylistService(
     /// <summary>
     ///     Return a paginated list of all playlists in the database.
     /// </summary>
-    public async Task<MelodeeModels.PagedResult<Playlist>> ListAsync(MelodeeModels.UserInfo userInfo, MelodeeModels.PagedRequest pagedRequest, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<Playlist>> ListAsync(
+        UserInfo userInfo, 
+        PagedRequest pagedRequest, 
+        CancellationToken cancellationToken = default)
     {
         int playlistCount;
         var playlists = new List<Playlist>();
@@ -82,7 +86,7 @@ public class PlaylistService(
         playlists.AddRange(dynamicPlaylists.Data);
         playlistCount += dynamicPlaylists.TotalCount;
 
-        return new MelodeeModels.PagedResult<Playlist>
+        return new PagedResult<Playlist>
         {
             TotalCount = playlistCount,
             TotalPages = pagedRequest.TotalPages(playlistCount),
@@ -93,7 +97,10 @@ public class PlaylistService(
     /// <summary>
     ///     Returns a paginated list of dynamic (those which are file defined) Playlists.
     /// </summary>
-    public async Task<MelodeeModels.PagedResult<Playlist>> DynamicListAsync(MelodeeModels.UserInfo userInfo, MelodeeModels.PagedRequest pagedRequest, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<Playlist>> DynamicListAsync(
+        UserInfo userInfo, 
+        PagedRequest pagedRequest, 
+        CancellationToken cancellationToken = default)
     {
         var playlistCount = 0;
         var playlists = new List<Playlist>();
@@ -111,10 +118,10 @@ public class PlaylistService(
                 if (dynamicPlaylistsJsonFiles.Any())
                 {
                     var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
-                    var dynamicPlaylists = new List<MelodeeModels.DynamicPlaylist>();
+                    var dynamicPlaylists = new List<DynamicPlaylist>();
                     foreach (var dynamicPlaylistJsonFile in dynamicPlaylistsJsonFiles)
                     {
-                        dynamicPlaylists.Add(serializer.Deserialize<MelodeeModels.DynamicPlaylist>(
+                        dynamicPlaylists.Add(serializer.Deserialize<DynamicPlaylist>(
                             await File.ReadAllTextAsync(dynamicPlaylistJsonFile.FullName, cancellationToken)
                                 .ConfigureAwait(false))!);
                     }
@@ -127,23 +134,21 @@ public class PlaylistService(
                         {
                             if (dp.IsPublic || (dp.ForUserId != null && dp.ForUserId == userInfo.ApiKey))
                             {
-                                // Use EF Core query instead of raw SQL - this is a complex query that may need 
-                                // to stay as raw SQL for now due to dynamic where conditions
+                                var dbConn = scopedContext.Database.GetDbConnection();
                                 var dpWhere = dp.PrepareSongSelectionWhere(userInfo);
-                                var songDataInfosCount = await scopedContext.Songs
-                                    .Join(scopedContext.Albums, s => s.AlbumId, a => a.Id, (s, a) => new { Song = s, Album = a })
-                                    .Join(scopedContext.Artists, sa => sa.Album.ArtistId, ar => ar.Id, (sa, ar) => new { sa.Song, sa.Album, Artist = ar })
-                                    .GroupJoin(scopedContext.UserSongs, saa => saa.Song.Id, us => us.SongId, (saa, us) => new { saa.Song, saa.Album, saa.Artist, UserSongs = us })
-                                    .CountAsync(cancellationToken)
-                                    .ConfigureAwait(false);
-                                
-                                // Get duration sum using EF Core
-                                var totalDuration = await scopedContext.Songs
-                                    .Join(scopedContext.Albums, s => s.AlbumId, a => a.Id, (s, a) => new { Song = s, Album = a })
-                                    .Join(scopedContext.Artists, sa => sa.Album.ArtistId, ar => ar.Id, (sa, ar) => new { sa.Song, sa.Album, Artist = ar })
-                                    .SumAsync(x => x.Song.Duration, cancellationToken)
-                                    .ConfigureAwait(false);
-
+                                var sql = $"""
+                                           SELECT s."Id", s."ApiKey", s."IsLocked", s."Title", s."TitleNormalized", s."SongNumber", a."ReleaseDate",
+                                                  a."Name" as "AlbumName", a."ApiKey" as "AlbumApiKey", ar."Name" as "ArtistName", ar."ApiKey" as "ArtistApiKey",
+                                                  s."FileSize", s."Duration", s."CreatedAt", s."Tags", us."IsStarred" as "UserStarred", us."Rating" as "UserRating"
+                                           FROM "Songs" s
+                                           join "Albums" a on (s."AlbumId" = a."Id")
+                                           join "Artists" ar on (a."ArtistId" = ar."Id")
+                                           left join "UserSongs" us on (s."Id" = us."SongId")
+                                           where {dpWhere}
+                                           """;
+                                var songDataInfosForDp = (await dbConn
+                                    .QueryAsync<SongDataInfo>(sql)
+                                    .ConfigureAwait(false)).ToArray();
                                 playlists.Add(new Playlist
                                 {
                                     Id = 1,
@@ -157,11 +162,15 @@ public class PlaylistService(
                                     User = ServiceUser.Instance.Value,
                                     IsDynamic = true,
                                     IsPublic = true,
-                                    SongCount = SafeParser.ToNumber<short>(songDataInfosCount),
-                                    Duration = totalDuration,
+                                    SongCount = SafeParser.ToNumber<short>(songDataInfosForDp.Count()),
+                                    Duration = songDataInfosForDp.Sum(x => x.Duration),
                                     AllowedUserIds = userInfo.UserName,
                                     Songs = []
                                 });
+ 
+
+                                                        
+                                
                             }
                         }
                         catch (Exception e)
@@ -177,7 +186,7 @@ public class PlaylistService(
 
         playlists = playlists.Skip(pagedRequest.SkipValue).Take(pagedRequest.TakeValue).ToList();
 
-        return new MelodeeModels.PagedResult<Playlist>
+        return new PagedResult<Playlist>
         {
             TotalCount = playlistCount,
             TotalPages = pagedRequest.TotalPages(playlistCount),
@@ -185,7 +194,7 @@ public class PlaylistService(
         };
     }
 
-    public async Task<MelodeeModels.PagedResult<SongDataInfo>> SongsForPlaylistAsync(Guid apiKey, MelodeeModels.UserInfo userInfo, MelodeeModels.PagedRequest pagedRequest, CancellationToken cancellationToken = default)
+public async Task<MelodeeModels.PagedResult<SongDataInfo>> SongsForPlaylistAsync(Guid apiKey, MelodeeModels.UserInfo userInfo, MelodeeModels.PagedRequest pagedRequest, CancellationToken cancellationToken = default)
     {
         Guard.Against.Expression(_ => apiKey == Guid.Empty, apiKey, nameof(apiKey));
 
@@ -208,7 +217,7 @@ public class PlaylistService(
         {
             if (playlistResult.Data!.IsDynamic)
             {
-                // For dynamic playlists, use EF Core raw SQL with proper parameterization for security
+                // For dynamic playlists, use EF Core queries instead of raw SQL
                 var dynamicPlaylist = await libraryService.GetDynamicPlaylistAsync(apiKey, cancellationToken).ConfigureAwait(false);
                 var dp = dynamicPlaylist.Data;
                 if (dp == null)
@@ -221,47 +230,38 @@ public class PlaylistService(
                         Type = MelodeeModels.OperationResponseType.NotFound
                     };
                 }
-
+                var dbConn = scopedContext.Database.GetDbConnection();
                 var dpWhere = dp.PrepareSongSelectionWhere(userInfo);
                 var dpOrderBy = dp.SongSelectionOrder ?? "RANDOM()";
-                
-                // Use EF Core FromSqlRaw for better performance and security
-                // Get count using EF Core raw SQL
-                var countSql = $"""
-                    SELECT COUNT(s."Id") as Value
-                    FROM "Songs" s
-                    join "Albums" a on (s."AlbumId" = a."Id")
-                    join "Artists" ar on (a."ArtistId" = ar."Id")
-                    left join "UserSongs" us on (s."Id" = us."SongId")
-                    left join "UserSongs" uus on (s."Id" = uus."SongId" and uus."UserId" = {userInfo.Id})
-                    where {dpWhere}
-                    """;
-                    
-                var countResult = await scopedContext.Database
-                    .SqlQueryRaw<int>(countSql)
-                    .FirstAsync(cancellationToken)
+                var sql = $"""
+                           SELECT COUNT(s."Id")
+                           FROM "Songs" s
+                           join "Albums" a on (s."AlbumId" = a."Id")
+                           join "Artists" ar on (a."ArtistId" = ar."Id")
+                           left join "UserSongs" us on (s."Id" = us."SongId")
+                           left join "UserSongs" uus on (s."Id" = uus."SongId" and uus."UserId" = {userInfo.Id})
+                           where {dpWhere}
+                           """;
+                songCount = await dbConn
+                    .QuerySingleAsync<int>(sql)
                     .ConfigureAwait(false);
-                songCount = countResult;
 
-                // Get songs using EF Core raw SQL with proper ordering and pagination
-                var dataSql = $"""
-                    SELECT s."Id", s."ApiKey", s."IsLocked", s."Title", s."TitleNormalized", s."SongNumber", a."ReleaseDate",
-                           a."Name" as "AlbumName", a."ApiKey" as "AlbumApiKey", ar."Name" as "ArtistName", ar."ApiKey" as "ArtistApiKey",
-                           s."FileSize", s."Duration", s."CreatedAt", s."Tags", uus."IsStarred" as "UserStarred", uus."Rating" as "UserRating"
-                    FROM "Songs" s
-                    join "Albums" a on (s."AlbumId" = a."Id")
-                    join "Artists" ar on (a."ArtistId" = ar."Id")
-                    left join "UserSongs" us on (s."Id" = us."SongId")
-                    left join "UserSongs" uus on (s."Id" = uus."SongId" and uus."UserId" = {userInfo.Id})
-                    where {dpWhere}
-                    order by {dpOrderBy}
-                    offset {pagedRequest.SkipValue} rows fetch next {pagedRequest.TakeValue} rows only
-                    """;
-                    
-                songs = await scopedContext.Database
-                    .SqlQueryRaw<SongDataInfo>(dataSql)
-                    .ToArrayAsync(cancellationToken)
-                    .ConfigureAwait(false);
+                sql = $"""
+                       SELECT s."Id", s."ApiKey", s."IsLocked", s."Title", s."TitleNormalized", s."SongNumber", a."ReleaseDate",
+                              a."Name" as "AlbumName", a."ApiKey" as "AlbumApiKey", ar."Name" as "ArtistName", ar."ApiKey" as "ArtistApiKey",
+                              s."FileSize", s."Duration", s."CreatedAt", s."Tags", uus."IsStarred" as "UserStarred", uus."Rating" as "UserRating"
+                       FROM "Songs" s
+                       join "Albums" a on (s."AlbumId" = a."Id")
+                       join "Artists" ar on (a."ArtistId" = ar."Id")
+                       left join "UserSongs" us on (s."Id" = us."SongId")
+                       left join "UserSongs" uus on (s."Id" = uus."SongId" and uus."UserId" = {userInfo.Id})
+                       where {dpWhere}
+                       order by {dpOrderBy}
+                       offset {pagedRequest.SkipValue} rows fetch next {pagedRequest.TakeValue} rows only;
+                       """;
+                songs = (await dbConn
+                    .QueryAsync<SongDataInfo>(sql)
+                    .ConfigureAwait(false)).ToArray();                
             }
             else
             {
@@ -328,8 +328,10 @@ public class PlaylistService(
         };
     }
 
-
-    public async Task<MelodeeModels.OperationResult<Playlist?>> GetByApiKeyAsync(MelodeeModels.UserInfo userInfo, Guid apiKey, CancellationToken cancellationToken = default)
+    public async Task<OperationResult<Playlist?>> GetByApiKeyAsync(
+        UserInfo userInfo, 
+        Guid apiKey, 
+        CancellationToken cancellationToken = default)
     {
         Guard.Against.Expression(_ => apiKey == Guid.Empty, apiKey, nameof(apiKey));
 
@@ -348,17 +350,17 @@ public class PlaylistService(
         if (id == null)
         {
             // See if Dynamic playlist exists for given ApiKey. If so return it versus calling detail.
-            var dynamicPlayLists = await DynamicListAsync(userInfo, new MelodeeModels.PagedRequest { PageSize = short.MaxValue }, cancellationToken).ConfigureAwait(false);
+            var dynamicPlayLists = await DynamicListAsync(userInfo, new PagedRequest { PageSize = short.MaxValue }, cancellationToken).ConfigureAwait(false);
             var dynamicPlaylist = dynamicPlayLists.Data.FirstOrDefault(x => x.ApiKey == apiKey);
             if (dynamicPlaylist != null)
             {
-                return new MelodeeModels.OperationResult<Playlist?>
+                return new OperationResult<Playlist?>
                 {
                     Data = dynamicPlaylist
                 };
             }
 
-            return new MelodeeModels.OperationResult<Playlist?>("Unknown playlist.")
+            return new OperationResult<Playlist?>("Unknown playlist.")
             {
                 Data = null
             };
@@ -367,7 +369,7 @@ public class PlaylistService(
         return await GetAsync(id.Value, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<MelodeeModels.OperationResult<Playlist?>> GetAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<OperationResult<Playlist?>> GetAsync(int id, CancellationToken cancellationToken = default)
     {
         Guard.Against.Expression(x => x < 1, id, nameof(id));
 
@@ -384,13 +386,15 @@ public class PlaylistService(
                     .ConfigureAwait(false);
             }
         }, cancellationToken);
-        return new MelodeeModels.OperationResult<Playlist?>
+        return new OperationResult<Playlist?>
         {
             Data = result
         };
     }
 
-    public async Task<MelodeeModels.OperationResult<bool>> DeleteAsync(int currentUserId, int[] playlistIds,
+    public async Task<OperationResult<bool>> DeleteAsync(
+        int currentUserId, 
+        int[] playlistIds,
         CancellationToken cancellationToken = default)
     {
         Guard.Against.NullOrEmpty(playlistIds, nameof(playlistIds));
@@ -404,7 +408,7 @@ public class PlaylistService(
                 .ConfigureAwait(false);
             if (user == null)
             {
-                return new MelodeeModels.OperationResult<bool>("Unknown user.")
+                return new OperationResult<bool>("Unknown user.")
                 {
                     Data = false
                 };
@@ -420,7 +424,7 @@ public class PlaylistService(
                     
                 if (playlist == null)
                 {
-                    return new MelodeeModels.OperationResult<bool>("Unknown playlist.")
+                    return new OperationResult<bool>("Unknown playlist.")
                     {
                         Data = false
                     };
@@ -428,7 +432,7 @@ public class PlaylistService(
 
                 if (!user.CanDeletePlaylist(playlist))
                 {
-                    return new MelodeeModels.OperationResult<bool>("User does not have access to delete playlist.")
+                    return new OperationResult<bool>("User does not have access to delete playlist.")
                     {
                         Data = false
                     };
@@ -442,7 +446,7 @@ public class PlaylistService(
         }
 
 
-        return new MelodeeModels.OperationResult<bool>
+        return new OperationResult<bool>
         {
             Data = result
         };
@@ -451,7 +455,7 @@ public class PlaylistService(
     /// <summary>
     /// Gets a playlist by API key for internal operations (no user access control).
     /// </summary>
-    private async Task<MelodeeModels.OperationResult<Playlist?>> GetByApiKeyInternalAsync(Guid apiKey, CancellationToken cancellationToken)
+    private async Task<OperationResult<Playlist?>> GetByApiKeyInternalAsync(Guid apiKey, CancellationToken cancellationToken)
     {
         var id = await CacheManager.GetAsync(CacheKeyDetailByApiKeyTemplate.FormatSmart(apiKey), async () =>
         {
@@ -464,13 +468,16 @@ public class PlaylistService(
                 .ConfigureAwait(false);
         }, cancellationToken).ConfigureAwait(false);
 
-        return id > 0 ? await GetAsync(id, cancellationToken).ConfigureAwait(false) : new MelodeeModels.OperationResult<Playlist?> { Data = null };
+        return id > 0 ? await GetAsync(id, cancellationToken).ConfigureAwait(false) : new OperationResult<Playlist?> { Data = null };
     }
 
     /// <summary>
     /// Gets the image bytes and ETag for a playlist.
     /// </summary>
-    public async Task<ImageBytesAndEtag> GetPlaylistImageBytesAndEtagAsync(Guid playlistApiKey, string? size, CancellationToken cancellationToken = default)
+    public async Task<ImageBytesAndEtag> GetPlaylistImageBytesAndEtagAsync(
+        Guid playlistApiKey, 
+        string? size, 
+        CancellationToken cancellationToken = default)
     {
         var playlist = await GetByApiKeyInternalAsync(playlistApiKey, cancellationToken).ConfigureAwait(false);
         
@@ -501,7 +508,10 @@ public class PlaylistService(
     /// <summary>
     /// Adds songs to a playlist.
     /// </summary>
-    public async Task<MelodeeModels.OperationResult<bool>> AddSongsToPlaylistAsync(Guid playlistApiKey, IEnumerable<Guid> songApiKeys, CancellationToken cancellationToken = default)
+    public async Task<OperationResult<bool>> AddSongsToPlaylistAsync(
+        Guid playlistApiKey, 
+        IEnumerable<Guid> songApiKeys, 
+        CancellationToken cancellationToken = default)
     {
         Guard.Against.Expression(x => x == Guid.Empty, playlistApiKey, nameof(playlistApiKey));
         Guard.Against.NullOrEmpty(songApiKeys, nameof(songApiKeys));
@@ -546,7 +556,7 @@ public class PlaylistService(
             }
         }
 
-        return new MelodeeModels.OperationResult<bool>
+        return new OperationResult<bool>
         {
             Data = result
         };
@@ -555,7 +565,10 @@ public class PlaylistService(
     /// <summary>
     /// Removes songs from a playlist by song API keys.
     /// </summary>
-    public async Task<MelodeeModels.OperationResult<bool>> RemoveSongsFromPlaylistAsync(Guid playlistApiKey, IEnumerable<Guid> songApiKeys, CancellationToken cancellationToken = default)
+    public async Task<OperationResult<bool>> RemoveSongsFromPlaylistAsync(
+        Guid playlistApiKey, 
+        IEnumerable<Guid> songApiKeys, 
+        CancellationToken cancellationToken = default)
     {
         Guard.Against.Expression(x => x == Guid.Empty, playlistApiKey, nameof(playlistApiKey));
         Guard.Against.NullOrEmpty(songApiKeys, nameof(songApiKeys));
@@ -598,7 +611,7 @@ public class PlaylistService(
             }
         }
 
-        return new MelodeeModels.OperationResult<bool>
+        return new OperationResult<bool>
         {
             Data = result
         };
@@ -607,7 +620,10 @@ public class PlaylistService(
     /// <summary>
     /// Removes songs from a playlist by playlist song indexes.
     /// </summary>
-    public async Task<MelodeeModels.OperationResult<bool>> RemoveSongsByIndexFromPlaylistAsync(Guid playlistApiKey, IEnumerable<int> songIndexes, CancellationToken cancellationToken = default)
+    public async Task<OperationResult<bool>> RemoveSongsByIndexFromPlaylistAsync(
+        Guid playlistApiKey, 
+        IEnumerable<int> songIndexes, 
+        CancellationToken cancellationToken = default)
     {
         Guard.Against.Expression(x => x == Guid.Empty, playlistApiKey, nameof(playlistApiKey));
         Guard.Against.NullOrEmpty(songIndexes, nameof(songIndexes));
@@ -654,7 +670,7 @@ public class PlaylistService(
             }
         }
 
-        return new MelodeeModels.OperationResult<bool>
+        return new OperationResult<bool>
         {
             Data = result
         };
@@ -663,7 +679,9 @@ public class PlaylistService(
     /// <summary>
     /// Get playlists for a user with full include structure needed for OpenSubsonic API
     /// </summary>
-    public async Task<MelodeeModels.OperationResult<Playlist[]>> GetPlaylistsForUserAsync(int userId, CancellationToken cancellationToken = default)
+    public async Task<OperationResult<Playlist[]>> GetPlaylistsForUserAsync(
+        int userId, 
+        CancellationToken cancellationToken = default)
     {
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
@@ -679,7 +697,7 @@ public class PlaylistService(
             .ToArrayAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return new MelodeeModels.OperationResult<Playlist[]>
+        return new OperationResult<Playlist[]>
         {
             Data = playlists
         };
@@ -688,7 +706,7 @@ public class PlaylistService(
     /// <summary>
     /// Update playlist metadata (name, comment, isPublic) for OpenSubsonic API
     /// </summary>
-    public async Task<MelodeeModels.OperationResult<bool>> UpdatePlaylistMetadataAsync(
+    public async Task<OperationResult<bool>> UpdatePlaylistMetadataAsync(
         Guid playlistApiKey, 
         int currentUserId, 
         string? name = null, 
@@ -708,19 +726,19 @@ public class PlaylistService(
 
         if (playlist == null)
         {
-            return new MelodeeModels.OperationResult<bool>("Playlist not found.")
+            return new OperationResult<bool>("Playlist not found.")
             {
                 Data = false,
-                Type = MelodeeModels.OperationResponseType.NotFound
+                Type = OperationResponseType.NotFound
             };
         }
 
         if (playlist.UserId != currentUserId)
         {
-            return new MelodeeModels.OperationResult<bool>("Access denied.")
+            return new OperationResult<bool>("Access denied.")
             {
                 Data = false,
-                Type = MelodeeModels.OperationResponseType.AccessDenied
+                Type = OperationResponseType.AccessDenied
             };
         }
 
@@ -738,7 +756,7 @@ public class PlaylistService(
             await ClearCacheAsync(playlist.Id, cancellationToken).ConfigureAwait(false);
         }
 
-        return new MelodeeModels.OperationResult<bool>
+        return new OperationResult<bool>
         {
             Data = result
         };
@@ -747,7 +765,10 @@ public class PlaylistService(
     /// <summary>
     /// Delete playlist by API key with user authorization check
     /// </summary>
-    public async Task<MelodeeModels.OperationResult<bool>> DeleteByApiKeyAsync(Guid playlistApiKey, int userId, CancellationToken cancellationToken = default)
+    public async Task<OperationResult<bool>> DeleteByApiKeyAsync(
+        Guid playlistApiKey, 
+        int userId, 
+        CancellationToken cancellationToken = default)
     {
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         
@@ -759,7 +780,7 @@ public class PlaylistService(
             
         if (playlist == null)
         {
-            return new MelodeeModels.OperationResult<bool>("Playlist not found.")
+            return new OperationResult<bool>("Playlist not found.")
             {
                 Data = false
             };
@@ -767,7 +788,7 @@ public class PlaylistService(
 
         if (playlist.UserId != userId)
         {
-            return new MelodeeModels.OperationResult<bool>("User not authorized to delete this playlist.")
+            return new OperationResult<bool>("User not authorized to delete this playlist.")
             {
                 Data = false
             };
@@ -780,7 +801,7 @@ public class PlaylistService(
 
         Logger.Information("User [{UserId}] deleted playlist [{PlaylistName}]", userId, playlist.Name);
 
-        return new MelodeeModels.OperationResult<bool>
+        return new OperationResult<bool>
         {
             Data = true
         };
@@ -789,7 +810,7 @@ public class PlaylistService(
     /// <summary>
     /// Create a new playlist with songs
     /// </summary>
-    public async Task<MelodeeModels.OperationResult<string?>> CreatePlaylistAsync(
+    public async Task<OperationResult<string?>> CreatePlaylistAsync(
         string name, 
         int userId, 
         IEnumerable<Guid>? songApiKeys = null,
@@ -832,7 +853,7 @@ public class PlaylistService(
         
         Logger.Information("User [{UserId}] created playlist [{Name}] with [{SongCount}] songs.", userId, name, songsForPlaylist.Length);
 
-        return new MelodeeModels.OperationResult<string?>
+        return new OperationResult<string?>
         {
             Data = playlistApiKey
         };
