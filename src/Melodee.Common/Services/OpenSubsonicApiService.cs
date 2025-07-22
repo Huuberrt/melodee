@@ -765,6 +765,7 @@ public class OpenSubsonicApiService(
         };
     }
 
+    // TODO: This should be moved to AlbumService in the future.
     public async Task<ResponseModel> GetAlbumListAsync(
         GetAlbumListRequest albumListRequest,
         ApiRequest apiRequest,
@@ -792,7 +793,7 @@ public class OpenSubsonicApiService(
             {
                 albumsQuery = albumsQuery.Where(a => a.Genres != null && a.Genres.Contains(albumListRequest.Genre));
             }
-            
+
             // Filter by year
             if (albumListRequest.FromYear.HasValue)
             {
@@ -803,7 +804,7 @@ public class OpenSubsonicApiService(
             {
                 albumsQuery = albumsQuery.Where(a => a.ReleaseDate.Year <= albumListRequest.ToYear.Value);
             }
-            
+
             // Sorting
             switch (albumListRequest.Type)
             {
@@ -829,7 +830,7 @@ public class OpenSubsonicApiService(
                     albumsQuery = albumsQuery.OrderBy(a => a.Artist.Name);
                     break;
                 case ListType.Starred:
-                    albumsQuery = albumsQuery.Where(a => a.UserAlbums.Any(ua => ua.UserId == authResponse.UserInfo.Id && ua.IsStarred));                    
+                    albumsQuery = albumsQuery.Where(a => a.UserAlbums.Any(ua => ua.UserId == authResponse.UserInfo.Id && ua.IsStarred));
                     break;
                 case ListType.ByYear:
                     // Already filtered above
@@ -851,7 +852,7 @@ public class OpenSubsonicApiService(
             var userAlbums = await scopedContext.UserAlbums
                 .Where(ua => ua.UserId == authResponse.UserInfo.Id && albums.Select(a => a.Id).Contains(ua.AlbumId))
                 .ToListAsync(cancellationToken);
-            
+
             data = albums.Select(a => new AlbumList
             {
                 Id = a.ToApiKey(),
@@ -896,9 +897,6 @@ public class OpenSubsonicApiService(
     }
 
     // TODO: This should be moved to AlbumService in the future.
-    /// <summary>
-    ///     Returns a list of random, newest, highest rated etc. albums.
-    /// </summary>
     public async Task<ResponseModel> GetAlbumList2Async(
         GetAlbumListRequest albumListRequest,
         ApiRequest apiRequest,
@@ -912,128 +910,106 @@ public class OpenSubsonicApiService(
 
         long totalCount = 0;
         AlbumList2[] data = [];
-        var sql = string.Empty;
         Error? error = null;
+
         try
         {
-            await using (var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+            await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+            var albumsQuery = scopedContext.Albums
+                .Include(a => a.Artist).ThenInclude(x => x.Library)
+                .Include(a => a.UserAlbums)
+                .AsQueryable();
+
+            // Filter by genre
+            if (!string.IsNullOrWhiteSpace(albumListRequest.Genre))
             {
-                var sqlParameters = new Dictionary<string, object?>
-                {
-                    { "genre", albumListRequest.Genre },
-                    { "fromYear", albumListRequest.FromYear },
-                    { "toYear", albumListRequest.ToYear },
-                    { "userId", authResponse.UserInfo.Id }
-                };
-
-                var selectSql = """
-                                SELECT 
-                                'album_' || cast(a."ApiKey" as varchar(50)) as "Id",
-                                'library_' || cast(aa."ApiKey" as varchar(50)) as "Parent",
-                                a."Name" as "Album",
-                                a."Name" as "Title",
-                                a."Name" as "Name",
-                                a."SortName",
-                                a."Comment",
-                                a."MusicBrainzId",
-                                'album_' || cast(a."ApiKey" as varchar(50)) as "CoverArt",
-                                a."SongCount",
-                                a."CreatedAt" as "CreatedRaw",
-                                a."Duration"/1000 as "Duration",
-                                a."PlayedCount",
-                                'artist_' || cast(aa."ApiKey" as varchar(50)) as "ArtistId",
-                                aa."Name" as "Artist",
-                                DATE_PART('year', a."ReleaseDate"::date) as "Year",
-                                a."Genres",
-                                (SELECT "StarredAt" FROM "UserAlbums" WHERE "UserId" = @userId AND "AlbumId" = a."Id") as "Starred", 
-                                (SELECT COUNT(*) FROM "UserAlbums" WHERE "IsStarred" AND "AlbumId" = a."Id") as "UserStarredCount"
-                                FROM "Albums" a 
-                                JOIN "Artists" aa on (a."ArtistId" = aa."Id")
-                                JOIN "Libraries" l on (aa."LibraryId" = l."Id")
-                                """;
-                var whereSql = string.Empty;
-                string orderSql;
-                var limitSql =
-                    $"OFFSET {albumListRequest.OffsetValue} ROWS FETCH NEXT {albumListRequest.SizeValue} ROWS ONLY;";
-                switch (albumListRequest.Type)
-                {
-                    case ListType.Newest:
-                        orderSql = "ORDER BY a.\"CreatedAt\" DESC nulls last";
-                        break;
-
-                    case ListType.Highest:
-                        orderSql = "ORDER BY a.\"CalculatedRating\" DESC nulls last";
-                        break;
-
-                    case ListType.Frequent:
-                        orderSql = "ORDER BY a.\"PlayedCount\" DESC nulls last";
-                        break;
-
-                    case ListType.Recent:
-                        orderSql = "ORDER BY a.\"LastPlayedAt\" DESC nulls last ";
-                        break;
-
-                    case ListType.AlphabeticalByName:
-                        orderSql = "ORDER BY a.\"SortName\"";
-                        break;
-
-                    case ListType.AlphabeticalByArtist:
-                        orderSql = "ORDER BY aa.\"SortName\"";
-                        break;
-
-                    case ListType.Starred:
-                        orderSql = "ORDER BY \"Starred\" DESC nulls last";
-                        break;
-
-                    case ListType.ByYear:
-                        if (albumListRequest.FromYear < albumListRequest.ToYear)
-                        {
-                            whereSql = "where DATE_PART('year', a.\"ReleaseDate\"::date) between @fromYear AND @toYear";
-                            orderSql = "ORDER BY \"Year\" DESC nulls last";
-                        }
-                        else
-                        {
-                            orderSql = "ORDER BY \"Year\" ASC nulls last";
-                        }
-
-                        break;
-
-                    case ListType.ByGenre:
-                        whereSql = "where @genre = any(a.\"Genres\")";
-                        orderSql = "ORDER BY \"Genres\" DESC nulls last";
-                        break;
-
-                    default:
-                        orderSql = "ORDER BY RANDOM()";
-                        break;
-                }
-
-                sql = $"{selectSql} {whereSql} {orderSql} {limitSql}";
-                data = await scopedContext.Database
-                    .SqlQueryRaw<AlbumList2>(sql, sqlParameters.Values.Where(v => v != null).Cast<object>().ToArray())
-                    .ToArrayAsync(cancellationToken)
-                    .ConfigureAwait(false);
-
-                var countSql = """
-                               SELECT COUNT(a.*)
-                               FROM "Albums" a 
-                               JOIN "Artists" aa on (a."ArtistId" = aa."Id")
-                               JOIN "Libraries" l on (aa."LibraryId" = l."Id")
-                               """;
-                var countSqlWithWhere = $"{countSql} {whereSql}";
-                totalCount = await scopedContext.Database
-                    .SqlQueryRaw<long>(countSqlWithWhere, sqlParameters.Values.Where(v => v != null).Cast<object>().ToArray())
-                    .FirstAsync(cancellationToken)
-                    .ConfigureAwait(false);
+                albumsQuery = albumsQuery.Where(a => a.Genres != null && a.Genres.Contains(albumListRequest.Genre));
             }
 
-            Logger.Debug("[{MethodName}] Total Count [{TotalCount}] Result Count [{Count}]",
-                nameof(GetAlbumList2Async), totalCount, data.Length);
+            // Filter by year
+            if (albumListRequest.FromYear.HasValue)
+            {
+                albumsQuery = albumsQuery.Where(a => a.ReleaseDate.Year >= albumListRequest.FromYear.Value);
+            }
+
+            if (albumListRequest.ToYear.HasValue)
+            {
+                albumsQuery = albumsQuery.Where(a => a.ReleaseDate.Year <= albumListRequest.ToYear.Value);
+            }
+
+            // Starred filter
+            if (albumListRequest.Type == ListType.Starred)
+            {
+                albumsQuery = albumsQuery.Where(a => a.UserAlbums.Any(ua => ua.UserId == authResponse.UserInfo.Id && ua.IsStarred));
+            }
+
+            // Sorting
+            switch (albumListRequest.Type)
+            {
+                case ListType.Random:
+                    albumsQuery = albumsQuery.OrderBy(a => EF.Functions.Random());
+                    break;
+                case ListType.Newest:
+                    albumsQuery = albumsQuery.OrderByDescending(a => a.CreatedAt);
+                    break;
+                case ListType.Highest:
+                    albumsQuery = albumsQuery.OrderByDescending(a => a.CalculatedRating);
+                    break;
+                case ListType.Frequent:
+                    albumsQuery = albumsQuery.OrderByDescending(a => a.PlayedCount);
+                    break;
+                case ListType.Recent:
+                    albumsQuery = albumsQuery.OrderByDescending(a => a.ReleaseDate);
+                    break;
+                case ListType.AlphabeticalByName:
+                    albumsQuery = albumsQuery.OrderBy(a => a.Name);
+                    break;
+                case ListType.AlphabeticalByArtist:
+                    albumsQuery = albumsQuery.OrderBy(a => a.Artist.Name);
+                    break;
+                // ByYear and ByGenre already filtered above
+            }
+
+            totalCount = await albumsQuery.CountAsync(cancellationToken);
+
+            // Paging
+            albumsQuery = albumsQuery
+                .Skip(albumListRequest.OffsetValue)
+                .Take(albumListRequest.SizeValue);
+
+            var albums = await albumsQuery.ToListAsync(cancellationToken);
+
+            var userAlbums = await scopedContext.UserAlbums
+                .Where(ua => ua.UserId == authResponse.UserInfo.Id && albums.Select(a => a.Id).Contains(ua.AlbumId))
+                .ToListAsync(cancellationToken);            
+            
+            data = albums.Select(a => new AlbumList2
+            {
+                Id = a.ToApiKey(),
+                Album = a.Name,
+                Title = a.Name,
+                Name = a.Name,
+                CoverArt = a.ToCoverArtId(),
+                SongCount = a.SongCount ?? 0,
+                CreatedRaw = a.CreatedAt,
+                Duration = SafeParser.ToNumber<int>(a.Duration / 1000),
+                PlayedCount = a.PlayedCount,
+                ArtistId = a.Artist.ToApiKey(),
+                Artist = a.Artist.Name,
+                Year = a.ReleaseDate.Year,
+                Genres = a.Genres,
+                UserRating = userAlbums
+                                 .FirstOrDefault(ua => ua.UserId == authResponse.UserInfo.Id && ua.AlbumId == a.Id)
+                                 ?.Rating ??
+                             0,
+                Parent = a.Artist.Library.ToApiKey()
+            }).ToArray();
         }
         catch (Exception e)
         {
-            error = Error.GenericError($"Failed to get AlbumList");
-            Logger.Error(e, "Failed to get AlbumList2 SQL [{Sql}] Request [{ApiResult}]", sql, apiRequest);
+            error = Error.GenericError($"Failed to get AlbumList: {e.Message}");
+            Logger.Error(e, "Failed to get AlbumList2 LINQ Request [{ApiResult}]", apiRequest);
         }
 
         return new ResponseModel
@@ -2774,7 +2750,9 @@ public class OpenSubsonicApiService(
         };
     }
 
-    public async Task<ResponseModel> DeleteBookmarkAsync(string id, ApiRequest apiRequest,
+    public async Task<ResponseModel> DeleteBookmarkAsync(
+        string id,
+        ApiRequest apiRequest,
         CancellationToken cancellationToken)
     {
         var authResponse = await AuthenticateSubsonicApiAsync(apiRequest, cancellationToken);
@@ -2805,7 +2783,8 @@ public class OpenSubsonicApiService(
         };
     }
 
-    public async Task<ResponseModel> GetArtistInfoAsync(string id,
+    public async Task<ResponseModel> GetArtistInfoAsync(
+        string id,
         int? numberOfSimilarArtistsToReturn,
         bool isArtistInfo2,
         ApiRequest apiRequest,
@@ -2862,7 +2841,9 @@ public class OpenSubsonicApiService(
         };
     }
 
-    public async Task<ResponseModel> GetAlbumInfoAsync(string id, ApiRequest apiRequest,
+    public async Task<ResponseModel> GetAlbumInfoAsync(
+        string id,
+        ApiRequest apiRequest,
         CancellationToken cancellationToken)
     {
         var authResponse = await AuthenticateSubsonicApiAsync(apiRequest, cancellationToken);
@@ -2918,7 +2899,9 @@ public class OpenSubsonicApiService(
         };
     }
 
-    public async Task<ResponseModel> GetUserAsync(string username, ApiRequest apiRequest,
+    public async Task<ResponseModel> GetUserAsync(
+        string username,
+        ApiRequest apiRequest,
         CancellationToken cancellationToken)
     {
         var authResponse = await AuthenticateSubsonicApiAsync(apiRequest, cancellationToken);
@@ -2959,8 +2942,14 @@ public class OpenSubsonicApiService(
         };
     }
 
-    public async Task<ResponseModel> GetRandomSongsAsync(int size, string? genre, int? fromYear, int? toYear,
-        string? musicFolderId, ApiRequest apiRequest, CancellationToken cancellationToken)
+    public async Task<ResponseModel> GetRandomSongsAsync(
+        int size,
+        string? genre,
+        int? fromYear,
+        int? toYear,
+        string? musicFolderId,
+        ApiRequest apiRequest,
+        CancellationToken cancellationToken)
     {
         var authResponse = await AuthenticateSubsonicApiAsync(apiRequest, cancellationToken);
         if (!authResponse.IsSuccess)
