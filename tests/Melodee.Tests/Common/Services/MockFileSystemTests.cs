@@ -16,7 +16,7 @@ public class MockFileSystemTests : IDisposable
         var albumPath = "/music/Artist Name/Album Name (2023)";
 
         // Act
-        var files = mock.EnumerateFiles(albumPath, "*.mp3", SearchOption.TopDirectoryOnly);
+        var files = mock.EnumerateFiles(albumPath, "*.mp3", SearchOption.TopDirectoryOnly).ToArray();
 
         // Assert
         Assert.Equal(5, files.Count());
@@ -71,6 +71,54 @@ public class MockFileSystemTests : IDisposable
         Assert.Equal(testAlbum.AlbumTitle(), result.AlbumTitle());
     }
     
+    [Fact]
+    public void MockFileSystem_GetDirectoryName_ReturnsCorrectDirectoryName()
+    {
+        // Arrange
+        var mock = new MockFileSystemService();
+        var path = "/music/Artist Name/Album Name (2023)/01 - Track One.mp3";
+        // Act
+        var dirName = mock.GetDirectoryName(path);
+        // Assert
+        Assert.Equal("/music/Artist Name/Album Name (2023)", dirName);
+    }
+
+    [Fact]
+    public void MockFileSystem_GetFileName_ReturnsCorrectFileName()
+    {
+        // Arrange
+        var mock = new MockFileSystemService();
+        var path = "/music/Artist Name/Album Name (2023)/01 - Track One.mp3";
+        // Act
+        var fileName = mock.GetFileName(path);
+        // Assert
+        Assert.Equal("01 - Track One.mp3", fileName);
+    }
+
+    [Fact]
+    public void MockFileSystem_GetFileCreationTimeUtc_ReturnsDateTime()
+    {
+        // Arrange
+        var mock = new MockFileSystemService();
+        var path = "/music/Artist Name/Album Name (2023)/01 - Track One.mp3";
+        // Act
+        var creationTime = mock.GetFileCreationTimeUtc(path);
+        // Assert
+        Assert.IsType<DateTime>(creationTime);
+    }
+
+    [Fact]
+    public void MockFileSystem_EnumerateDirectories_ReturnsCorrectDirectories()
+    {
+        // Arrange
+        var mock = FileSystemTestHelper.CreateTypicalAlbumStructure();
+        var artistPath = "/music/Artist Name";
+        // Act
+        var dirs = mock.EnumerateDirectories(artistPath, "*", SearchOption.TopDirectoryOnly);
+        // Assert
+        Assert.Contains(dirs, d => d.FullName == "/music/Artist Name/Album Name (2023)");
+    }
+
     public void Dispose()
     {
         _mockFileSystem.Reset();
