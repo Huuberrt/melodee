@@ -97,7 +97,7 @@ public class AlbumService(
         {
             // Create base query using EF Core with proper joins and filtering
             var baseQuery = scopedContext.Contributors
-                .Where(c => c.ContributorName != null && EF.Functions.ILike(c.ContributorName, $"%{contributorName}%"))
+                .Where(c => c.ContributorName != null && c.ContributorName.Contains(contributorName))
                 .Select(c => c.Album)
                 .Distinct();
 
@@ -179,7 +179,7 @@ public class AlbumService(
                 .ToNormalizedString();
             if (!string.IsNullOrEmpty(filterBy))
             {
-                baseQuery = baseQuery.Where(x => EF.Functions.ILike(x.NameNormalized, $"%{filterBy}%"));
+                baseQuery = baseQuery.Where(x => x.NameNormalized.Contains(filterBy));
             }
 
             // Get total count efficiently
@@ -990,10 +990,10 @@ public class AlbumService(
                 var normalizedValue = value.ToNormalizedString();
                 return filter.PropertyName.ToLowerInvariant() switch
                 {
-                    "name" or "namenormalized" => query.Where(a => EF.Functions.ILike(a.NameNormalized, $"%{normalizedValue}%")),
-                    "alternatenames" => query.Where(a => a.AlternateNames != null && EF.Functions.ILike(a.AlternateNames, $"%{normalizedValue}%")),
-                    "artistname" => query.Where(a => EF.Functions.ILike(a.Artist.NameNormalized, $"%{normalizedValue}%")),
-                    "tags" => query.Where(a => a.Tags != null && EF.Functions.ILike(a.Tags, $"%{normalizedValue}%")),
+                    "name" or "namenormalized" => query.Where(a => a.NameNormalized.Contains(normalizedValue ?? "")),
+                    "alternatenames" => query.Where(a => a.AlternateNames != null && a.AlternateNames.Contains(normalizedValue ?? "")),
+                    "artistname" => query.Where(a => a.Artist.NameNormalized.Contains(normalizedValue ?? "")),
+                    "tags" => query.Where(a => a.Tags != null && a.Tags.Contains(normalizedValue ?? "")),
                     "albumstatus" => int.TryParse(value, out var statusValue)
                         ? query.Where(a => a.AlbumStatus == statusValue)
                         : query,
@@ -1022,9 +1022,9 @@ public class AlbumService(
 
                 var predicate = filter.PropertyName switch
                 {
-                    "Name" or "NameNormalized" => (Expression<Func<Album, bool>>)(a => EF.Functions.ILike(a.NameNormalized, $"%{normalizedValue}%")),
-                    "ArtistName" => (Expression<Func<Album, bool>>)(a => EF.Functions.ILike(a.Artist.NameNormalized, $"%{normalizedValue}%")),
-                    "Tags" => (Expression<Func<Album, bool>>)(a => a.Tags != null && EF.Functions.ILike(a.Tags, $"%{normalizedValue}%")),
+                    "Name" or "NameNormalized" => (Expression<Func<Album, bool>>)(a => a.NameNormalized.Contains(normalizedValue ?? "")),
+                    "ArtistName" => (Expression<Func<Album, bool>>)(a => a.Artist.NameNormalized.Contains(normalizedValue ?? "")),
+                    "Tags" => (Expression<Func<Album, bool>>)(a => a.Tags != null && a.Tags.Contains(normalizedValue ?? "")),
                     "AlbumStatus" => int.TryParse(value, out var statusValue)
                         ? (Expression<Func<Album, bool>>)(a => a.AlbumStatus == statusValue)
                         : null,

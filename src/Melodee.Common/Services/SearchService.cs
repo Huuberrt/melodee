@@ -53,7 +53,7 @@ public sealed class SearchService(
 
         if (searchTerm.Nullify() == null)
         {
-            return new OperationResult<SearchResult>("No Search Term Provided")
+            return new OperationResult<SearchResult>(OperationResponseType.ValidationFailure, "No Search Term Provided")
             {
                 Data = new SearchResult([], 0, [], 0, [], 0, [], 0, [], 0)
             };

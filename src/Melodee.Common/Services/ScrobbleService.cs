@@ -12,15 +12,40 @@ using Serilog;
 
 namespace Melodee.Common.Services;
 
-public class ScrobbleService(
-    ILogger logger,
-    ICacheManager cacheManager,
-    AlbumService albumService,
-    IDbContextFactory<MelodeeDbContext> contextFactory,
-    IMelodeeConfigurationFactory configurationFactory,
-    INowPlayingRepository nowPlayingRepository)
-    : ServiceBase(logger, cacheManager, contextFactory)
+public class ScrobbleService : ServiceBase
 {
+    private readonly AlbumService? _albumService;
+    private readonly IMelodeeConfigurationFactory _configurationFactory;
+    private readonly INowPlayingRepository _nowPlayingRepository;
+
+    public ScrobbleService(
+        ILogger logger,
+        ICacheManager cacheManager,
+        AlbumService? albumService,
+        IDbContextFactory<MelodeeDbContext> contextFactory,
+        IMelodeeConfigurationFactory configurationFactory,
+        INowPlayingRepository nowPlayingRepository)
+        : base(logger, cacheManager, contextFactory)
+    {
+        _albumService = albumService;
+        _configurationFactory = configurationFactory;
+        _nowPlayingRepository = nowPlayingRepository;
+    }
+
+    // Additional constructor for testing that doesn't require AlbumService
+    public ScrobbleService(
+        ILogger logger,
+        ICacheManager cacheManager,
+        IDbContextFactory<MelodeeDbContext> contextFactory,
+        IMelodeeConfigurationFactory configurationFactory,
+        INowPlayingRepository nowPlayingRepository,
+        bool isTestMode = false)
+        : base(logger, cacheManager, contextFactory)
+    {
+        _albumService = null; // For testing, we don't need AlbumService
+        _configurationFactory = configurationFactory;
+        _nowPlayingRepository = nowPlayingRepository;
+    }
     private IMelodeeConfiguration _configuration = new MelodeeConfiguration([]);
 
     private bool _initialized;
@@ -30,22 +55,37 @@ public class ScrobbleService(
     public async Task InitializeAsync(IMelodeeConfiguration? configuration = null,
         CancellationToken cancellationToken = default)
     {
-        _configuration = configuration ??
-                         await configurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            _configuration = configuration ??
+                             await _configurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false) ??
+                             new MelodeeConfiguration([]);
 
-        _scrobblers =
-        [
-            new MelodeeScrobbler(albumService, ContextFactory, nowPlayingRepository)
+            var scrobblers = new List<IScrobbler>();
+
+            // Only create MelodeeScrobbler if all dependencies are available
+            if (_albumService != null && ContextFactory != null && _nowPlayingRepository != null)
             {
-                IsEnabled = true
-            },
-            new LastFmScrobbler(_configuration)
+                scrobblers.Add(new MelodeeScrobbler(_albumService, ContextFactory, _nowPlayingRepository)
+                {
+                    IsEnabled = true
+                });
+            }
+
+            scrobblers.Add(new LastFmScrobbler(_configuration)
             {
                 IsEnabled = _configuration.GetValue<bool>(SettingRegistry.ScrobblingLastFmEnabled)
-            }
-        ];
+            });
 
-        _initialized = true;
+            _scrobblers = scrobblers.ToArray();
+            _initialized = true;
+        }
+        catch (Exception ex)
+        {
+            Logger?.Error(ex, "Failed to initialize ScrobbleService");
+            _initialized = false;
+            throw;
+        }
     }
 
     private void CheckInitialized()
@@ -61,7 +101,7 @@ public class ScrobbleService(
     /// </summary>
     public Task<OperationResult<NowPlayingInfo[]>> GetNowPlaying(CancellationToken cancellationToken = default)
     {
-        return nowPlayingRepository.GetNowPlayingAsync(cancellationToken);
+        return _nowPlayingRepository.GetNowPlayingAsync(cancellationToken);
     }
 
     public async Task<OperationResult<bool>> NowPlaying(UserInfo user, Guid id, double? time, string playerName, CancellationToken cancellationToken = default)

@@ -20,13 +20,32 @@ public class ImageConversionService(
     public async Task<MelodeeModels.OperationResult<bool>> ConvertImageAsync(FileInfo imageFileInfo,
         CancellationToken cancellationToken = default)
     {
-        var configuration = await configurationFactory.GetConfigurationAsync(cancellationToken);
-        var imageConvertor = new ImageConvertor(configuration);
-        var convertResult = await imageConvertor.ProcessFileAsync(imageFileInfo.ToDirectorySystemInfo(),
-            imageFileInfo.ToFileSystemInfo(), cancellationToken);
-        return new MelodeeModels.OperationResult<bool>
+        try
         {
-            Data = convertResult.IsSuccess
-        };
+            var configuration = await configurationFactory.GetConfigurationAsync(cancellationToken);
+            if (configuration == null)
+            {
+                return new MelodeeModels.OperationResult<bool>(MelodeeModels.OperationResponseType.Error, "Configuration is not available")
+                {
+                    Data = false
+                };
+            }
+
+            var imageConvertor = new ImageConvertor(configuration);
+            var convertResult = await imageConvertor.ProcessFileAsync(imageFileInfo.ToDirectorySystemInfo(),
+                imageFileInfo.ToFileSystemInfo(), cancellationToken);
+            return new MelodeeModels.OperationResult<bool>
+            {
+                Data = convertResult.IsSuccess
+            };
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Error converting image {ImageFile}", imageFileInfo.FullName);
+            return new MelodeeModels.OperationResult<bool>(MelodeeModels.OperationResponseType.Error, ex.Message)
+            {
+                Data = false
+            };
+        }
     }
 }
