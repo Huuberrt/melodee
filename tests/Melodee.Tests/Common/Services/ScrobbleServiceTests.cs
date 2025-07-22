@@ -6,19 +6,13 @@ using Xunit;
 
 namespace Melodee.Tests.Common.Services;
 
-public class ScrobbleServiceTests
+public class ScrobbleServiceTests : ServiceTestBase
 {
     [Fact]
     public async Task InitializeAsync_SetsInitializedTrue()
     {
         // Arrange
-        var logger = Mock.Of<Serilog.ILogger>();
-        var cacheManager = Mock.Of<Melodee.Common.Services.Caching.ICacheManager>();
-        var albumService = Mock.Of<Melodee.Common.Services.AlbumService>();
-        var contextFactory = Mock.Of<Microsoft.EntityFrameworkCore.IDbContextFactory<Melodee.Common.Data.MelodeeDbContext>>();
-        var configurationFactory = Mock.Of<Melodee.Common.Configuration.IMelodeeConfigurationFactory>();
-        var nowPlayingRepository = Mock.Of<Melodee.Common.Plugins.Scrobbling.INowPlayingRepository>();
-        var service = new ScrobbleService(logger, cacheManager, albumService, contextFactory, configurationFactory, nowPlayingRepository);
+        var service = GetScrobbleService();
 
         // Act
         await service.InitializeAsync();
