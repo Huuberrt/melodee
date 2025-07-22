@@ -240,7 +240,7 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             GetAlbumService(),
             GetSongService(),
             GetSearchService(),
-            new Mock<IScheduler>().Object,
+            CreateMockScheduler(),
             GetScrobbleService(),
             GetLibraryService(),
             GetArtistSearchEngineService(),
@@ -258,6 +258,14 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
     //     var mockFactory = new Mock<InMemoryEventBusPublisher<UserLoginEvent>>();
     //     return mockFactory.Object;
     // }
+
+    protected IScheduler CreateMockScheduler()
+    {
+        var mockScheduler = new Mock<IScheduler>();
+        mockScheduler.Setup(x => x.GetCurrentlyExecutingJobs(It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(new List<IJobExecutionContext>());
+        return mockScheduler.Object;
+    }
 
     protected ArtistService GetArtistService()
     {

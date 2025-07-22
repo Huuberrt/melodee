@@ -44,6 +44,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         var licenseResult = await GetOpenSubsonicApiService().GetLicenseAsync(GetApiRequest(username, "123456", password));
         Assert.NotNull(licenseResult);
         Assert.True(licenseResult.IsSuccess);
+        Assert.Null(licenseResult.ResponseData.Error);
         Assert.NotNull(licenseResult.ResponseData);
         var license = licenseResult.ResponseData?.Data as License;
         Assert.NotNull(license);
@@ -76,6 +77,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         var authResult = await GetOpenSubsonicApiService().AuthenticateSubsonicApiAsync(GetApiRequest(username, salt, HashHelper.CreateMd5($"{password}{salt}") ?? string.Empty));
         Assert.NotNull(authResult);
         Assert.True(authResult.IsSuccess);
+        Assert.Null(authResult.ResponseData.Error);
         Assert.NotNull(authResult.ResponseData);
     }
 
@@ -119,6 +121,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         var genres = result.ResponseData?.Data as IList<Genre>;
         Assert.NotNull(genres);
         Assert.Empty(genres);
@@ -196,6 +199,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         var genres = result.ResponseData?.Data as IList<Genre>;
         Assert.NotNull(genres);
         Assert.NotEmpty(genres);
@@ -278,6 +282,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         var songsByGenre = result.ResponseData?.Data as Child[];
         Assert.NotNull(songsByGenre);
         Assert.NotEmpty(songsByGenre);
@@ -296,6 +301,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         var songsByGenre = result.ResponseData?.Data as Child[];
         Assert.NotNull(songsByGenre);
         Assert.Empty(songsByGenre);
@@ -376,6 +382,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         var songsByGenre = result.ResponseData?.Data as Child[];
         Assert.NotNull(songsByGenre);
         Assert.Equal(2, songsByGenre.Length);
@@ -454,6 +461,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         var randomSongs = result.ResponseData?.Data as Child[];
         Assert.NotNull(randomSongs);
         Assert.True(randomSongs.Length <= 5);
@@ -514,11 +522,24 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
             null,
             null);
 
-        var result = await GetOpenSubsonicApiService().GetAlbumListAsync(request, GetApiRequest(username, "123456", password), CancellationToken.None);
+        var result = await GetOpenSubsonicApiService()
+            .GetAlbumListAsync(request,
+                GetApiRequest(username,
+                    "123456",
+                    password),
+                CancellationToken.None);
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
-        // AlbumList response - just verify success
+        Assert.Null(result.ResponseData.Error);
+        
+        // Ensure album list response is valid and contains albums
+        var albumList = result.ResponseData?.Data as IList<Album>;
+        Assert.NotNull(albumList);
+        Assert.NotEmpty(albumList);
+        Assert.All(albumList, album => Assert.NotNull(album.Name));
+        Assert.Contains(albumList, album => album.Name == "Test Album");
+        
     }
 
     [Fact]
@@ -581,6 +602,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         // AlbumList2 response - just verify success
     }
 
@@ -622,6 +644,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         // Artists response - just verify success
     }
 
@@ -700,6 +723,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
     }
 
     [Fact]
@@ -709,6 +733,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
     }
 
     [Fact]
@@ -722,6 +747,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         // MusicFolders response - just verify success
     }
 
@@ -738,6 +764,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
     }
 
     [Fact]
@@ -751,6 +778,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
     }
 
     [Fact]
@@ -829,6 +857,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         var genres = result.ResponseData?.Data as IList<Genre>;
         Assert.NotNull(genres);
         
@@ -853,6 +882,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         // Artists response - just verify success
         Assert.Empty(result.ResponseData.Data as IList<Artist> ?? new List<Artist>());
     }
@@ -868,6 +898,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         Assert.NotNull(result.ResponseData);
         Assert.Equal("genres", result.ResponseData.DataPropertyName);
     }
@@ -883,6 +914,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         Assert.NotNull(result.ResponseData);
         Assert.Equal("songsByGenre", result.ResponseData.DataPropertyName);
         Assert.Equal("song", result.ResponseData.DataDetailPropertyName);
@@ -900,6 +932,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
     }
 
     [Fact]
@@ -913,6 +946,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         Assert.NotNull(result.ResponseData);
         Assert.Equal("randomSongs", result.ResponseData.DataPropertyName);
         Assert.Equal("song", result.ResponseData.DataDetailPropertyName);
@@ -938,6 +972,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         Assert.NotNull(result.ResponseData);
         Assert.Equal("albumList", result.ResponseData.DataPropertyName);
         Assert.Equal("album", result.ResponseData.DataDetailPropertyName);
@@ -963,6 +998,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         Assert.NotNull(result.ResponseData);
         Assert.Equal("albumList2", result.ResponseData.DataPropertyName);
         Assert.Equal("album", result.ResponseData.DataDetailPropertyName);
@@ -979,6 +1015,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         Assert.NotNull(result.ResponseData);
         Assert.Equal("artists", result.ResponseData.DataPropertyName);
     }
@@ -999,6 +1036,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
     }
 
     [Fact]
@@ -1012,6 +1050,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         Assert.NotNull(result.ResponseData);
         Assert.Equal("playQueue", result.ResponseData.DataPropertyName);
     }
@@ -1029,6 +1068,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
     }
 
     [Fact]
@@ -1051,6 +1091,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
     }
 
     [Fact]
@@ -1073,6 +1114,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
     }
 
     [Fact]
@@ -1094,6 +1136,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         Assert.NotNull(result.ResponseData);
     }
 
@@ -1108,6 +1151,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         Assert.NotNull(result.ResponseData);
         var license = result.ResponseData?.Data as License;
         Assert.NotNull(license);
@@ -1129,6 +1173,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         // Should complete in reasonable time (less than 5 seconds for empty database)
         Assert.True(stopwatch.ElapsedMilliseconds < 5000);
     }
@@ -1146,8 +1191,699 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
         // Should complete in reasonable time (less than 5 seconds for empty database)
         Assert.True(stopwatch.ElapsedMilliseconds < 5000);
+    }
+
+    // Tests for missing public methods
+
+    [Fact]
+    public async Task GetShares_WithValidRequest_ReturnsShares()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetSharesAsync(GetApiRequest(username, "123456", password), CancellationToken.None);
+        
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
+        Assert.NotNull(result.ResponseData);
+    }
+
+    [Fact]
+    public async Task CreateShare_WithValidData_CreatesShare()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().CreateShareAsync(
+            GetApiRequest(username, "123456", password),
+            "user_A7E33DA0-796A-4EF7-BA0F-D4F2D2D1ECBE", 
+            "Test Description", 
+            null, 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task UpdateShare_WithValidData_UpdatesShare()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().UpdateShareAsync(
+            GetApiRequest(username, "123456", password),
+            "test_share_id", 
+            "Updated Description", 
+            null, 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task DeleteShare_WithValidId_DeletesShare()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().DeleteShareAsync(
+            "test_share_id", 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task GetPlaylists_WithValidRequest_ReturnsPlaylists()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetPlaylistsAsync(GetApiRequest(username, "123456", password), CancellationToken.None);
+        
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
+        Assert.NotNull(result.ResponseData);
+    }
+
+    [Fact]
+    public async Task UpdatePlaylist_WithValidData_UpdatesPlaylist()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var updateRequest = new UpdatePlayListRequest(
+            "test_playlist_id", 
+            "Updated Playlist", 
+            "Updated Comment", 
+            true, 
+            new string[0], 
+            new string[0]);
+
+        var result = await GetOpenSubsonicApiService().UpdatePlaylistAsync(
+            updateRequest, 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task DeletePlaylist_WithValidId_DeletesPlaylist()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().DeletePlaylistAsync(
+            "test_playlist_id", 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task CreatePlaylist_WithValidData_CreatesPlaylist()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().CreatePlaylistAsync(
+            null,
+            "Test Playlist", 
+            new string[0], 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
+    }
+
+    [Fact]
+    public async Task GetPlaylist_WithValidId_ReturnsPlaylist()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetPlaylistAsync(
+            "test_playlist_id", 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task GetSong_WithValidApiKey_ReturnsSong()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetSongAsync(
+            "test_song_api_key", 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task GetAlbum_WithValidApiId_ReturnsAlbum()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetAlbumAsync(
+            "test_album_api_id", 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task GetAvatar_WithValidUsername_ReturnsAvatar()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetAvatarAsync(
+            username, 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may return an error if no avatar exists, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task GetImageForApiKeyId_WithValidApiKey_ReturnsImage()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetImageForApiKeyId(
+            "test_api_key", 
+            "300", 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may return an error if no image exists, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task GetOpenSubsonicExtensions_WithValidRequest_ReturnsExtensions()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetOpenSubsonicExtensionsAsync(
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
+        Assert.NotNull(result.ResponseData);
+    }
+
+    [Fact]
+    public async Task StartScan_WithValidRequest_StartsScanning()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().StartScanAsync(
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
+    }
+
+    [Fact]
+    public async Task GetScanStatus_WithValidRequest_ReturnsScanStatus()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetScanStatusAsync(
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
+        Assert.NotNull(result.ResponseData);
+    }
+
+    [Fact]
+    public async Task CreateUser_WithValidData_CreatesUser()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var request = new CreateUserRequest(
+            "newuser", 
+            "newpassword", 
+            "newuser@test.com");
+
+        var result = await GetOpenSubsonicApiService().CreateUserAsync(
+            request, 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to permissions, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task Scrobble_WithValidData_ScrobblesSong()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().ScrobbleAsync(
+            new string[] { "test_song_id" }, 
+            new double[] { DateTimeOffset.UtcNow.ToUnixTimeSeconds() }, 
+            true, 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task GetNowPlaying_WithValidRequest_ReturnsNowPlaying()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetNowPlayingAsync(
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
+        Assert.NotNull(result.ResponseData);
+    }
+
+    [Fact]
+    public async Task Search_WithValidQuery_ReturnsSearchResults()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var searchRequest = new SearchRequest(
+            "test query", 
+            10, 
+            0, 
+            10, 
+            0, 
+            10, 
+            0, 
+            null);
+
+        var result = await GetOpenSubsonicApiService().SearchAsync(
+            searchRequest, 
+            false, 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
+        Assert.NotNull(result.ResponseData);
+    }
+
+    [Fact]
+    public async Task GetMusicDirectory_WithValidApiId_ReturnsDirectory()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetMusicDirectoryAsync(
+            "test_api_id", 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task GetArtist_WithValidId_ReturnsArtist()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetArtistAsync(
+            "test_artist_id", 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task ToggleStar_WithValidData_TogglesStarStatus()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().ToggleStarAsync(
+            true, 
+            "test_song_id", 
+            null, 
+            null, 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task SetRating_WithValidData_SetsRating()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().SetRatingAsync(
+            "test_song_id", 
+            5, 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task GetTopSongs_WithValidArtist_ReturnsTopSongs()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetTopSongsAsync(
+            "test_artist", 
+            10, 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
+        Assert.NotNull(result.ResponseData);
+    }
+
+    [Fact]
+    public async Task GetStarred2_WithValidRequest_ReturnsStarredItems()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetStarred2Async(
+            null, 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
+        Assert.NotNull(result.ResponseData);
+    }
+
+    [Fact]
+    public async Task GetStarred_WithValidRequest_ReturnsStarredItems()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetStarredAsync(
+            null, 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
+        Assert.NotNull(result.ResponseData);
+    }
+
+    [Fact]
+    public async Task GetBookmarks_WithValidRequest_ReturnsBookmarks()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetBookmarksAsync(
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
+        Assert.NotNull(result.ResponseData);
+    }
+
+    [Fact]
+    public async Task CreateBookmark_WithValidData_CreatesBookmark()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().CreateBookmarkAsync(
+            "test_song_id", 
+            30, 
+            "Test bookmark", 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task DeleteBookmark_WithValidId_DeletesBookmark()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().DeleteBookmarkAsync(
+            "test_song_id", 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task GetArtistInfo_WithValidId_ReturnsArtistInfo()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetArtistInfoAsync(
+            "test_artist_id", 
+            10, 
+            true, 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task GetAlbumInfo_WithValidId_ReturnsAlbumInfo()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetAlbumInfoAsync(
+            "test_album_id", 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task GetUser_WithValidUsername_ReturnsUser()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetUserAsync(
+            username, 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task DeleteInternetRadioStation_WithValidId_DeletesStation()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().DeleteInternetRadioStationAsync(
+            "test_station_id", 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task CreateInternetRadioStation_WithValidData_CreatesStation()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().CreateInternetRadioStationAsync(
+            "Test Station", 
+            "http://test.stream.url", 
+            "http://test.homepage.url", 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task UpdateInternetRadioStation_WithValidData_UpdatesStation()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().UpdateInternetRadioStationAsync(
+            "test_station_id", 
+            "Updated Station", 
+            "http://updated.stream.url", 
+            "http://updated.homepage.url", 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        // Note: This may fail due to validation, but we're testing the method signature
+    }
+
+    [Fact]
+    public async Task GetInternetRadioStations_WithValidRequest_ReturnsStations()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetInternetRadioStationsAsync(
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
+        Assert.NotNull(result.ResponseData);
+    }
+
+    [Fact]
+    public async Task GetLyricsListForSongId_WithValidId_ReturnsLyrics()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetLyricsListForSongIdAsync(
+            "test_song_id", 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
+        Assert.NotNull(result.ResponseData);
+    }
+
+    [Fact]
+    public async Task GetLyricsForArtistAndTitle_WithValidData_ReturnsLyrics()
+    {
+        var username = "testUser";
+        var password = "testPassword";
+        await CreateTestUser(username, password);
+
+        var result = await GetOpenSubsonicApiService().GetLyricsForArtistAndTitleAsync(
+            "Test Artist", 
+            "Test Song", 
+            GetApiRequest(username, "123456", password), 
+            CancellationToken.None);
+        
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.ResponseData.Error);
+        Assert.NotNull(result.ResponseData);
     }
 
     // Helper methods

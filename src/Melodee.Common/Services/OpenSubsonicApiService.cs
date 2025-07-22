@@ -1,5 +1,6 @@
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
+using Microsoft.Data.Sqlite;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Constants;
 using Melodee.Common.Data.Models.DTOs;
@@ -504,7 +505,7 @@ public class OpenSubsonicApiService(
         }
 
         var data = new List<Playlist>();
-
+        Error? error = null;
         try
         {
             var playlistsResult = await playlistService.GetPlaylistsForUserAsync(authResponse.UserInfo.Id, cancellationToken);
@@ -518,6 +519,7 @@ public class OpenSubsonicApiService(
         }
         catch (Exception e)
         {
+            error = Error.GenericError($"Failed to get Playlist");
             Logger.Error(e, "Failed to get Playlists Request [{ApiResult}]", apiRequest);
         }
 
@@ -526,6 +528,7 @@ public class OpenSubsonicApiService(
             UserInfo = authResponse.UserInfo,
             ResponseData = await DefaultApiResponse() with
             {
+                Error= error,
                 Data = data.ToArray(),
                 DataPropertyName = "playlists",
                 DataDetailPropertyName = "playlist"
@@ -780,7 +783,8 @@ public class OpenSubsonicApiService(
         long totalCount = 0;
         AlbumList[] data = [];
         var sql = string.Empty;
-
+        Error? error = null;
+        
         try
         {
             await using (var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
@@ -878,6 +882,7 @@ public class OpenSubsonicApiService(
         }
         catch (Exception e)
         {
+            error = Error.GenericError($"Failed to get AlbumList: {e.Message} SQL: {sql}");
             Logger.Error(e, "Failed to get AlbumList SQL [{Sql}] Request [{ApiResult}]", sql, apiRequest);
         }
 
@@ -887,6 +892,7 @@ public class OpenSubsonicApiService(
             TotalCount = totalCount,
             ResponseData = await DefaultApiResponse() with
             {
+                Error = error,
                 Data = data,
                 DataPropertyName = "albumList",
                 DataDetailPropertyName = "album"
@@ -912,7 +918,7 @@ public class OpenSubsonicApiService(
         long totalCount = 0;
         AlbumList2[] data = [];
         var sql = string.Empty;
-
+        Error? error = null;
         try
         {
             await using (var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
@@ -1031,6 +1037,7 @@ public class OpenSubsonicApiService(
         }
         catch (Exception e)
         {
+            error = Error.GenericError($"Failed to get AlbumList");
             Logger.Error(e, "Failed to get AlbumList2 SQL [{Sql}] Request [{ApiResult}]", sql, apiRequest);
         }
 
@@ -1040,6 +1047,7 @@ public class OpenSubsonicApiService(
             TotalCount = totalCount,
             ResponseData = await DefaultApiResponse() with
             {
+                Error = error,
                 Data = data,
                 DataPropertyName = "albumList2",
                 DataDetailPropertyName = "album"
@@ -1248,7 +1256,7 @@ public class OpenSubsonicApiService(
         }
 
         byte[]? avatarBytes = null;
-
+        Error? error = null;
         try
         {
             avatarBytes = await CacheManager.GetAsync($"urn:openSubsonic:avatar:{username}", async () =>
@@ -1273,6 +1281,7 @@ public class OpenSubsonicApiService(
         }
         catch (Exception e)
         {
+            error = Error.GenericError($"Failed to get avatar");
             Logger.Error(e, "Failed to get avatar for user [{Username}]", username);
         }
 
@@ -1281,6 +1290,7 @@ public class OpenSubsonicApiService(
             UserInfo = authResponse.UserInfo,
             ResponseData = authResponse.ResponseData with
             {
+                Error = error,
                 Data = avatarBytes ?? defaultImages.UserAvatarBytes,
                 DataPropertyName = string.Empty,
                 DataDetailPropertyName = string.Empty
@@ -1310,6 +1320,7 @@ public class OpenSubsonicApiService(
             return authResponse with { UserInfo = UserInfo.BlankUserInfo };
         }
 
+        Error? error = null;
         var isForPlaylist = IsApiIdForDynamicPlaylist(apiId) || IsApiIdForPlaylist(apiId);
 
         var badEtag = Instant.MinValue.ToEtag();
@@ -1454,6 +1465,7 @@ public class OpenSubsonicApiService(
                 }
                 catch (Exception e)
                 {
+                    error = Error.GenericError($"Failed to get image for ApiKey [{apiId}]");
                     Logger.Error(e, "Failed to get cover image for [{ApiId}]", apiId);
                 }
 
@@ -1468,6 +1480,7 @@ public class OpenSubsonicApiService(
             UserInfo = authResponse.UserInfo,
             ResponseData = authResponse.ResponseData with
             {
+                Error = error,
                 Data = imageBytesAndEtag.Bytes,
                 DataPropertyName = string.Empty,
                 DataDetailPropertyName = string.Empty,
@@ -1544,9 +1557,8 @@ public class OpenSubsonicApiService(
         }
 
         var executingJobs = await schedule.GetCurrentlyExecutingJobs(cancellationToken);
-        var libraryProcessJob =
-            executingJobs.FirstOrDefault(x => Equals(x.JobDetail.Key, JobKeyRegistry.LibraryProcessJobJobKey));
-
+        var libraryProcessJob = executingJobs.FirstOrDefault(x => Equals(x.JobDetail.Key, JobKeyRegistry.LibraryProcessJobJobKey));
+        Error? error = null;
         var data = new ScanStatus(false, 0);
         try
         {
@@ -1563,6 +1575,7 @@ public class OpenSubsonicApiService(
         }
         catch (Exception e)
         {
+            error = Error.GenericError($"Failed to get Scan Status");
             Logger.Error(e, "Attempting to get Scan Status");
         }
 
@@ -1571,6 +1584,7 @@ public class OpenSubsonicApiService(
             UserInfo = UserInfo.BlankUserInfo,
             ResponseData = authResponse.ResponseData with
             {
+                Error = error,
                 Data = data,
                 DataPropertyName = "scanStatus"
             }
@@ -3141,7 +3155,7 @@ public class OpenSubsonicApiService(
         {
             return authResponse with { UserInfo = UserInfo.BlankUserInfo };
         }
-
+        Error? error = null;
         var data = new List<InternetRadioStation>();
         try
         {
@@ -3153,6 +3167,7 @@ public class OpenSubsonicApiService(
         }
         catch (Exception e)
         {
+            error = Error.GenericError($"Failed to get Radio Stations");
             Logger.Error(e, "Failed to get Radio Stations Request [{ApiResult}]", apiRequest);
         }
 
@@ -3161,6 +3176,7 @@ public class OpenSubsonicApiService(
             UserInfo = authResponse.UserInfo,
             ResponseData = await DefaultApiResponse() with
             {
+                Error = error,
                 Data = data.ToArray(),
                 DataPropertyName = "internetRadioStations",
                 DataDetailPropertyName = apiRequest.IsXmlRequest ? string.Empty : "internetRadioStation"
