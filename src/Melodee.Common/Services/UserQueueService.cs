@@ -1,4 +1,5 @@
 using Melodee.Common.Configuration;
+using Melodee.Common.Data.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models.Extensions;
 using Melodee.Common.Models;
@@ -168,6 +169,13 @@ public class UserQueueService(
             return null;
         }
 
-        return SafeParser.ToGuid(id);
+        var apiIdParts = id!.Split(OpenSubsonicServer.ApiIdSeparator);
+        var toParse = id;
+        if (apiIdParts.Length >= 2)
+        {
+            toParse = apiIdParts[1];
+        }
+
+        return SafeParser.ToGuid(toParse);
     }
 }
