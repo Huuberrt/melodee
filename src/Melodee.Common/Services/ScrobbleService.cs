@@ -12,40 +12,15 @@ using Serilog;
 
 namespace Melodee.Common.Services;
 
-public class ScrobbleService : ServiceBase
+public class ScrobbleService(
+    ILogger logger,
+    ICacheManager cacheManager,
+    AlbumService? albumService,
+    IDbContextFactory<MelodeeDbContext> contextFactory,
+    IMelodeeConfigurationFactory configurationFactory,
+    INowPlayingRepository nowPlayingRepository)
+    : ServiceBase(logger, cacheManager, contextFactory)
 {
-    private readonly AlbumService? _albumService;
-    private readonly IMelodeeConfigurationFactory _configurationFactory;
-    private readonly INowPlayingRepository _nowPlayingRepository;
-
-    public ScrobbleService(
-        ILogger logger,
-        ICacheManager cacheManager,
-        AlbumService? albumService,
-        IDbContextFactory<MelodeeDbContext> contextFactory,
-        IMelodeeConfigurationFactory configurationFactory,
-        INowPlayingRepository nowPlayingRepository)
-        : base(logger, cacheManager, contextFactory)
-    {
-        _albumService = albumService;
-        _configurationFactory = configurationFactory;
-        _nowPlayingRepository = nowPlayingRepository;
-    }
-
-    // Additional constructor for testing that doesn't require AlbumService
-    public ScrobbleService(
-        ILogger logger,
-        ICacheManager cacheManager,
-        IDbContextFactory<MelodeeDbContext> contextFactory,
-        IMelodeeConfigurationFactory configurationFactory,
-        INowPlayingRepository nowPlayingRepository,
-        bool isTestMode = false)
-        : base(logger, cacheManager, contextFactory)
-    {
-        _albumService = null; // For testing, we don't need AlbumService
-        _configurationFactory = configurationFactory;
-        _nowPlayingRepository = nowPlayingRepository;
-    }
     private IMelodeeConfiguration _configuration = new MelodeeConfiguration([]);
 
     private bool _initialized;
@@ -58,15 +33,15 @@ public class ScrobbleService : ServiceBase
         try
         {
             _configuration = configuration ??
-                             await _configurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false) ??
+                             await configurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false) ??
                              new MelodeeConfiguration([]);
 
             var scrobblers = new List<IScrobbler>();
 
             // Only create MelodeeScrobbler if all dependencies are available
-            if (_albumService != null && ContextFactory != null && _nowPlayingRepository != null)
+            if (albumService != null && ContextFactory != null && nowPlayingRepository != null)
             {
-                scrobblers.Add(new MelodeeScrobbler(_albumService, ContextFactory, _nowPlayingRepository)
+                scrobblers.Add(new MelodeeScrobbler(albumService, ContextFactory, nowPlayingRepository)
                 {
                     IsEnabled = true
                 });
@@ -101,7 +76,7 @@ public class ScrobbleService : ServiceBase
     /// </summary>
     public Task<OperationResult<NowPlayingInfo[]>> GetNowPlaying(CancellationToken cancellationToken = default)
     {
-        return _nowPlayingRepository.GetNowPlayingAsync(cancellationToken);
+        return nowPlayingRepository.GetNowPlayingAsync(cancellationToken);
     }
 
     public async Task<OperationResult<bool>> NowPlaying(UserInfo user, Guid id, double? time, string playerName, CancellationToken cancellationToken = default)
