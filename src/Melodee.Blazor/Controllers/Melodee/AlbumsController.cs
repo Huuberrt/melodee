@@ -86,7 +86,7 @@ public sealed class AlbumsController(
             Page = page,
             PageSize = pageSize,
             OrderBy = new Dictionary<string, string> { { orderByValue, orderDirectionValue } }
-        }, null, cancellationToken).ConfigureAwait(false);
+        }, cancellationToken).ConfigureAwait(false);
 
         var baseUrl = GetBaseUrl(await ConfigurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false));
 
@@ -127,7 +127,7 @@ public sealed class AlbumsController(
             Page = 1,
             PageSize = limit,
             OrderBy = new Dictionary<string, string> { { nameof(AlbumDataInfo.CreatedAt), PagedRequest.OrderDescDirection } }
-        }, null, cancellationToken).ConfigureAwait(false);
+        }, cancellationToken).ConfigureAwait(false);
 
         var baseUrl = GetBaseUrl(await ConfigurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false));
 

@@ -244,7 +244,6 @@ public class AlbumService(
 
     public async Task<MelodeeModels.PagedResult<AlbumDataInfo>> ListAsync(
         MelodeeModels.PagedRequest pagedRequest,
-        string? filteringColumnNamePrefix = null,
         CancellationToken cancellationToken = default)
     {
         await using (var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
@@ -987,13 +986,14 @@ public class AlbumService(
             var value = filter.Value.ToString();
             if (!string.IsNullOrEmpty(value))
             {
-                var normalizedValue = value.ToNormalizedString();
+                var normalizedValue = value.ToNormalizedString() ?? value;
                 return filter.PropertyName.ToLowerInvariant() switch
                 {
-                    "name" or "namenormalized" => query.Where(a => a.NameNormalized.Contains(normalizedValue ?? "")),
-                    "alternatenames" => query.Where(a => a.AlternateNames != null && a.AlternateNames.Contains(normalizedValue ?? "")),
-                    "artistname" => query.Where(a => a.Artist.NameNormalized.Contains(normalizedValue ?? "")),
-                    "tags" => query.Where(a => a.Tags != null && a.Tags.Contains(normalizedValue ?? "")),
+                    "name" or "namenormalized" => query.Where(a => a.NameNormalized.Contains(normalizedValue)),
+                    "alternatenames" => query.Where(a => a.AlternateNames != null && a.AlternateNames.Contains(normalizedValue)),
+                    "artistid" => query.Where(a => a.Artist.Id.ToString() == normalizedValue),
+                    "artistname" => query.Where(a => a.Artist.NameNormalized.Contains(normalizedValue)),
+                    "tags" => query.Where(a => a.Tags != null && a.Tags.Contains(normalizedValue)),
                     "albumstatus" => int.TryParse(value, out var statusValue)
                         ? query.Where(a => a.AlbumStatus == statusValue)
                         : query,

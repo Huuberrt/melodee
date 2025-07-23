@@ -181,10 +181,10 @@ public sealed class ArtistsController(
             PageSize = pageSize,
             FilterBy =
             [
-                new FilterOperatorInfo("Id", FilterOperator.Equals, artistResult.Data.Id)
+                new FilterOperatorInfo("ArtistId", FilterOperator.Equals, artistResult.Data.Id)
             ],
             OrderBy = new Dictionary<string, string> { { nameof(AlbumDataInfo.CreatedAt), PagedRequest.OrderDescDirection } }
-        }, "ar", cancellationToken).ConfigureAwait(false);        
+        },  cancellationToken).ConfigureAwait(false);        
         
         var baseUrl = GetBaseUrl(await ConfigurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false));
 

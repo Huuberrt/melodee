@@ -91,7 +91,7 @@ public sealed class SearchService(
                     new FilterOperatorInfo(nameof(AlbumDataInfo.NameNormalized), FilterOperator.Contains, searchTermNormalized),
                     new FilterOperatorInfo(nameof(AlbumDataInfo.AlternateNames), FilterOperator.Contains, searchTermNormalized, FilterOperatorInfo.OrJoinOperator)
                 ]
-            }, null, cancellationToken);
+            }, cancellationToken);
             totalAlbums = albumResult.TotalCount;
             albums = albumResult.Data.OrderBy(x => x.Name).ToList();
 
@@ -256,7 +256,7 @@ public sealed class SearchService(
                 ];
             }
 
-            var albumResult = await albumService.ListAsync(albumRequest, null, cancellationToken).ConfigureAwait(false);
+            var albumResult = await albumService.ListAsync(albumRequest, cancellationToken).ConfigureAwait(false);
             albumResults = albumResult.Data.OrderBy(x => x.Name).ToList();
         }
 
