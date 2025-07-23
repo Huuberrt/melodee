@@ -1,5 +1,6 @@
 using Melodee.Common.Data;
 using Melodee.Common.Enums;
+using Melodee.Common.Extensions;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Collection;
 using Melodee.Common.Models.Search;
@@ -458,9 +459,9 @@ public class SearchServiceTests : ServiceTestBase
         {
             ApiKey = Guid.NewGuid(),
             Name = name,
-            NameNormalized = name.ToLowerInvariant().Replace(" ", ""),
+            NameNormalized = name.ToNormalizedString()?.Replace(" ", "") ?? name,
             LibraryId = library.Id,
-            Directory = $"/{name.ToLowerInvariant().Replace(" ", "")}/",
+            Directory = $"/{name.ToNormalizedString()?.Replace(" ", "") ?? name}/",
             CreatedAt = SystemClock.Instance.GetCurrentInstant(),
             LastUpdatedAt = SystemClock.Instance.GetCurrentInstant()
         };
@@ -475,9 +476,9 @@ public class SearchServiceTests : ServiceTestBase
         {
             ApiKey = Guid.NewGuid(),
             Name = name,
-            NameNormalized = name.ToLowerInvariant().Replace(" ", ""),
+            NameNormalized = name.ToNormalizedString()?.Replace(" ", "") ?? name,
             ArtistId = artist.Id,
-            Directory = $"/{name.ToLowerInvariant().Replace(" ", "")}/",
+            Directory = $"/{name.ToNormalizedString()?.Replace(" ", "") ?? name}/",
             ReleaseDate = new LocalDate(2023, 1, 1),
             CreatedAt = SystemClock.Instance.GetCurrentInstant(),
             LastUpdatedAt = SystemClock.Instance.GetCurrentInstant()
@@ -493,7 +494,7 @@ public class SearchServiceTests : ServiceTestBase
         {
             ApiKey = Guid.NewGuid(),
             Title = title,
-            TitleNormalized = title.ToLowerInvariant().Replace(" ", ""),
+            TitleNormalized = title.ToNormalizedString()?.Replace(" ", "") ?? title,
             AlbumId = album.Id,
             SongNumber = 1,
             FileName = "test.mp3",
