@@ -322,7 +322,7 @@ public class AlbumValidatorTests : TestsBase
         var validationResult = validator.ValidateAlbum(album);
         Assert.True(validationResult.IsSuccess);
         Assert.Equal(AlbumStatus.Invalid, validationResult.Data.AlbumStatus);
-        Assert.Equal(AlbumNeedsAttentionReasons.HasInvalidSongs, validationResult.Data.AlbumStatusReasons);
+        Assert.Equal(AlbumNeedsAttentionReasons.HasInvalidSongs | AlbumNeedsAttentionReasons.HasNoImages, validationResult.Data.AlbumStatusReasons);
     }
 
     [Fact]
@@ -360,7 +360,7 @@ public class AlbumValidatorTests : TestsBase
         var validationResult = validator.ValidateAlbum(album);
         Assert.True(validationResult.IsSuccess);
         Assert.Equal(AlbumStatus.Invalid, validationResult.Data.AlbumStatus);
-        Assert.Equal(AlbumNeedsAttentionReasons.HasInvalidArtists | AlbumNeedsAttentionReasons.HasInvalidSongs, validationResult.Data.AlbumStatusReasons);
+        Assert.Equal(AlbumNeedsAttentionReasons.HasInvalidArtists | AlbumNeedsAttentionReasons.HasInvalidSongs | AlbumNeedsAttentionReasons.HasNoImages, validationResult.Data.AlbumStatusReasons);
     }
 
     [Fact]
@@ -379,7 +379,7 @@ public class AlbumValidatorTests : TestsBase
         var validationResult = validator.ValidateAlbum(album);
         Assert.True(validationResult.IsSuccess);
         Assert.Equal(AlbumStatus.Invalid, validationResult.Data.AlbumStatus);
-        Assert.Equal(AlbumNeedsAttentionReasons.HasInvalidSongs | AlbumNeedsAttentionReasons.HasInvalidYear, validationResult.Data.AlbumStatusReasons);
+        Assert.Equal(AlbumNeedsAttentionReasons.HasInvalidSongs | AlbumNeedsAttentionReasons.HasInvalidYear | AlbumNeedsAttentionReasons.HasNoImages, validationResult.Data.AlbumStatusReasons);
     }
 
     [Fact]
