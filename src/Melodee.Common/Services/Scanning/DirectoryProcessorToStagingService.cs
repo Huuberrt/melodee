@@ -46,7 +46,8 @@ public sealed class DirectoryProcessorToStagingService(
     MediaEditService mediaEditService,
     ArtistSearchEngineService artistSearchEngineService,
     AlbumImageSearchEngineService albumImageSearchEngineService,
-    IHttpClientFactory httpClientFactory)
+    IHttpClientFactory httpClientFactory,
+    IFileSystemService fileSystemService)
     : ServiceBase(logger, cacheManager, contextFactory), IDisposable
 {
     private readonly SemaphoreSlim _processingThrottle = new(Environment.ProcessorCount);
@@ -217,8 +218,7 @@ public sealed class DirectoryProcessorToStagingService(
 
         // Ensure directory to process exists
         Trace.WriteLine($"Ensuring processing path [{fileSystemDirectoryInfo.Path}] exists...");
-        var dirInfo = new DirectoryInfo(fileSystemDirectoryInfo.Path);
-        if (!dirInfo.Exists)
+        if (!fileSystemService.DirectoryExists(fileSystemDirectoryInfo.Path))
         {
             return new OperationResult<DirectoryProcessorResult>
             {
@@ -232,7 +232,7 @@ public sealed class DirectoryProcessorToStagingService(
 
         // Ensure that staging directory exists
         Trace.WriteLine($"Ensuring staging path [{_directoryStaging}] exists...");
-        if (!Directory.Exists(_directoryStaging))
+        if (!fileSystemService.DirectoryExists(_directoryStaging))
         {
             return new OperationResult<DirectoryProcessorResult>
             {
@@ -245,7 +245,7 @@ public sealed class DirectoryProcessorToStagingService(
         }
 
         // Run PreDiscovery script
-        if (!_configuration.GetValue<bool>(SettingRegistry.ScriptingEnabled) && _preDiscoveryScript.IsEnabled)
+        if (_configuration.GetValue<bool>(SettingRegistry.ScriptingEnabled) && _preDiscoveryScript.IsEnabled)
         {
             LogAndRaiseEvent(LogEventLevel.Debug, "Executing _preDiscoveryScript [{0}]", null,
                 _preDiscoveryScript.DisplayName);
@@ -274,19 +274,20 @@ public sealed class DirectoryProcessorToStagingService(
             }
         }
 
-        foreach (var dirName in Directory.EnumerateDirectories(fileSystemDirectoryInfo.Path))
+        foreach (var dirInfo in fileSystemService.EnumerateDirectories(fileSystemDirectoryInfo.Path, "*", SearchOption.TopDirectoryOnly))
         {
             if (cancellationToken.IsCancellationRequested || _stopProcessingTriggered)
             {
                 break;
             }
 
+            var dirName = dirInfo.FullName;
             if (Path.GetExtension(dirName).Nullify() != null)
             {
                 var newDirName = dirName.Replace(".", "_");
                 if (newDirName != dirName)
                 {
-                    Directory.Move(dirName, newDirName);
+                    fileSystemService.MoveDirectory(dirName, newDirName);
                     Logger.Debug("[{Name}] renamed directory from [{Old}] to [{New}]",
                         nameof(DirectoryProcessorToStagingService),
                         dirName,
@@ -338,7 +339,7 @@ public sealed class DirectoryProcessorToStagingService(
         }
 
         // Run PostDiscovery script
-        if (!_configuration.GetValue<bool>(SettingRegistry.ScriptingEnabled) && _postDiscoveryScript.IsEnabled)
+        if (_configuration.GetValue<bool>(SettingRegistry.ScriptingEnabled) && _postDiscoveryScript.IsEnabled)
         {
             var postDiscoveryScriptResult = new OperationResult<bool>
             {
@@ -719,20 +720,20 @@ public sealed class DirectoryProcessorToStagingService(
 
                 foreach (var image in albumImagesToMove.Concat(artistImageToMove).OrderBy(x => x.SortOrder))
                 {
-                    var oldImageFileName = Path.Combine((image.DirectoryInfo ?? album.Directory).FullName(),
+                    var oldImageFileName = fileSystemService.CombinePath((image.DirectoryInfo ?? album.Directory).FullName(),
                         image.FileInfo!.OriginalName!);
-                    if (!File.Exists(oldImageFileName))
+                    if (!fileSystemService.FileExists(oldImageFileName))
                     {
                         Logger.Warning("Unable to find image by original name [{OriginalName}]",
                             oldImageFileName);
                         continue;
                     }
 
-                    var newImageFileName = Path.Combine(albumDirectorySystemInfo.FullName(), image.FileInfo.Name);
+                    var newImageFileName = fileSystemService.CombinePath(albumDirectorySystemInfo.FullName(), image.FileInfo.Name);
                     if (!string.Equals(oldImageFileName, newImageFileName, StringComparison.OrdinalIgnoreCase))
                     {
                         filesToCopy.Add((oldImageFileName, newImageFileName));
-                        image.FileInfo!.Name = Path.GetFileName(newImageFileName);
+                        image.FileInfo!.Name = fileSystemService.GetFileName(newImageFileName);
                     }
                 }
 
@@ -748,20 +749,20 @@ public sealed class DirectoryProcessorToStagingService(
 
                         if (song.File.OriginalName != null)
                         {
-                            var oldSongFilename = Path.Combine(album.OriginalDirectory.FullName(),
+                            var oldSongFilename = fileSystemService.CombinePath(album.OriginalDirectory.FullName(),
                                 song.File.OriginalName!);
-                            if (!File.Exists(oldSongFilename))
+                            if (!fileSystemService.FileExists(oldSongFilename))
                             {
                                 continue;
                             }
 
-                            var newSongFileName = Path.Combine(albumDirectorySystemInfo.FullName(),
+                            var newSongFileName = fileSystemService.CombinePath(albumDirectorySystemInfo.FullName(),
                                 song.ToSongFileName(albumDirectorySystemInfo));
                             if (!string.Equals(oldSongFilename, newSongFileName,
                                     StringComparison.OrdinalIgnoreCase))
                             {
                                 filesToCopy.Add((oldSongFilename, newSongFileName));
-                                song.File.Name = Path.GetFileName(newSongFileName);
+                                song.File.Name = fileSystemService.GetFileName(newSongFileName);
                             }
                         }
                     }
@@ -938,7 +939,7 @@ public sealed class DirectoryProcessorToStagingService(
                                     imageSearchResult.ReleaseDate.ToString());
                             }
 
-                            var albumImageFromSearchFileName = Path.Combine(albumDirectorySystemInfo.FullName(),
+                            var albumImageFromSearchFileName = fileSystemService.CombinePath(albumDirectorySystemInfo.FullName(),
                                 albumDirectorySystemInfo
                                     .GetNextFileNameForType(Data.Models.Album.FrontImageType).Item1);
                             if (await httpClient.DownloadFileAsync(
@@ -992,8 +993,9 @@ public sealed class DirectoryProcessorToStagingService(
                 var jsonName = album.ToMelodeeJsonName(_configuration, true);
                 if (jsonName.Nullify() != null)
                 {
-                    await File.WriteAllTextAsync(Path.Combine(albumDirectorySystemInfo.FullName(), jsonName),
-                        serialized, cancellationToken).ConfigureAwait(false);
+                    var jsonFilePath = fileSystemService.CombinePath(albumDirectorySystemInfo.FullName(), jsonName);
+                    await fileSystemService.WriteAllBytesAsync(jsonFilePath, 
+                        System.Text.Encoding.UTF8.GetBytes(serialized ?? ""), cancellationToken).ConfigureAwait(false);
 
                     artistsIdsSeen.Add(album.Artist.ArtistUniqueId());
                     // ConcurrentBag doesn't have AddRange, so add items individually
@@ -1019,8 +1021,8 @@ public sealed class DirectoryProcessorToStagingService(
                     if (isMagicEnabled)
                     {
                         await mediaEditService.DoMagic(album, cancellationToken).ConfigureAwait(false);
-                        albumCouldBeMagicfied = await Album.DeserializeAndInitializeAlbumAsync(serializer,
-                                Path.Combine(albumDirectorySystemInfo.FullName(), jsonName), cancellationToken)
+                        var jsonPath = fileSystemService.CombinePath(albumDirectorySystemInfo.FullName(), jsonName);
+                        albumCouldBeMagicfied = await fileSystemService.DeserializeAlbumAsync(jsonPath, cancellationToken)
                             .ConfigureAwait(false) ?? album;
                     }
 
@@ -1046,7 +1048,7 @@ public sealed class DirectoryProcessorToStagingService(
                     if (_configuration.GetValue<bool>(SettingRegistry.ProcessingDoDeleteOriginal) &&
                         album.MelodeeDataFileName != null)
                     {
-                        File.Delete(album.MelodeeDataFileName);
+                        fileSystemService.DeleteFile(album.MelodeeDataFileName);
                     }
                 }
                 else

@@ -22,30 +22,50 @@ public class Id3v2TagReaderTests
     }
 
     [Fact]
-    public async Task Read_Media_Files_In_Test_Folder()
+    public async Task Read_Media_Files_Should_Parse_Valid_Mp3_File()
     {
-        var testFolder = "/melodee_test/tests/good";
-        if (!Directory.Exists(testFolder))
+        // Arrange - Create a test file with known metadata instead of relying on external folder
+        var metadata = new BlankMusicFileGenerator.MusicMetadata
         {
-            return;
-        }
+            Title = "Test MP3 File",
+            Artist = "Test Artist Name",
+            Album = "Test Album Name",
+            RecordingYear = 2024,
+            TrackNumber = 5,
+            Genre = "Rock",
+            Comment = "Test comment"
+        };
 
-        var file = new FileInfo(Path.Combine(testFolder, "test_3_2.mp3"));
-        var tags = await AudioTagManager.ReadAllTagsAsync(file.FullName, CancellationToken.None);
-        _output.WriteLine($"Processing file: [{file.FullName}] ...");
-        Assert.NotEqual(AudioFormat.Unknown, tags.Format);
-        Assert.NotEqual(0, tags.FileMetadata.FileSize);
-        Assert.NotEqual(string.Empty, tags.FileMetadata.FilePath);
-        Assert.NotEqual(DateTimeOffset.MinValue, tags.FileMetadata.Created);
-        Assert.NotEqual(DateTimeOffset.MinValue, tags.FileMetadata.LastModified);
-        Assert.NotNull(tags.Tags);
-        Assert.NotEmpty(tags.Tags);
-        Assert.NotEmpty(tags.Tags.Keys);
-        Assert.NotEmpty(tags.Tags.Values);
-        Assert.NotEmpty(SafeParser.ToString(tags.Tags[MetaTagIdentifier.Artist]));
-        Assert.True(SafeParser.ToNumber<int>(tags.Tags[MetaTagIdentifier.TrackNumber]) > 0);
-        Assert.NotEmpty(SafeParser.ToString(tags.Tags[MetaTagIdentifier.Title]));
-        _output.WriteLine("Successful");
+        var filePath = await BlankMusicFileGenerator.CreateMinimalMp3FileAsync(_testOutputPath, metadata);
+
+        try
+        {
+            // Act
+            var tags = await AudioTagManager.ReadAllTagsAsync(filePath, CancellationToken.None);
+            _output.WriteLine($"Processing file: [{filePath}] ...");
+
+            // Assert - Verify all expected properties are correctly parsed
+            Assert.NotEqual(AudioFormat.Unknown, tags.Format);
+            Assert.NotEqual(0, tags.FileMetadata.FileSize);
+            Assert.NotEqual(string.Empty, tags.FileMetadata.FilePath);
+            Assert.NotEqual(DateTimeOffset.MinValue, tags.FileMetadata.Created);
+            Assert.NotEqual(DateTimeOffset.MinValue, tags.FileMetadata.LastModified);
+            Assert.NotNull(tags.Tags);
+            Assert.NotEmpty(tags.Tags);
+            Assert.NotEmpty(tags.Tags.Keys);
+            Assert.NotEmpty(tags.Tags.Values);
+            Assert.NotEmpty(SafeParser.ToString(tags.Tags[MetaTagIdentifier.Artist]));
+            Assert.True(SafeParser.ToNumber<int>(tags.Tags[MetaTagIdentifier.TrackNumber]) > 0);
+            Assert.NotEmpty(SafeParser.ToString(tags.Tags[MetaTagIdentifier.Title]));
+            _output.WriteLine("Successful");
+        }
+        finally
+        {
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+        }
     }
 
     [Fact]

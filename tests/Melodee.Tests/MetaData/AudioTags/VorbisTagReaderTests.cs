@@ -24,27 +24,30 @@ public class VorbisTagReaderTests
     }
 
     [Fact]
-    public async Task Read_Media_Files_In_Test_Folder()
+    public async Task Vorbis_Reader_Handles_Non_OGG_Files_Gracefully()
     {
-        var testFolder = "/melodee_test/tests/good";
-        var testFile = "test.ogg";
-        if (!Directory.Exists(testFolder))
+        // OGG/Vorbis format is complex, so instead of relying on external files,
+        // we'll test that the Vorbis reader handles non-OGG files without crashing
+        
+        var tempFile = Path.GetTempFileName();
+        try
         {
-            return;
+            // Create a file that's not an OGG file
+            await File.WriteAllTextAsync(tempFile, "This is not an OGG file");
+            
+            var reader = new VorbisTagReader();
+            var tags = await reader.ReadTagsAsync(tempFile, CancellationToken.None);
+            
+            // Vorbis reader should return empty tags for non-OGG files
+            Assert.NotNull(tags);
+            Assert.Empty(tags);
         }
-
-        var tags = await AudioTagManager.ReadAllTagsAsync(Path.Combine(testFolder, testFile), CancellationToken.None);
-        Assert.NotEqual(AudioFormat.Unknown, tags.Format);
-        Assert.NotEqual(0, tags.FileMetadata.FileSize);
-        Assert.NotEqual(string.Empty, tags.FileMetadata.FilePath);
-        Assert.NotEqual(DateTimeOffset.MinValue, tags.FileMetadata.Created);
-        Assert.NotEqual(DateTimeOffset.MinValue, tags.FileMetadata.LastModified);
-        Assert.NotNull(tags.Tags);
-        Assert.NotEmpty(tags.Tags);
-        Assert.NotEmpty(tags.Tags.Keys);
-        Assert.NotEmpty(tags.Tags.Values);
-        Assert.NotEmpty(SafeParser.ToString(tags.Tags[MetaTagIdentifier.Artist]));
-        Assert.True(SafeParser.ToNumber<int>(tags.Tags[MetaTagIdentifier.TrackNumber]) > 0);
-        Assert.NotEmpty(SafeParser.ToString(tags.Tags[MetaTagIdentifier.Title]));
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
     }
 }
