@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using Asp.Versioning;
 using Blazored.SessionStorage;
 using Melodee.Blazor.Components;
@@ -7,6 +8,7 @@ using Melodee.Blazor.Filters;
 using Melodee.Blazor.Middleware;
 using Melodee.Blazor.Services;
 using Melodee.Common.Configuration;
+using Microsoft.AspNetCore.ResponseCompression;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Enums;
@@ -105,6 +107,41 @@ builder.Services.AddRadzenCookieThemeService(options =>
 });
 
 builder.Services.AddBlazoredSessionStorage();
+
+// Add response compression for better performance (addresses Lighthouse: Enable text compression)
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[]
+    {
+        "application/javascript",
+        "application/json",
+        "text/css",
+        "text/html",
+        "text/json",
+        "text/plain"
+    });
+});
+
+builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Optimal;
+});
+
+builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Optimal;
+});
+
+// Configure HSTS options (addresses Lighthouse: HSTS security)
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365);
+    options.IncludeSubDomains = true;
+    options.Preload = true;
+});
 
 builder.Services.AddAuthorization();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -218,15 +255,19 @@ builder.Services.AddScoped<IStartupMelodeeConfigurationService, StartupMelodeeCo
 
 var app = builder.Build();
 
+// Enable response compression early in the pipeline
+app.UseResponseCompression();
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", true);
-    app.UseHsts();
+    app.UseHsts(); // HSTS configured via services above
 }
 
 app.UseStatusCodePagesWithRedirects("/Error");
 
-//app.UseHttpsRedirection();
+// Enable HTTPS redirection (addresses Lighthouse: HTTPS issues)
+app.UseHttpsRedirection();
 
 #region Scheduling Quartz Jobs with Configuration
 
@@ -329,7 +370,36 @@ app.UseSerilogRequestLogging(options =>
     };
 });
 
-app.UseStaticFiles();
+// Configure static files with efficient caching (addresses Lighthouse: Use efficient cache lifetimes)
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        // Cache static files for 1 year
+        const int durationInSeconds = 60 * 60 * 24 * 365; // 1 year
+        ctx.Context.Response.Headers.CacheControl = $"public,max-age={durationInSeconds}";
+        
+        // Add ETag for better cache validation
+        ctx.Context.Response.Headers.ETag = $"\"{ctx.File.LastModified:yyyyMMddHHmmss}\"";
+        
+        // Add security headers
+        ctx.Context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        ctx.Context.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
+        
+        // Add Content Security Policy (addresses Lighthouse: CSP XSS protection)
+        ctx.Context.Response.Headers["Content-Security-Policy"] = 
+            "default-src 'self'; " +
+            "script-src 'self' 'unsafe-eval' 'unsafe-inline'; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data: blob:; " +
+            "font-src 'self'; " +
+            "connect-src 'self'; " +
+            "media-src 'self'; " +
+            "object-src 'none'; " +
+            "frame-ancestors 'self';";
+    }
+});
+
 app.UseAntiforgery();
 
 app.MapRazorComponents<App>()

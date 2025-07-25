@@ -18,6 +18,19 @@
     <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>
     <FileVersion>$(VersionPrefix).0</FileVersion>
     <InformationalVersion>$(VersionPrefix)+$(VersionSuffix)</InformationalVersion>
+
+    <!-- Performance optimizations for Lighthouse recommendations -->
+    <!-- Enable Blazor WebAssembly optimizations -->
+    <BlazorEnableCompression>true</BlazorEnableCompression>
+    <!-- Enable minification in release builds -->
+    <BlazorEnableTimeZoneSupport>false</BlazorEnableTimeZoneSupport>
+    <!-- Tree trimming for smaller bundles -->
+    <PublishTrimmed Condition="'$(Configuration)' == 'Release'">true</PublishTrimmed>
+    <TrimMode Condition="'$(Configuration)' == 'Release'">link</TrimMode>
+    <!-- Enable Ready2Run for faster startup -->
+    <PublishReadyToRun Condition="$([MSBuild]::IsOSPlatform('Windows'))">true</PublishReadyToRun>
+    <!-- Enable single file deployment for smaller footprint -->
+    <PublishSingleFile Condition="'$(Configuration)' == 'Release'">false</PublishSingleFile>
   </PropertyGroup>
 
   <ItemGroup>
