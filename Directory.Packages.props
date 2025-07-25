@@ -45,6 +45,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.WebUtilities" Version="9.0.7" />
     <PackageVersion Include="Microsoft.Data.Sqlite.Core" Version="8.0.10" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="9.0.7" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.7">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -109,5 +110,13 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageVersion>
     <PackageVersion Include="z440.atl.core" Version="7.2.0" />
+    <PackageVersion Include="bunit" Version="1.24.10" />
+    <PackageVersion Include="bunit.web" Version="1.24.10" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.7" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.Authorization" Version="9.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="9.0.7" />
+    <PackageVersion Include="Spectre.Console.Testing" Version="0.50.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="9.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.FileExtensions" Version="9.0.7" />
   </ItemGroup>
 </Project>
