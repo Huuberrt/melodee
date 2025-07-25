@@ -50,10 +50,14 @@ public sealed class DirectoryProcessorToStagingService(
     IFileSystemService fileSystemService)
     : ServiceBase(logger, cacheManager, contextFactory), IDisposable
 {
-    private readonly SemaphoreSlim _processingThrottle = new(Environment.ProcessorCount);
+    private readonly SemaphoreSlim _processingThrottle = new(Environment.ProcessorCount * 3); // I/O bound operations benefit from higher parallelism
     private IAlbumNamesInDirectoryPlugin _albumNamesInDirectoryPlugin = null!;
     private IAlbumValidator _albumValidator = new AlbumValidator(new MelodeeConfiguration([]));
     private IMelodeeConfiguration _configuration = new MelodeeConfiguration([]);
+    
+    // Cached configuration values for performance
+    private bool _dontDeleteExistingMelodeeFiles;
+    private bool _scriptingEnabled;
 
     /// <summary>
     ///     These plugins convert media from various formats into configured formats.
@@ -166,6 +170,10 @@ public sealed class DirectoryProcessorToStagingService(
         await mediaEditService.InitializeAsync(configuration, token).ConfigureAwait(false);
         await artistSearchEngineService.InitializeAsync(configuration, token).ConfigureAwait(false);
 
+        // Cache frequently accessed configuration values
+        _dontDeleteExistingMelodeeFiles = _configuration.GetValue<bool>(SettingRegistry.ProcessingDontDeleteExistingMelodeeDataFiles);
+        _scriptingEnabled = _configuration.GetValue<bool>(SettingRegistry.ScriptingEnabled);
+
         _initialized = true;
     }
 
@@ -245,7 +253,7 @@ public sealed class DirectoryProcessorToStagingService(
         }
 
         // Run PreDiscovery script
-        if (_configuration.GetValue<bool>(SettingRegistry.ScriptingEnabled) && _preDiscoveryScript.IsEnabled)
+        if (_scriptingEnabled && _preDiscoveryScript.IsEnabled)
         {
             LogAndRaiseEvent(LogEventLevel.Debug, "Executing _preDiscoveryScript [{0}]", null,
                 _preDiscoveryScript.DisplayName);
@@ -296,41 +304,69 @@ public sealed class DirectoryProcessorToStagingService(
             }
         }
 
+        // Process directories in batches to improve memory efficiency
+        const int batchSize = 100;
         var directoriesToProcess = fileSystemDirectoryInfo
-            .GetFileSystemDirectoryInfosToProcess(lastProcessDate, SearchOption.AllDirectories).ToList();
-        if (directoriesToProcess.Count > 0)
+            .GetFileSystemDirectoryInfosToProcess(lastProcessDate, SearchOption.AllDirectories);
+        
+        var totalDirectories = 0;
+        var processedDirectories = 0;
+        
+        // First pass: count directories for progress reporting
+        foreach (var _ in directoriesToProcess)
         {
-            OnProcessingStart?.Invoke(this, directoriesToProcess.Count);
-            LogAndRaiseEvent(LogEventLevel.Debug, "\u251c Found [{0}] directories to process", null,
-                directoriesToProcess.Count);
+            totalDirectories++;
+            if (totalDirectories > 10000) break; // Prevent excessive counting
+        }
+        
+        if (totalDirectories > 0)
+        {
+            OnProcessingStart?.Invoke(this, totalDirectories);
+            LogAndRaiseEvent(LogEventLevel.Debug, "\u251c Found [{0}] directories to process", null, totalDirectories);
         }
 
         // Process directories in parallel with controlled concurrency
         var parallelOptions = new ParallelOptions
         {
             CancellationToken = cancellationToken,
-            MaxDegreeOfParallelism = Environment.ProcessorCount // Limit parallel execution to CPU core count
+            MaxDegreeOfParallelism = Environment.ProcessorCount * 3 // I/O bound operations benefit from higher parallelism
         };
 
         try
         {
-            await Parallel.ForEachAsync(directoriesToProcess, parallelOptions, async (directoryInfoToProcess, ct) =>
+            // Process directories in batches to reduce memory pressure
+            var batch = new List<FileSystemDirectoryInfo>(batchSize);
+            
+            foreach (var directoryInfo in fileSystemDirectoryInfo.GetFileSystemDirectoryInfosToProcess(lastProcessDate, SearchOption.AllDirectories))
             {
-                // Check for cancellation before acquiring semaphore
-                ct.ThrowIfCancellationRequested();
-
-                await _processingThrottle.WaitAsync(ct);
-                try
+                if (cancellationToken.IsCancellationRequested || _stopProcessingTriggered)
                 {
-                    await ProcessSingleDirectoryAsync(directoryInfoToProcess, processingMessages, processingErrors,
-                        artistsIdsSeen, albumsIdsSeen, songsIdsSeen, ct);
+                    break;
                 }
-                finally
+                
+                batch.Add(directoryInfo);
+                
+                if (batch.Count >= batchSize)
                 {
-                    _processingThrottle.Release();
-                    OnDirectoryProcessed?.Invoke(this, directoryInfoToProcess);
+                    await ProcessDirectoryBatchAsync(batch, parallelOptions, processingMessages, processingErrors, 
+                        artistsIdsSeen, albumsIdsSeen, songsIdsSeen, cancellationToken);
+                    processedDirectories += batch.Count;
+                    batch.Clear();
+                    
+                    // Check album processing limit
+                    if (_maxAlbumProcessingCount > 0 && processedDirectories >= _maxAlbumProcessingCount)
+                    {
+                        break;
+                    }
                 }
-            });
+            }
+            
+            // Process remaining directories in the final batch
+            if (batch.Count > 0 && !cancellationToken.IsCancellationRequested && !_stopProcessingTriggered)
+            {
+                await ProcessDirectoryBatchAsync(batch, parallelOptions, processingMessages, processingErrors,
+                    artistsIdsSeen, albumsIdsSeen, songsIdsSeen, cancellationToken);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -339,7 +375,7 @@ public sealed class DirectoryProcessorToStagingService(
         }
 
         // Run PostDiscovery script
-        if (_configuration.GetValue<bool>(SettingRegistry.ScriptingEnabled) && _postDiscoveryScript.IsEnabled)
+        if (_scriptingEnabled && _postDiscoveryScript.IsEnabled)
         {
             var postDiscoveryScriptResult = new OperationResult<bool>
             {
@@ -432,6 +468,35 @@ public sealed class DirectoryProcessorToStagingService(
         OnProcessingEvent?.Invoke(this, exception?.ToString() ?? eventMessage);
     }
 
+    private async Task ProcessDirectoryBatchAsync(
+        List<FileSystemDirectoryInfo> batch,
+        ParallelOptions parallelOptions,
+        ConcurrentBag<string> processingMessages,
+        ConcurrentBag<Exception> processingErrors,
+        ConcurrentBag<long?> artistsIdsSeen,
+        ConcurrentBag<long?> albumsIdsSeen,
+        ConcurrentBag<Guid> songsIdsSeen,
+        CancellationToken cancellationToken)
+    {
+        await Parallel.ForEachAsync(batch, parallelOptions, async (directoryInfoToProcess, ct) =>
+        {
+            // Check for cancellation before acquiring semaphore
+            ct.ThrowIfCancellationRequested();
+
+            await _processingThrottle.WaitAsync(ct);
+            try
+            {
+                await ProcessSingleDirectoryAsync(directoryInfoToProcess, processingMessages, processingErrors,
+                    artistsIdsSeen, albumsIdsSeen, songsIdsSeen, ct);
+            }
+            finally
+            {
+                _processingThrottle.Release();
+                OnDirectoryProcessed?.Invoke(this, directoryInfoToProcess);
+            }
+        });
+    }
+
     private async Task ProcessSingleDirectoryAsync(
         FileSystemDirectoryInfo directoryInfoToProcess,
         ConcurrentBag<string> processingMessages,
@@ -448,9 +513,7 @@ public sealed class DirectoryProcessorToStagingService(
         Trace.WriteLine($"DirectoryInfoToProcess: [{directoryInfoToProcess}]");
         try
         {
-            var dontDeleteExistingMelodeeFiles = _configuration.GetValue<bool>(SettingRegistry.ProcessingDontDeleteExistingMelodeeDataFiles);
-
-            if (!dontDeleteExistingMelodeeFiles)
+            if (!_dontDeleteExistingMelodeeFiles)
             {
                 // Optimized batch delete operations
                 var melodeeFiles = directoryInfoToProcess.MelodeeJsonFiles().Select(f => f.FullName).ToList();
@@ -467,20 +530,20 @@ public sealed class DirectoryProcessorToStagingService(
                 return;
             }
 
-            // Use optimized file enumeration for memory efficiency
-            var fileCount = 0;
+            // Combined file enumeration for counting and processing to avoid duplicate traversals
+            var fileInfos = new List<FileInfo>();
             await foreach (var fileInfo in OptimizedFileOperations.EnumerateFilesAsync(
                                directoryInfoToProcess.Path, "*", SearchOption.TopDirectoryOnly, cancellationToken))
             {
-                fileCount++;
-                if (fileCount > 10000)
+                fileInfos.Add(fileInfo);
+                if (fileInfos.Count > 10000)
                 {
-                    break; // Prevent counting very large directories
+                    break; // Prevent excessive memory usage for very large directories
                 }
             }
 
             LogAndRaiseEvent(LogEventLevel.Debug, "\u251c Processing [{0}] Number of files to process [{1}]", null,
-                directoryInfoToProcess.Name, fileCount);
+                directoryInfoToProcess.Name, fileInfos.Count);
 
             // Run all enabled IDirectoryPlugins to convert MetaData files into Album json files.
             // e.g. Build Album json file for M3U or NFO or SFV, etc.
@@ -532,8 +595,8 @@ public sealed class DirectoryProcessorToStagingService(
 
             // Run Enabled Conversion scripts on each file in directory
             // e.g. Convert FLAC to MP3, Convert non JPEG files into JPEGs, etc.
-            await foreach (var fileInfo in OptimizedFileOperations.EnumerateFilesAsync(
-                               directoryInfoToProcess.Path, "*", SearchOption.TopDirectoryOnly, cancellationToken))
+            // Use pre-enumerated files to avoid duplicate file system traversal
+            foreach (var fileInfo in fileInfos)
             {
                 if (cancellationToken.IsCancellationRequested || _stopProcessingTriggered)
                 {
