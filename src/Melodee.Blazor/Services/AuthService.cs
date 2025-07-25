@@ -16,6 +16,7 @@ public class AuthService(
 {
     private const string AuthTokenName = "melodee_auth_token";
     private ClaimsPrincipal? _currentUser;
+    private bool _tokenValidated = false;
 
     public event Action<ClaimsPrincipal>? UserChanged;
 
@@ -40,6 +41,7 @@ public class AuthService(
     public async Task LogoutAsync()
     {
         CurrentUser = new ClaimsPrincipal();
+        _tokenValidated = false; // Reset validation state on logout
         await localStorageService.RemoveItemAsync(AuthTokenName);
     }
 
@@ -88,9 +90,24 @@ public class AuthService(
     }
 
 
+    /// <summary>
+    ///     Ensures user is authenticated by validating cached state or token. Prevents duplicate validation calls.
+    /// </summary>
+    /// <returns>True if user is authenticated</returns>
+    public async Task<bool> EnsureAuthenticatedAsync()
+    {
+        if (!_tokenValidated && !IsLoggedIn)
+        {
+            _tokenValidated = true;
+            return await GetStateFromTokenAsync();
+        }
+        return IsLoggedIn;
+    }
+
     public async Task Login(ClaimsPrincipal user, bool? doRememberMe = null)
     {
         CurrentUser = user;
+        _tokenValidated = true; // Mark as validated since we're setting a valid user
         var tokenEncryptionKey = configuration.GetSection("MelodeeAuthSettings:Token").Value!;
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenEncryptionKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512Signature);

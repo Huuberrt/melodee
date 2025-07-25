@@ -9,6 +9,7 @@ public interface IAuthService
     bool IsAdmin { get; }
     event Action<ClaimsPrincipal> UserChanged;
     Task<bool> GetStateFromTokenAsync();
+    Task<bool> EnsureAuthenticatedAsync();
     Task LogoutAsync();
     Task Login(ClaimsPrincipal user, bool? doRememberMe = null);
 }

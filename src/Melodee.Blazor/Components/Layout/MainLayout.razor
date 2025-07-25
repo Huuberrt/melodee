@@ -166,20 +166,8 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && !AuthService.IsLoggedIn)
+        if (firstRender)
         {
-            var url = NavigationManager.ToAbsoluteUri(NavigationManager.Uri).ToString();
-            if (url.Contains("/login"))
-            {
-                return;
-            }
-
-            var restoredFromState = await AuthService.GetStateFromTokenAsync();
-            if (restoredFromState)
-            {
-                NavigationManager.Refresh();
-            }
-
             var configuration = await MelodeeConfigurationFactory.GetConfigurationAsync();
             _siteTitle = configuration.GetValue<string>(SettingRegistry.OpenSubsonicServerType) ?? string.Empty;
             _mediaLibraryInfos = (await LibraryService.ListMediaLibrariesAsync())
@@ -189,6 +177,7 @@
                 .ToArray();
 
             MainLayoutProxyService.ShowSpinner = false;
+            StateHasChanged();
         }
     }
 

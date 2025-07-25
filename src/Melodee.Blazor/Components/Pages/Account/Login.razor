@@ -79,17 +79,10 @@ else
             }
         }
 
-        if (firstRender && !AuthService.IsLoggedIn)
+        if (firstRender && await AuthService.EnsureAuthenticatedAsync())
         {
-            var restoredFromState = await AuthService.GetStateFromTokenAsync();
-            if (restoredFromState)
-            {
-                if (!string.IsNullOrEmpty(ReturnUrl))
-                {
-                    NavigationManager.NavigateTo(ReturnUrl);
-                    ReturnUrl = string.Empty;
-                }
-            }
+            NavigationManager.NavigateTo(ReturnUrl ?? "/");
+            return;
         }
 
         _isLoading = false;
