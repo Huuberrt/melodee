@@ -4,20 +4,15 @@
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <!-- SEO improvements (addresses Lighthouse: meta description) -->
     <meta name="description" content="Melodee - A modern music library management system for organizing, streaming, and discovering your music collection. Features include music tagging, album artwork, playlist management, and multi-format audio support."/>
     <meta name="keywords" content="music library, audio management, music streaming, music organizer, media player, music collection"/>
     <meta name="author" content="Melodee"/>
-    <!-- Security headers -->
-    <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
-    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN"/>
-    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin"/>
     <base href="/"/>
-    
+
     <!-- Preload critical CSS to reduce render blocking (addresses Lighthouse: Eliminate render-blocking resources) -->
     <link rel="preload" href="app.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
     <noscript><link rel="stylesheet" href="app.css"/></noscript>
-    
+
     <link rel="stylesheet" href="server.styles.css"/>
     <link href="/_content/PSC.Blazor.Components.MarkdownEditor/css/easymde.min.css" rel="stylesheet"/>
     <link rel="icon" type="image/ico" href="favicon.ico"/>
