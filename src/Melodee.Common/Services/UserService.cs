@@ -307,8 +307,9 @@ public sealed class UserService(
                 }
             }, cancellationToken).ConfigureAwait(false);
         return id == null
-            ? new MelodeeModels.OperationResult<User?>
+            ? new MelodeeModels.OperationResult<User?>("User not found")
             {
+                Type = MelodeeModels.OperationResponseType.NotFound,
                 Data = null
             }
             : await GetAsync(id.Value, cancellationToken).ConfigureAwait(false);

@@ -31,7 +31,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
             {
                 ApiKey = Guid.NewGuid(),
                 UserName = username,
-                UserNameNormalized = username.ToUpperInvariant(),
+                UserNameNormalized = username.ToNormalizedString() ?? username.ToUpperInvariant(),
                 Email = "testemail@local.home.arpa",
                 EmailNormalized = "testemail@local.home.arpa".ToNormalizedString()!,
                 PublicKey = usersPublicKey,
@@ -64,7 +64,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
             {
                 ApiKey = Guid.NewGuid(),
                 UserName = username,
-                UserNameNormalized = username.ToUpperInvariant(),
+                UserNameNormalized = username.ToNormalizedString() ?? username.ToUpperInvariant(),
                 Email = "testemail@local.home.arpa",
                 EmailNormalized = "testemail@local.home.arpa".ToNormalizedString()!,
                 PublicKey = usersPublicKey,
@@ -95,7 +95,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
             {
                 ApiKey = Guid.NewGuid(),
                 UserName = username,
-                UserNameNormalized = username.ToUpperInvariant(),
+                UserNameNormalized = username.ToNormalizedString() ?? username.ToUpperInvariant(),
                 Email = "testemail@local.home.arpa",
                 EmailNormalized = "testemail@local.home.arpa".ToNormalizedString()!,
                 PublicKey = usersPublicKey,
@@ -1900,7 +1900,7 @@ public class OpenSubsonicApiServiceTests : ServiceTestBase
         {
             ApiKey = Guid.NewGuid(),
             UserName = username,
-            UserNameNormalized = username.ToUpperInvariant(),
+            UserNameNormalized = username.ToNormalizedString() ?? username.ToUpperInvariant(),
             Email = "testemail@local.home.arpa",
             EmailNormalized = "testemail@local.home.arpa".ToNormalizedString()!,
             PublicKey = usersPublicKey,

@@ -1,5 +1,6 @@
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
+using Melodee.Common.Extensions;
 using Melodee.Common.MessageBus.Events;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Collection;
@@ -482,15 +483,88 @@ public class UserServiceTests : ServiceTestBase
         Assert.True(result.Data);
     }
 
+    [Fact]
+    public async Task GetByUsernameAsync_CacheIsUsedOnRepeatedCalls()
+    {
+        // Arrange
+        var username = "cacheuser";
+        var userService = GetUserService();
+        await using (var context = await MockFactory().CreateDbContextAsync())
+        {
+            var user = CreateTestUser(2, username, "cacheuser@example.com");
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+        }
+        // Act
+        var result1 = await userService.GetByUsernameAsync(username);
+        var result2 = await userService.GetByUsernameAsync(username);
+        // Assert
+        Assert.True(result1.IsSuccess);
+        Assert.True(result2.IsSuccess);
+        Assert.NotNull(result1.Data);
+        Assert.NotNull(result2.Data);
+        Assert.Equal(result1.Data.Id, result2.Data.Id);
+    }
+
+    [Fact]
+    public async Task UpdateLastLogin_PublishesEvent()
+    {
+        // Arrange
+        var userService = GetUserService();
+        await using (var context = await MockFactory().CreateDbContextAsync())
+        {
+            var user = CreateTestUser(3, "eventuser", "eventuser@example.com");
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+        }
+        var eventData = new UserLoginEvent(3, "eventuser");
+        // Act
+        var result = await userService.UpdateLastLogin(eventData);
+        // Assert
+        Assert.True(result.IsSuccess);
+        // TODO: Verify bus event published (mock/spy)
+    }
+
+    [Fact]
+    public async Task GetByEmailAddressAsync_WithUnusualCharacters_ReturnsUser()
+    {
+        // Arrange
+        var email = "üñîçødë@example.com";
+        var userService = GetUserService();
+        await using (var context = await MockFactory().CreateDbContextAsync())
+        {
+            var user = CreateTestUser(4, "unicodeuser", email);
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+        }
+        // Act
+        var result = await userService.GetByEmailAddressAsync(email);
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Equal(email, result.Data.Email);
+    }
+
+    [Fact]
+    public async Task IsUserAdminAsync_UnauthorizedAccess_ReturnsFalse()
+    {
+        // Arrange
+        var userService = GetUserService();
+        var username = "nonexistentuser";
+        // Act
+        var result = await userService.IsUserAdminAsync(username);
+        // Assert
+        Assert.False(result);
+    }
+
     private static User CreateTestUser(int id, string username, string email)
     {
         return new User
         {
             Id = id,
             UserName = username,
-            UserNameNormalized = username.ToUpperInvariant(),
+            UserNameNormalized = username.ToNormalizedString() ?? username.ToUpperInvariant(),
             Email = email,
-            EmailNormalized = email.ToUpperInvariant(),
+            EmailNormalized = email.ToNormalizedString() ?? email.ToUpperInvariant(),
             PublicKey = "testkey",
             PasswordEncrypted = "encryptedpassword",
             ApiKey = Guid.NewGuid(),

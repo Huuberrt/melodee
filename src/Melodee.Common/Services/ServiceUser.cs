@@ -25,7 +25,7 @@ public sealed class ServiceUser : User
             CreatedAt = default,
             PublicKey = EncryptionHelper.GenerateRandomPublicKeyBase64(),
             UserName = "admin",
-            UserNameNormalized = "ServiceUser".ToUpperInvariant(),
+            UserNameNormalized = "admin".ToNormalizedString() ?? "admin",
             Email = "serviceuser@local.home.arpa",
             EmailNormalized = "serviceuser@local.home.arpa".ToNormalizedString()!,
             IsAdmin = true,
