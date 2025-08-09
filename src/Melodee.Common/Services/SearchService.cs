@@ -66,6 +66,15 @@ public sealed class SearchService(
 
         var searchTermNormalized = searchTerm?.ToNormalizedString() ?? searchTerm ?? string.Empty;
 
+        // If page size is 0, return empty results immediately
+        if (pageSize == 0)
+        {
+            return new OperationResult<SearchResult>
+            {
+                Data = new SearchResult([], 0, [], 0, [], 0, [], 0, [], 0)
+            };
+        }
+
         if (include.HasFlag(SearchInclude.Artists))
         {
             var artistResult = await artistService.ListAsync(new PagedRequest
@@ -134,7 +143,7 @@ public sealed class SearchService(
             };
             if (filterByArtistId.HasValue)
             {
-                songFilters.Add(new FilterOperatorInfo("ArtistApiKey", FilterOperator.Equals, filterByArtistId.Value));
+                songFilters.Add(new FilterOperatorInfo("artistapikey", FilterOperator.Equals, filterByArtistId.Value));
             }
             var songResult = await songService.ListAsync(new PagedRequest
             {
@@ -232,7 +241,6 @@ public sealed class SearchService(
         var albumResults = new List<AlbumDataInfo>();
         var songResults = new List<SongDataInfo>();
 
-        // Handle empty query case - return all data as per OpenSubsonic spec
         if (searchQuery.Nullify() == null)
         {
             searchTermNormalized = string.Empty;

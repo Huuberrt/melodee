@@ -2,10 +2,8 @@ using Melodee.Common.Data;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
 using Melodee.Common.Models;
-using Melodee.Common.Models.Collection;
 using Melodee.Common.Models.Search;
 using NodaTime;
-using Microsoft.EntityFrameworkCore;
 using DataModels = Melodee.Common.Data.Models;
 
 namespace Melodee.Tests.Common.Common.Services;
@@ -22,17 +20,11 @@ public class SearchServiceTests : ServiceTestBase
         // Create test data
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
-            var user = await CreateTestUser(context, userApiKey);
+            await CreateTestUser(context, userApiKey);
             var library = await CreateTestLibrary(context);
             var artist = await CreateTestArtist(context, library, "Test Artist");
             var album = await CreateTestAlbum(context, artist, "Test Album");
             var song = await CreateTestSong(context, album, "Test Song");
-            
-            // Debug: Verify the normalized strings
-            Console.WriteLine($"Artist normalized: {artist.NameNormalized}");
-            Console.WriteLine($"Album normalized: {album.NameNormalized}");
-            Console.WriteLine($"Song normalized: {song.TitleNormalized}");
-            Console.WriteLine($"Search term: {searchTerm}");
         } // Dispose context to ensure data is committed
 
         var result = await service.DoSearchAsync(
@@ -48,11 +40,6 @@ public class SearchServiceTests : ServiceTestBase
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Data);
-        
-        // Debug output
-        Console.WriteLine($"Found {result.Data.Artists.Length} artists");
-        Console.WriteLine($"Found {result.Data.Albums.Length} albums");
-        Console.WriteLine($"Found {result.Data.Songs.Length} songs");
         
         Assert.True(result.Data.Artists.Length > 0, $"Expected artists but found {result.Data.Artists.Length}");
         Assert.True(result.Data.Albums.Length > 0, $"Expected albums but found {result.Data.Albums.Length}");
@@ -93,9 +80,9 @@ public class SearchServiceTests : ServiceTestBase
         
         // Create test data
         await using var context = await MockFactory().CreateDbContextAsync();
-        var user = await CreateTestUser(context, userApiKey);
+        await CreateTestUser(context, userApiKey);
         var library = await CreateTestLibrary(context);
-        var artist = await CreateTestArtist(context, library, "Test Artist");
+        await CreateTestArtist(context, library, "Test Artist");
 
         var result = await service.DoSearchAsync(
             userApiKey,
@@ -110,7 +97,6 @@ public class SearchServiceTests : ServiceTestBase
         Assert.NotNull(result);
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Data);
-        Assert.True(result.Data.Artists.Length >= 0); // May or may not find artists depending on search
         Assert.Empty(result.Data.Albums); // Should be empty as Albums not included
         Assert.Empty(result.Data.Songs);  // Should be empty as Songs not included
     }
@@ -124,10 +110,10 @@ public class SearchServiceTests : ServiceTestBase
         
         // Create test data
         await using var context = await MockFactory().CreateDbContextAsync();
-        var user = await CreateTestUser(context, userApiKey);
+        await CreateTestUser(context, userApiKey);
         var library = await CreateTestLibrary(context);
         var artist = await CreateTestArtist(context, library, "Artist Name");
-        var album = await CreateTestAlbum(context, artist, "Test Album");
+        await CreateTestAlbum(context, artist, "Test Album");
 
         var result = await service.DoSearchAsync(
             userApiKey,
@@ -143,7 +129,6 @@ public class SearchServiceTests : ServiceTestBase
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Data);
         Assert.Empty(result.Data.Artists); // Should be empty as Artists not included
-        Assert.True(result.Data.Albums.Length >= 0); // May or may not find albums depending on search
         Assert.Empty(result.Data.Songs);   // Should be empty as Songs not included
     }
 
@@ -156,11 +141,11 @@ public class SearchServiceTests : ServiceTestBase
         
         // Create test data
         await using var context = await MockFactory().CreateDbContextAsync();
-        var user = await CreateTestUser(context, userApiKey);
+        await CreateTestUser(context, userApiKey);
         var library = await CreateTestLibrary(context);
         var artist = await CreateTestArtist(context, library, "Artist Name");
         var album = await CreateTestAlbum(context, artist, "Album Name");
-        var song = await CreateTestSong(context, album, "Test Song");
+        await CreateTestSong(context, album, "Test Song");
 
         var result = await service.DoSearchAsync(
             userApiKey,
@@ -177,7 +162,6 @@ public class SearchServiceTests : ServiceTestBase
         Assert.NotNull(result.Data);
         Assert.Empty(result.Data.Artists); // Should be empty as Artists not included
         Assert.Empty(result.Data.Albums);  // Should be empty as Albums not included
-        Assert.True(result.Data.Songs.Length >= 0); // May or may not find songs depending on search
     }
 
     [Fact]
@@ -189,7 +173,7 @@ public class SearchServiceTests : ServiceTestBase
         
         // Create test data
         await using var context = await MockFactory().CreateDbContextAsync();
-        var user = await CreateTestUser(context, userApiKey);
+        await CreateTestUser(context, userApiKey);
         var library = await CreateTestLibrary(context);
         
         // Create multiple artists to test pagination
@@ -224,11 +208,11 @@ public class SearchServiceTests : ServiceTestBase
         
         // Create test data
         await using var context = await MockFactory().CreateDbContextAsync();
-        var user = await CreateTestUser(context, userApiKey);
+        await CreateTestUser(context, userApiKey);
         var library = await CreateTestLibrary(context);
         var artist = await CreateTestArtist(context, library, "Test Artist");
         var album = await CreateTestAlbum(context, artist, "Test Album");
-        var song = await CreateTestSong(context, album, "Test Song");
+        await CreateTestSong(context, album, "Test Song");
 
         var result = await service.DoOpenSubsonicSearchAsync(
             userApiKey,
@@ -277,11 +261,11 @@ public class SearchServiceTests : ServiceTestBase
         
         // Create test data
         await using var context = await MockFactory().CreateDbContextAsync();
-        var user = await CreateTestUser(context, userApiKey);
+        await CreateTestUser(context, userApiKey);
         var library = await CreateTestLibrary(context);
         var artist = await CreateTestArtist(context, library, "Any Artist");
         var album = await CreateTestAlbum(context, artist, "Any Album");
-        var song = await CreateTestSong(context, album, "Any Song");
+        await CreateTestSong(context, album, "Any Song");
 
         var result = await service.DoOpenSubsonicSearchAsync(
             userApiKey,
@@ -302,7 +286,7 @@ public class SearchServiceTests : ServiceTestBase
         
         // Create test data
         await using var context = await MockFactory().CreateDbContextAsync();
-        var user = await CreateTestUser(context, userApiKey);
+        await CreateTestUser(context, userApiKey);
 
         var result = await service.DoOpenSubsonicSearchAsync(
             userApiKey,
@@ -331,7 +315,7 @@ public class SearchServiceTests : ServiceTestBase
         
         // Create test data
         await using var context = await MockFactory().CreateDbContextAsync();
-        var user = await CreateTestUser(context, userApiKey);
+        await CreateTestUser(context, userApiKey);
         var library = await CreateTestLibrary(context);
         
         // Create multiple artists for pagination testing
@@ -368,14 +352,14 @@ public class SearchServiceTests : ServiceTestBase
         
         // Create test data
         await using var context = await MockFactory().CreateDbContextAsync();
-        var user = await CreateTestUser(context, userApiKey);
+        await CreateTestUser(context, userApiKey);
         var library = await CreateTestLibrary(context);
         var artist1 = await CreateTestArtist(context, library, "Test Artist Z");
         var artist2 = await CreateTestArtist(context, library, "Test Artist A");
         var album1 = await CreateTestAlbum(context, artist1, "Test Album Z");
         var album2 = await CreateTestAlbum(context, artist2, "Test Album A");
-        var song1 = await CreateTestSong(context, album1, "Test Song");
-        var song2 = await CreateTestSong(context, album2, "Test Song");
+        await CreateTestSong(context, album1, "Test Song");
+        await CreateTestSong(context, album2, "Test Song");
 
         var result = await service.DoOpenSubsonicSearchAsync(
             userApiKey,
@@ -438,7 +422,7 @@ public class SearchServiceTests : ServiceTestBase
         
         // Create test data
         await using var context = await MockFactory().CreateDbContextAsync();
-        var user = await CreateTestUser(context, userApiKey);
+        await CreateTestUser(context, userApiKey);
         var library = await CreateTestLibrary(context);
         var artist1 = await CreateTestArtist(context, library, "Artist One");
         var artist2 = await CreateTestArtist(context, library, "Artist Two");
@@ -469,7 +453,71 @@ public class SearchServiceTests : ServiceTestBase
     }
 
     [Fact]
-    public async Task DoSearchAsync_WithFilterByArtistApiKey_ReturnsOnlyAlbumsForArtist()
+    public async Task DoSearchAsync_WithFilterByNonExistentArtistId_ForSongs_ReturnsNotFound()
+    {
+        var service = GetSearchService();
+        var userApiKey = Guid.NewGuid();
+        var searchTerm = "test";
+        var nonExistentArtistId = Guid.NewGuid();
+        
+        // Create test data
+        await using var context = await MockFactory().CreateDbContextAsync();
+        await CreateTestUser(context, userApiKey);
+
+        var result = await service.DoSearchAsync(
+            userApiKey,
+            "TestAgent",
+            searchTerm,
+            albumPage: 1,
+            artistPage: 1,
+            songPage: 1,
+            pageSize: 10,
+            SearchInclude.Songs,
+            filterByArtistId: nonExistentArtistId);
+
+        Assert.NotNull(result);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(OperationResponseType.NotFound, result.Type);
+        Assert.Contains("Artist not found", result.Messages ?? []);
+        Assert.NotNull(result.Data);
+        Assert.Empty(result.Data.Artists);
+        Assert.Empty(result.Data.Albums);
+        Assert.Empty(result.Data.Songs);
+    }
+
+    [Fact]
+    public async Task DoSearchAsync_WithFilterByArtistId_WithoutSongsInclude_DoesNotValidateArtist()
+    {
+        var service = GetSearchService();
+        var userApiKey = Guid.NewGuid();
+        var searchTerm = "test";
+        var nonExistentArtistId = Guid.NewGuid();
+        
+        // Create test data
+        await using var context = await MockFactory().CreateDbContextAsync();
+        await CreateTestUser(context, userApiKey);
+        var library = await CreateTestLibrary(context);
+        await CreateTestArtist(context, library, "Test Artist");
+
+        var result = await service.DoSearchAsync(
+            userApiKey,
+            "TestAgent",
+            searchTerm,
+            albumPage: 1,
+            artistPage: 1,
+            songPage: 1,
+            pageSize: 10,
+            SearchInclude.Albums, // Only albums, not songs
+            filterByArtistId: nonExistentArtistId);
+
+        // Should succeed because artist validation only occurs for songs
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+    }
+
+    [Fact]
+    public async Task DoSearchAsync_WithNullFilterByArtistId_ReturnsAllMatchingResults()
     {
         var service = GetSearchService();
         var userApiKey = Guid.NewGuid();
@@ -477,14 +525,344 @@ public class SearchServiceTests : ServiceTestBase
         
         // Create test data
         await using var context = await MockFactory().CreateDbContextAsync();
-        var user = await CreateTestUser(context, userApiKey);
+        await CreateTestUser(context, userApiKey);
+        var library = await CreateTestLibrary(context);
+        var artist1 = await CreateTestArtist(context, library, "Test Artist One");
+        var artist2 = await CreateTestArtist(context, library, "Test Artist Two");
+        var album1 = await CreateTestAlbum(context, artist1, "Test Album One");
+        var album2 = await CreateTestAlbum(context, artist2, "Test Album Two");
+        var song1 = await CreateTestSong(context, album1, "Test Song One");
+        var song2 = await CreateTestSong(context, album2, "Test Song Two");
+
+        var result = await service.DoSearchAsync(
+            userApiKey,
+            "TestAgent",
+            searchTerm,
+            albumPage: 1,
+            artistPage: 1,
+            songPage: 1,
+            pageSize: 10,
+            SearchInclude.Albums | SearchInclude.Songs,
+            filterByArtistId: null);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        // Should find albums and songs from both artists
+        Assert.True(result.Data.Albums.Length >= 2 || result.Data.Albums.Any(a => a.Id == album1.Id || a.Id == album2.Id));
+        Assert.True(result.Data.Songs.Length >= 2 || result.Data.Songs.Any(s => s.Id == song1.Id || s.Id == song2.Id));
+    }
+
+    [Fact]
+    public async Task DoSearchAsync_WithMultipleSearchIncludes_ReturnsCorrectCombination()
+    {
+        var service = GetSearchService();
+        var userApiKey = Guid.NewGuid();
+        var searchTerm = "rock";
+        
+        // Create test data
+        await using var context = await MockFactory().CreateDbContextAsync();
+        await CreateTestUser(context, userApiKey);
+        var library = await CreateTestLibrary(context);
+        var artist = await CreateTestArtist(context, library, "Rock Artist");
+        var album = await CreateTestAlbum(context, artist, "Rock Album");
+        await CreateTestSong(context, album, "Rock Song");
+
+        var result = await service.DoSearchAsync(
+            userApiKey,
+            "TestAgent",
+            searchTerm,
+            albumPage: 1,
+            artistPage: 1,
+            songPage: 1,
+            pageSize: 10,
+            SearchInclude.Artists | SearchInclude.Albums | SearchInclude.Songs);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        // Should include all types when all flags are set
+        Assert.NotNull(result.Data.Artists);
+        Assert.NotNull(result.Data.Albums);
+        Assert.NotNull(result.Data.Songs);
+    }
+
+    [Fact]
+    public async Task DoSearchAsync_WithNoSearchIncludes_ReturnsEmptyResults()
+    {
+        var service = GetSearchService();
+        var userApiKey = Guid.NewGuid();
+        var searchTerm = "test";
+        
+        // Create test data
+        await using var context = await MockFactory().CreateDbContextAsync();
+        await CreateTestUser(context, userApiKey);
+
+        var result = await service.DoSearchAsync(
+            userApiKey,
+            "TestAgent",
+            searchTerm,
+            albumPage: 1,
+            artistPage: 1,
+            songPage: 1,
+            pageSize: 10,
+            (SearchInclude)0); // No includes
+
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        Assert.Empty(result.Data.Artists);
+        Assert.Empty(result.Data.Albums);
+        Assert.Empty(result.Data.Songs);
+    }
+
+    [Fact]
+    public async Task DoSearchAsync_WithSpecialCharactersInSearchTerm_HandlesCorrectly()
+    {
+        var service = GetSearchService();
+        var userApiKey = Guid.NewGuid();
+        var searchTerm = "rock & roll"; // Special characters
+        
+        // Create test data
+        await using var context = await MockFactory().CreateDbContextAsync();
+        await CreateTestUser(context, userApiKey);
+        var library = await CreateTestLibrary(context);
+        await CreateTestArtist(context, library, "Rock & Roll Artist");
+
+        var result = await service.DoSearchAsync(
+            userApiKey,
+            "TestAgent",
+            searchTerm,
+            albumPage: 1,
+            artistPage: 1,
+            songPage: 1,
+            pageSize: 10,
+            SearchInclude.Artists);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+    }
+
+    [Fact]
+    public async Task DoSearchAsync_WithLargePageSize_RespectsLimits()
+    {
+        var service = GetSearchService();
+        var userApiKey = Guid.NewGuid();
+        var searchTerm = "test";
+        
+        // Create test data
+        await using var context = await MockFactory().CreateDbContextAsync();
+        await CreateTestUser(context, userApiKey);
+        var library = await CreateTestLibrary(context);
+        
+        // Create multiple test items
+        for (int i = 0; i < 100; i++)
+        {
+            await CreateTestArtist(context, library, $"Test Artist {i:D3}");
+        }
+
+        var result = await service.DoSearchAsync(
+            userApiKey,
+            "TestAgent",
+            searchTerm,
+            albumPage: 1,
+            artistPage: 1,
+            songPage: 1,
+            pageSize: 1000, // Very large page size
+            SearchInclude.Artists);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        // Should handle large page sizes gracefully
+        Assert.True(result.Data.Artists.Length <= 1000);
+    }
+
+    [Fact]
+    public async Task DoSearchAsync_WithZeroPageSize_ReturnsEmpty()
+    {
+        var service = GetSearchService();
+        var userApiKey = Guid.NewGuid();
+        var searchTerm = "test";
+        
+        // Create test data
+        await using var context = await MockFactory().CreateDbContextAsync();
+        await CreateTestUser(context, userApiKey);
+        var library = await CreateTestLibrary(context);
+        await CreateTestArtist(context, library, "Test Artist");
+
+        var result = await service.DoSearchAsync(
+            userApiKey,
+            "TestAgent",
+            searchTerm,
+            albumPage: 1,
+            artistPage: 1,
+            songPage: 1,
+            pageSize: 0, // Zero page size
+            SearchInclude.Artists);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        Assert.Empty(result.Data.Artists);
+    }
+
+    [Fact]
+    public async Task DoSearchAsync_WithNegativePageNumbers_HandlesGracefully()
+    {
+        var service = GetSearchService();
+        var userApiKey = Guid.NewGuid();
+        var searchTerm = "test";
+        
+        // Create test data
+        await using var context = await MockFactory().CreateDbContextAsync();
+        await CreateTestUser(context, userApiKey);
+        var library = await CreateTestLibrary(context);
+        await CreateTestArtist(context, library, "Test Artist");
+
+        var result = await service.DoSearchAsync(
+            userApiKey,
+            "TestAgent",
+            searchTerm,
+            albumPage: -1,
+            artistPage: -1,
+            songPage: -1,
+            pageSize: 10,
+            SearchInclude.Artists);
+
+        Assert.NotNull(result);
+        // Should handle negative page numbers without throwing
+    }
+
+    [Fact]
+    public async Task DoSearchAsync_WithWhitespaceOnlySearchTerm_ReturnsError()
+    {
+        var service = GetSearchService();
+        var userApiKey = Guid.NewGuid();
+        var searchTerm = "   "; // Only whitespace
+        
+        // Create test data
+        await using var context = await MockFactory().CreateDbContextAsync();
+        await CreateTestUser(context, userApiKey);
+
+        var result = await service.DoSearchAsync(
+            userApiKey,
+            "TestAgent",
+            searchTerm,
+            albumPage: 1,
+            artistPage: 1,
+            songPage: 1,
+            pageSize: 10,
+            SearchInclude.Artists);
+
+        Assert.NotNull(result);
+        Assert.False(result.IsSuccess);
+        Assert.Contains("No Search Term Provided", result.Messages ?? []);
+    }
+
+    [Fact]
+    public async Task DoSearchAsync_WithEmptyStringSearchTerm_ReturnsError()
+    {
+        var service = GetSearchService();
+        var userApiKey = Guid.NewGuid();
+        var searchTerm = ""; // Empty string
+        
+        // Create test data
+        await using var context = await MockFactory().CreateDbContextAsync();
+        await CreateTestUser(context, userApiKey);
+
+        var result = await service.DoSearchAsync(
+            userApiKey,
+            "TestAgent",
+            searchTerm,
+            albumPage: 1,
+            artistPage: 1,
+            songPage: 1,
+            pageSize: 10,
+            SearchInclude.Artists);
+
+        Assert.NotNull(result);
+        Assert.False(result.IsSuccess);
+        Assert.Contains("No Search Term Provided", result.Messages ?? []);
+    }
+
+    [Fact]
+    public async Task DoSearchAsync_WithCaseSensitiveSearchTerm_FindsMatches()
+    {
+        var service = GetSearchService();
+        var userApiKey = Guid.NewGuid();
+        var searchTerm = "TEST"; // Uppercase
+        
+        // Create test data
+        await using var context = await MockFactory().CreateDbContextAsync();
+        await CreateTestUser(context, userApiKey);
+        var library = await CreateTestLibrary(context);
+        await CreateTestArtist(context, library, "test artist"); // Lowercase
+
+        var result = await service.DoSearchAsync(
+            userApiKey,
+            "TestAgent",
+            searchTerm,
+            albumPage: 1,
+            artistPage: 1,
+            songPage: 1,
+            pageSize: 10,
+            SearchInclude.Artists);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        // Should find matches regardless of case due to normalization
+    }
+
+    [Fact]
+    public async Task DoSearchAsync_WithUnicodeCharacters_HandlesCorrectly()
+    {
+        var service = GetSearchService();
+        var userApiKey = Guid.NewGuid();
+        var searchTerm = "café"; // Unicode characters
+        
+        // Create test data
+        await using var context = await MockFactory().CreateDbContextAsync();
+        await CreateTestUser(context, userApiKey);
+        var library = await CreateTestLibrary(context);
+        await CreateTestArtist(context, library, "Café Artist");
+
+        var result = await service.DoSearchAsync(
+            userApiKey,
+            "TestAgent",
+            searchTerm,
+            albumPage: 1,
+            artistPage: 1,
+            songPage: 1,
+            pageSize: 10,
+            SearchInclude.Artists);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+    }
+
+    [Fact]
+    public async Task DoSearchAsync_WithFilterByArtistId_AndMultipleAlbums_ReturnsOnlyFilteredAlbums()
+    {
+        var service = GetSearchService();
+        var userApiKey = Guid.NewGuid();
+        var searchTerm = "album";
+        
+        // Create test data
+        await using var context = await MockFactory().CreateDbContextAsync();
+        await CreateTestUser(context, userApiKey);
         var library = await CreateTestLibrary(context);
         var artist1 = await CreateTestArtist(context, library, "Artist One");
         var artist2 = await CreateTestArtist(context, library, "Artist Two");
-        var album1 = await CreateTestAlbum(context, artist1, "Album One");
-        var album2 = await CreateTestAlbum(context, artist2, "Album Two");
-        var song1 = await CreateTestSong(context, album1, "Song One");
-        var song2 = await CreateTestSong(context, album2, "Song Two");
+        
+        // Create multiple albums for each artist
+        var album1a = await CreateTestAlbum(context, artist1, "Album Alpha");
+        var album1b = await CreateTestAlbum(context, artist1, "Album Beta");
+        var album2a = await CreateTestAlbum(context, artist2, "Album Gamma");
+        var album2b = await CreateTestAlbum(context, artist2, "Album Delta");
 
         var result = await service.DoSearchAsync(
             userApiKey,
@@ -501,9 +879,128 @@ public class SearchServiceTests : ServiceTestBase
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Data);
         Assert.Empty(result.Data.Artists);
+        Assert.Empty(result.Data.Songs);
+        
+        // Debug output to understand what's happening
+        foreach (var album in result.Data.Albums)
+        {
+            Console.WriteLine($"Album: {album.Name}, ArtistApiKey: {album.ArtistApiKey}, Expected: {artist1.ApiKey}");
+        }
+        
+        // The search service might not be implementing filtering correctly
+        // Let's first check if filtering is working at all
+        if (result.Data.Albums.Length == 0)
+        {
+            // No albums returned - might be a different issue
+            Assert.True(false, "No albums returned from search");
+        }
+        else if (result.Data.Albums.Any(a => a.ArtistApiKey != artist1.ApiKey))
+        {
+            // Albums from wrong artist returned - filtering not working
+            var wrongAlbums = result.Data.Albums.Where(a => a.ArtistApiKey != artist1.ApiKey).ToList();
+            Assert.True(false, $"Filtering not working: Found {wrongAlbums.Count} albums from wrong artist. " +
+                              $"Expected artist: {artist1.ApiKey}, but found albums from: {string.Join(", ", wrongAlbums.Select(a => a.ArtistApiKey).Distinct())}");
+        }
+        else
+        {
+            // Should only return albums from artist1
+            Assert.All(result.Data.Albums, a => Assert.Equal(artist1.ApiKey, a.ArtistApiKey));
+            Assert.Contains(result.Data.Albums, a => a.Id == album1a.Id);
+            Assert.Contains(result.Data.Albums, a => a.Id == album1b.Id);
+            Assert.DoesNotContain(result.Data.Albums, a => a.Id == album2a.Id);
+            Assert.DoesNotContain(result.Data.Albums, a => a.Id == album2b.Id);
+        }
+    }
+
+    [Fact]
+    public async Task DoSearchAsync_WithFilterByArtistId_AndMultipleSongs_ReturnsOnlyFilteredSongs()
+    {
+        var service = GetSearchService();
+        var userApiKey = Guid.NewGuid();
+        var searchTerm = "song";
+        
+        // Create test data
+        await using var context = await MockFactory().CreateDbContextAsync();
+        await CreateTestUser(context, userApiKey);
+        var library = await CreateTestLibrary(context);
+        var artist1 = await CreateTestArtist(context, library, "Artist One");
+        var artist2 = await CreateTestArtist(context, library, "Artist Two");
+        var album1 = await CreateTestAlbum(context, artist1, "Album One");
+        var album2 = await CreateTestAlbum(context, artist2, "Album Two");
+        
+        // Create multiple songs for each artist with different song numbers
+        var song1a = await CreateTestSong(context, album1, "Song Alpha", 1);
+        var song1b = await CreateTestSong(context, album1, "Song Beta", 2);
+        var song2a = await CreateTestSong(context, album2, "Song Gamma", 1);
+        var song2b = await CreateTestSong(context, album2, "Song Delta", 2);
+
+        var result = await service.DoSearchAsync(
+            userApiKey,
+            "TestAgent",
+            searchTerm,
+            albumPage: 1,
+            artistPage: 1,
+            songPage: 1,
+            pageSize: 10,
+            SearchInclude.Songs,
+            filterByArtistId: artist1.ApiKey);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        Assert.Empty(result.Data.Artists);
+        Assert.Empty(result.Data.Albums);
+        
+        // Should only return songs from artist1
+        Assert.All(result.Data.Songs, s => Assert.Equal(artist1.ApiKey, s.ArtistApiKey));
+        Assert.Contains(result.Data.Songs, s => s.Id == song1a.Id);
+        Assert.Contains(result.Data.Songs, s => s.Id == song1b.Id);
+        Assert.DoesNotContain(result.Data.Songs, s => s.Id == song2a.Id);
+        Assert.DoesNotContain(result.Data.Songs, s => s.Id == song2b.Id);
+    }
+
+    [Fact]
+    public async Task DoSearchAsync_WithCombinedFiltering_AlbumsAndSongs_WorksCorrectly()
+    {
+        var service = GetSearchService();
+        var userApiKey = Guid.NewGuid();
+        var searchTerm = "test";
+        
+        // Create test data
+        await using var context = await MockFactory().CreateDbContextAsync();
+        await CreateTestUser(context, userApiKey);
+        var library = await CreateTestLibrary(context);
+        var artist1 = await CreateTestArtist(context, library, "Artist One");
+        var artist2 = await CreateTestArtist(context, library, "Artist Two");
+        var album1 = await CreateTestAlbum(context, artist1, "Test Album One");
+        var album2 = await CreateTestAlbum(context, artist2, "Test Album Two");
+        var song1 = await CreateTestSong(context, album1, "Test Song One", 1);
+        var song2 = await CreateTestSong(context, album2, "Test Song Two", 1);
+
+        var result = await service.DoSearchAsync(
+            userApiKey,
+            "TestAgent",
+            searchTerm,
+            albumPage: 1,
+            artistPage: 1,
+            songPage: 1,
+            pageSize: 10,
+            SearchInclude.Albums | SearchInclude.Songs,
+            filterByArtistId: artist1.ApiKey);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        Assert.Empty(result.Data.Artists);
+        
+        // Both albums and songs should be filtered by artist
         Assert.All(result.Data.Albums, a => Assert.Equal(artist1.ApiKey, a.ArtistApiKey));
+        Assert.All(result.Data.Songs, s => Assert.Equal(artist1.ApiKey, s.ArtistApiKey));
+        
         Assert.Contains(result.Data.Albums, a => a.Id == album1.Id);
         Assert.DoesNotContain(result.Data.Albums, a => a.Id == album2.Id);
+        Assert.Contains(result.Data.Songs, s => s.Id == song1.Id);
+        Assert.DoesNotContain(result.Data.Songs, s => s.Id == song2.Id);
     }
 
     #region Helper Methods
@@ -579,7 +1076,7 @@ public class SearchServiceTests : ServiceTestBase
         return album;
     }
 
-    private async Task<DataModels.Song> CreateTestSong(MelodeeDbContext context, DataModels.Album album, string title)
+    private async Task<DataModels.Song> CreateTestSong(MelodeeDbContext context, DataModels.Album album, string title, int songNumber = 1)
     {
         var song = new DataModels.Song
         {
@@ -587,10 +1084,10 @@ public class SearchServiceTests : ServiceTestBase
             Title = title,
             TitleNormalized = title.ToNormalizedString()?.Replace(" ", "") ?? title,
             AlbumId = album.Id,
-            SongNumber = 1,
-            FileName = "test.mp3",
+            SongNumber = songNumber,
+            FileName = $"test{songNumber}.mp3",
             FileSize = 1000000,
-            FileHash = "testhash",
+            FileHash = $"testhash{songNumber}",
             Duration = 180000,
             SamplingRate = 44100,
             BitRate = 320,

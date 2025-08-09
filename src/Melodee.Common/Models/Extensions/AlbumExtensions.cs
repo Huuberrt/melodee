@@ -177,6 +177,11 @@ public static class AlbumExtensions
             {
                 vv = vv.ToString() ?? string.Empty;
             }
+// Handle string conversion specially to avoid StringConverter issues
+            if (typeof(T?) == typeof(string))
+            {
+                return (T?)(object)vv.ToString();
+            }
 
             return (T?)converter.ConvertFrom(vv);
         }
