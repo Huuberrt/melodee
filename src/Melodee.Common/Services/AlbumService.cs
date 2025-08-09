@@ -992,6 +992,7 @@ public class AlbumService(
                     "name" or "namenormalized" => query.Where(a => a.NameNormalized.Contains(normalizedValue)),
                     "alternatenames" => query.Where(a => a.AlternateNames != null && a.AlternateNames.Contains(normalizedValue)),
                     "artistid" => query.Where(a => a.Artist.Id.ToString() == normalizedValue),
+                    "artistapikey" => Guid.TryParse(value, out var apiKeyValue) ? query.Where(a => a.Artist.ApiKey == apiKeyValue) : query,
                     "artistname" => query.Where(a => a.Artist.NameNormalized.Contains(normalizedValue)),
                     "tags" => query.Where(a => a.Tags != null && a.Tags.Contains(normalizedValue)),
                     "albumstatus" => int.TryParse(value, out var statusValue)
@@ -1023,6 +1024,9 @@ public class AlbumService(
                 var predicate = filter.PropertyName switch
                 {
                     "Name" or "NameNormalized" => (Expression<Func<Album, bool>>)(a => a.NameNormalized.Contains(normalizedValue ?? "")),
+                    "AlternateNames" => (Expression<Func<Album, bool>>)(a => a.AlternateNames != null && a.AlternateNames.Contains(normalizedValue ?? "")),
+                    "ArtistId" => int.TryParse(value, out var artistIdValue) ? (Expression<Func<Album, bool>>)(a => a.Artist.Id == artistIdValue) : null,
+                    "ArtistApiKey" => Guid.TryParse(value, out var apiKeyValue) ? (Expression<Func<Album, bool>>)(a => a.Artist.ApiKey == apiKeyValue) : null,
                     "ArtistName" => (Expression<Func<Album, bool>>)(a => a.Artist.NameNormalized.Contains(normalizedValue ?? "")),
                     "Tags" => (Expression<Func<Album, bool>>)(a => a.Tags != null && a.Tags.Contains(normalizedValue ?? "")),
                     "AlbumStatus" => int.TryParse(value, out var statusValue)
@@ -1058,9 +1062,9 @@ public class AlbumService(
 
             query = query.Where(combinedPredicate);
         }
-
         return query;
     }
+
 
     /// <summary>
     /// Get all genres from albums and songs for OpenSubsonic API

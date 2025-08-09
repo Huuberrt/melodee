@@ -255,6 +255,9 @@ public class SongService(
                     "title" or "titlenormalized" => query.Where(s => s.TitleNormalized.Contains(normalizedValue)),
                     "albumname" => query.Where(s => s.Album.NameNormalized.Contains(normalizedValue)),
                     "artistname" => query.Where(s => s.Album.Artist.NameNormalized.Contains(normalizedValue)),
+                    "artistapikey" => Guid.TryParse(normalizedValue, out var artistApiKeyValue)
+                        ? query.Where(s => s.Album.Artist.ApiKey == artistApiKeyValue)
+                        : query,
                     "tags" => query.Where(s => s.Tags != null && s.Tags.Contains(normalizedValue)),
                     "islocked" => bool.TryParse(value, out var lockedValue)
                         ? query.Where(s => s.IsLocked == lockedValue)
@@ -287,6 +290,9 @@ public class SongService(
                     "title" or "titlenormalized" => (Expression<Func<Song, bool>>)(s => s.TitleNormalized.Contains(normalizedValue)),
                     "albumname" => (Expression<Func<Song, bool>>)(s => s.Album.NameNormalized.Contains(normalizedValue)),
                     "artistname" => (Expression<Func<Song, bool>>)(s => s.Album.Artist.NameNormalized.Contains(normalizedValue)),
+                    "artistapikey" => Guid.TryParse(normalizedValue, out var artistApiKeyValue)
+                        ? (Expression<Func<Song, bool>>)(s => s.Album.Artist.ApiKey == artistApiKeyValue)
+                        : null,
                     "tags" => (Expression<Func<Song, bool>>)(s => s.Tags != null && s.Tags.Contains(normalizedValue)),
                     "islocked" => bool.TryParse(value, out var lockedValue)
                         ? (Expression<Func<Song, bool>>)(s => s.IsLocked == lockedValue)

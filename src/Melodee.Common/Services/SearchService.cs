@@ -37,6 +37,7 @@ public sealed class SearchService(
         short songPage,
         short pageSize,
         SearchInclude include,
+        Guid? filterByArtistId = null,
         CancellationToken cancellationToken = default)
     {
         var totalArtists = 0;
@@ -82,15 +83,20 @@ public sealed class SearchService(
 
         if (include.HasFlag(SearchInclude.Albums))
         {
+            var albumFilters = new List<FilterOperatorInfo>
+            {
+                new FilterOperatorInfo(nameof(AlbumDataInfo.NameNormalized), FilterOperator.Contains, searchTermNormalized),
+                new FilterOperatorInfo(nameof(AlbumDataInfo.AlternateNames), FilterOperator.Contains, searchTermNormalized, FilterOperatorInfo.OrJoinOperator)
+            };
+            if (filterByArtistId.HasValue)
+            {
+                albumFilters.Add(new FilterOperatorInfo(nameof(AlbumDataInfo.ArtistApiKey), FilterOperator.Equals, filterByArtistId.Value));
+            }
             var albumResult = await albumService.ListAsync(new PagedRequest
             {
                 Page = albumPage,
                 PageSize = pageSize,
-                FilterBy =
-                [
-                    new FilterOperatorInfo(nameof(AlbumDataInfo.NameNormalized), FilterOperator.Contains, searchTermNormalized),
-                    new FilterOperatorInfo(nameof(AlbumDataInfo.AlternateNames), FilterOperator.Contains, searchTermNormalized, FilterOperatorInfo.OrJoinOperator)
-                ]
+                FilterBy = albumFilters.ToArray()
             }, cancellationToken);
             totalAlbums = albumResult.TotalCount;
             albums = albumResult.Data.OrderBy(x => x.Name).ToList();
@@ -111,14 +117,30 @@ public sealed class SearchService(
 
         if (include.HasFlag(SearchInclude.Songs))
         {
+            if (filterByArtistId.HasValue)
+            {
+                var artist = await artistService.GetByApiKeyAsync(filterByArtistId.Value, cancellationToken);
+                if (!artist.IsSuccess || artist.Data == null)
+                {
+                    return new OperationResult<SearchResult>(OperationResponseType.NotFound, "Artist not found")
+                    {
+                        Data = new SearchResult([], 0, [], 0, [], 0, [], 0, [], 0)
+                    };
+                }
+            }
+            var songFilters = new List<FilterOperatorInfo>
+            {
+                new FilterOperatorInfo(nameof(SongDataInfo.TitleNormalized), FilterOperator.Contains, searchTermNormalized)
+            };
+            if (filterByArtistId.HasValue)
+            {
+                songFilters.Add(new FilterOperatorInfo("ArtistApiKey", FilterOperator.Equals, filterByArtistId.Value));
+            }
             var songResult = await songService.ListAsync(new PagedRequest
             {
                 Page = songPage,
                 PageSize = pageSize,
-                FilterBy =
-                [
-                    new FilterOperatorInfo(nameof(SongDataInfo.TitleNormalized), FilterOperator.Contains, searchTermNormalized)
-                ]
+                FilterBy = songFilters.ToArray()
             }, user.Data!.Id, cancellationToken);
             totalSongs = songResult.TotalCount;
             songs = songResult.Data.OrderBy(x => x.ArtistName).ThenBy(x => x.AlbumName).ToList();

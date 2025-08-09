@@ -1,6 +1,6 @@
 namespace Melodee.Blazor.Controllers.Melodee.Models;
 
-public record SearchRequest(string Query, string? Type, short? AlbumPage, short? ArtistPage, short? SongPage, short? PageSize, string? SortBy, string? SortOrder)
+public record SearchRequest(string Query, string? Type, short? AlbumPage, short? ArtistPage, short? SongPage, short? PageSize, string? SortBy, string? SortOrder, Guid? FilterByArtistId)
 {
     public short AlbumPageValue => AlbumPage ?? 1;
 

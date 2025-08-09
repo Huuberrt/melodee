@@ -77,6 +77,7 @@ public class SearchController(
                 searchRequest.SongPageValue,
                 pageSizeValue,
                 includedTyped,
+                searchRequest.FilterByArtistId,
                 cancellationToken)
             .ConfigureAwait(false);
         var baseUrl = GetBaseUrl(await ConfigurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false));
@@ -94,7 +95,7 @@ public class SearchController(
 
     [HttpGet]
     [Route("songs")]
-    public async Task<IActionResult> SearchSongsAsync(string q, short? page, short? pageSize, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> SearchSongsAsync(string q, short? page, short? pageSize, Guid? filterByArtistApiKey, CancellationToken cancellationToken = default)
     {
         if (!ApiRequest.IsAuthorized)
         {
@@ -130,6 +131,7 @@ public class SearchController(
                 pageValue,
                 pageSizeValue,
                 SearchInclude.Songs,
+                filterByArtistApiKey,
                 cancellationToken)
             .ConfigureAwait(false);
         var baseUrl = GetBaseUrl(await ConfigurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false));
