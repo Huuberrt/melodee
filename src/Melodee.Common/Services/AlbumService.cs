@@ -991,7 +991,7 @@ public class AlbumService(
                 {
                     "name" or "namenormalized" => query.Where(a => a.NameNormalized.Contains(normalizedValue)),
                     "alternatenames" => query.Where(a => a.AlternateNames != null && a.AlternateNames.Contains(normalizedValue)),
-                    "artistid" => query.Where(a => a.Artist.Id.ToString() == normalizedValue),
+                    "artistid" => int.TryParse(value, out var artistIdValue) ? query.Where(a => a.Artist.Id == artistIdValue) : query, // Use original value for int parsing
                     "artistapikey" => Guid.TryParse(value, out var apiKeyValue) ? query.Where(a => a.Artist.ApiKey == apiKeyValue) : query,
                     "artistname" => query.Where(a => a.Artist.NameNormalized.Contains(normalizedValue)),
                     "tags" => query.Where(a => a.Tags != null && a.Tags.Contains(normalizedValue)),
@@ -1011,8 +1011,9 @@ public class AlbumService(
             return query;
         }
 
-        // For multiple filters, combine them with OR logic
-        var filterPredicates = new List<Expression<Func<Album, bool>>>();
+        // For multiple filters, respect the JoinOperator property
+        var orGroupPredicates = new List<Expression<Func<Album, bool>>>();
+        var andPredicates = new List<Expression<Func<Album, bool>>>();
 
         foreach (var filter in pagedRequest.FilterBy)
         {
@@ -1021,21 +1022,21 @@ public class AlbumService(
             {
                 var normalizedValue = value.ToNormalizedString();
 
-                var predicate = filter.PropertyName switch
+                var predicate = filter.PropertyName.ToLowerInvariant() switch
                 {
-                    "Name" or "NameNormalized" => (Expression<Func<Album, bool>>)(a => a.NameNormalized.Contains(normalizedValue ?? "")),
-                    "AlternateNames" => (Expression<Func<Album, bool>>)(a => a.AlternateNames != null && a.AlternateNames.Contains(normalizedValue ?? "")),
-                    "ArtistId" => int.TryParse(value, out var artistIdValue) ? (Expression<Func<Album, bool>>)(a => a.Artist.Id == artistIdValue) : null,
-                    "ArtistApiKey" => Guid.TryParse(value, out var apiKeyValue) ? (Expression<Func<Album, bool>>)(a => a.Artist.ApiKey == apiKeyValue) : null,
-                    "ArtistName" => (Expression<Func<Album, bool>>)(a => a.Artist.NameNormalized.Contains(normalizedValue ?? "")),
-                    "Tags" => (Expression<Func<Album, bool>>)(a => a.Tags != null && a.Tags.Contains(normalizedValue ?? "")),
-                    "AlbumStatus" => int.TryParse(value, out var statusValue)
+                    "name" or "namenormalized" => (Expression<Func<Album, bool>>)(a => a.NameNormalized.Contains(normalizedValue ?? "")),
+                    "alternatenames" => (Expression<Func<Album, bool>>)(a => a.AlternateNames != null && a.AlternateNames.Contains(normalizedValue ?? "")),
+                    "artistid" => int.TryParse(value, out var artistIdValue) ? (Expression<Func<Album, bool>>)(a => a.Artist.Id == artistIdValue) : null,
+                    "artistapikey" => Guid.TryParse(value, out var apiKeyValue) ? (Expression<Func<Album, bool>>)(a => a.Artist.ApiKey == apiKeyValue) : null, // Use original value, not normalized
+                    "artistname" => (Expression<Func<Album, bool>>)(a => a.Artist.NameNormalized.Contains(normalizedValue ?? "")),
+                    "tags" => (Expression<Func<Album, bool>>)(a => a.Tags != null && a.Tags.Contains(normalizedValue ?? "")),
+                    "albumstatus" => int.TryParse(value, out var statusValue)
                         ? (Expression<Func<Album, bool>>)(a => a.AlbumStatus == statusValue)
                         : null,
-                    "IsLocked" => bool.TryParse(value, out var lockedValue)
+                    "islocked" => bool.TryParse(value, out var lockedValue)
                         ? (Expression<Func<Album, bool>>)(a => a.IsLocked == lockedValue)
                         : null,
-                    "ReleaseDate" => DateTime.TryParse(value, out var dateValue)
+                    "releasedate" => DateTime.TryParse(value, out var dateValue)
                         ? (Expression<Func<Album, bool>>)(a => a.ReleaseDate.Year == dateValue.Year)
                         : null,
                     _ => null
@@ -1043,15 +1044,24 @@ public class AlbumService(
 
                 if (predicate != null)
                 {
-                    filterPredicates.Add(predicate);
+                    // Group predicates by their join operator
+                    if (filter.JoinOperator == "OR")
+                    {
+                        orGroupPredicates.Add(predicate);
+                    }
+                    else
+                    {
+                        andPredicates.Add(predicate);
+                    }
                 }
             }
         }
 
-        // If we have predicates, combine them with OR logic
-        if (filterPredicates.Count > 0)
+        // Combine OR group predicates first
+        Expression<Func<Album, bool>>? orCombined = null;
+        if (orGroupPredicates.Count > 0)
         {
-            var combinedPredicate = filterPredicates.Aggregate((prev, next) =>
+            orCombined = orGroupPredicates.Aggregate((prev, next) =>
             {
                 var parameter = Expression.Parameter(typeof(Album), "a");
                 var left = Expression.Invoke(prev, parameter);
@@ -1059,8 +1069,27 @@ public class AlbumService(
                 var or = Expression.OrElse(left, right);
                 return Expression.Lambda<Func<Album, bool>>(or, parameter);
             });
+        }
 
-            query = query.Where(combinedPredicate);
+        // Add the combined OR expression to AND predicates if it exists
+        if (orCombined != null)
+        {
+            andPredicates.Add(orCombined);
+        }
+
+        // Apply all AND predicates
+        if (andPredicates.Count > 0)
+        {
+            var finalPredicate = andPredicates.Aggregate((prev, next) =>
+            {
+                var parameter = Expression.Parameter(typeof(Album), "a");
+                var left = Expression.Invoke(prev, parameter);
+                var right = Expression.Invoke(next, parameter);
+                var and = Expression.AndAlso(left, right);
+                return Expression.Lambda<Func<Album, bool>>(and, parameter);
+            });
+
+            query = query.Where(finalPredicate);
         }
         return query;
     }

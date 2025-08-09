@@ -92,15 +92,18 @@ public sealed class SearchService(
 
         if (include.HasFlag(SearchInclude.Albums))
         {
-            var albumFilters = new List<FilterOperatorInfo>
-            {
-                new FilterOperatorInfo(nameof(AlbumDataInfo.NameNormalized), FilterOperator.Contains, searchTermNormalized),
-                new FilterOperatorInfo(nameof(AlbumDataInfo.AlternateNames), FilterOperator.Contains, searchTermNormalized, FilterOperatorInfo.OrJoinOperator)
-            };
+            var albumFilters = new List<FilterOperatorInfo>();
+            
+            // Add search term filters (these should be OR'd together)
+            albumFilters.Add(new FilterOperatorInfo(nameof(AlbumDataInfo.NameNormalized), FilterOperator.Contains, searchTermNormalized));
+            albumFilters.Add(new FilterOperatorInfo(nameof(AlbumDataInfo.AlternateNames), FilterOperator.Contains, searchTermNormalized, FilterOperatorInfo.OrJoinOperator));
+            
+            // Add artist filter separately (this should be AND'd with the search results)
             if (filterByArtistId.HasValue)
             {
-                albumFilters.Add(new FilterOperatorInfo(nameof(AlbumDataInfo.ArtistApiKey), FilterOperator.Equals, filterByArtistId.Value));
+                albumFilters.Add(new FilterOperatorInfo(nameof(AlbumDataInfo.ArtistApiKey), FilterOperator.Equals, filterByArtistId.Value, FilterOperatorInfo.AndJoinOperator));
             }
+            
             var albumResult = await albumService.ListAsync(new PagedRequest
             {
                 Page = albumPage,
@@ -143,7 +146,7 @@ public sealed class SearchService(
             };
             if (filterByArtistId.HasValue)
             {
-                songFilters.Add(new FilterOperatorInfo("artistapikey", FilterOperator.Equals, filterByArtistId.Value));
+                songFilters.Add(new FilterOperatorInfo(nameof(SongDataInfo.ArtistApiKey), FilterOperator.Equals, filterByArtistId.Value));
             }
             var songResult = await songService.ListAsync(new PagedRequest
             {

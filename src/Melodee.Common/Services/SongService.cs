@@ -242,20 +242,19 @@ public class SongService(
             return query;
         }
 
-        // If there's only one filter, apply it directly
-        if (pagedRequest.FilterBy.Length == 1)
+        // Apply each filter individually with AND logic (simplified approach)
+        foreach (var filter in pagedRequest.FilterBy)
         {
-            var filter = pagedRequest.FilterBy[0];
             var value = filter.Value.ToString();
             if (!string.IsNullOrEmpty(value))
             {
                 var normalizedValue = value.ToNormalizedString() ?? value;
-                return filter.PropertyName.ToLowerInvariant() switch
+                query = filter.PropertyName.ToLowerInvariant() switch
                 {
                     "title" or "titlenormalized" => query.Where(s => s.TitleNormalized.Contains(normalizedValue)),
                     "albumname" => query.Where(s => s.Album.NameNormalized.Contains(normalizedValue)),
                     "artistname" => query.Where(s => s.Album.Artist.NameNormalized.Contains(normalizedValue)),
-                    "artistapikey" => Guid.TryParse(normalizedValue, out var artistApiKeyValue)
+                    "artistapikey" => Guid.TryParse(value, out var artistApiKeyValue) // Use original value for GUID
                         ? query.Where(s => s.Album.Artist.ApiKey == artistApiKeyValue)
                         : query,
                     "tags" => query.Where(s => s.Tags != null && s.Tags.Contains(normalizedValue)),
@@ -271,61 +270,6 @@ public class SongService(
                     _ => query
                 };
             }
-
-            return query;
-        }
-
-        // For multiple filters, combine them with OR logic
-        var filterPredicates = new List<Expression<Func<Song, bool>>>();
-
-        foreach (var filter in pagedRequest.FilterBy)
-        {
-            var value = filter.Value.ToString();
-            if (!string.IsNullOrEmpty(value))
-            {
-                var normalizedValue = value.ToNormalizedString() ?? value;
-
-                var predicate = filter.PropertyName.ToLowerInvariant() switch
-                {
-                    "title" or "titlenormalized" => (Expression<Func<Song, bool>>)(s => s.TitleNormalized.Contains(normalizedValue)),
-                    "albumname" => (Expression<Func<Song, bool>>)(s => s.Album.NameNormalized.Contains(normalizedValue)),
-                    "artistname" => (Expression<Func<Song, bool>>)(s => s.Album.Artist.NameNormalized.Contains(normalizedValue)),
-                    "artistapikey" => Guid.TryParse(normalizedValue, out var artistApiKeyValue)
-                        ? (Expression<Func<Song, bool>>)(s => s.Album.Artist.ApiKey == artistApiKeyValue)
-                        : null,
-                    "tags" => (Expression<Func<Song, bool>>)(s => s.Tags != null && s.Tags.Contains(normalizedValue)),
-                    "islocked" => bool.TryParse(value, out var lockedValue)
-                        ? (Expression<Func<Song, bool>>)(s => s.IsLocked == lockedValue)
-                        : null,
-                    "userstarred" when userId.HasValue => bool.TryParse(value, out var starredValue)
-                        ? (Expression<Func<Song, bool>>)(s => s.UserSongs.Any(us => us.UserId == userId.Value && us.IsStarred == starredValue))
-                        : null,
-                    "userrating" when userId.HasValue => int.TryParse(value, out var ratingValue)
-                        ? (Expression<Func<Song, bool>>)(s => s.UserSongs.Any(us => us.UserId == userId.Value && us.Rating == ratingValue))
-                        : null,
-                    _ => null
-                };
-
-                if (predicate != null)
-                {
-                    filterPredicates.Add(predicate);
-                }
-            }
-        }
-
-        // If we have predicates, combine them with OR logic
-        if (filterPredicates.Count > 0)
-        {
-            var combinedPredicate = filterPredicates.Aggregate((prev, next) =>
-            {
-                var parameter = Expression.Parameter(typeof(Song), "s");
-                var left = Expression.Invoke(prev, parameter);
-                var right = Expression.Invoke(next, parameter);
-                var or = Expression.OrElse(left, right);
-                return Expression.Lambda<Func<Song, bool>>(or, parameter);
-            });
-
-            query = query.Where(combinedPredicate);
         }
 
         return query;
