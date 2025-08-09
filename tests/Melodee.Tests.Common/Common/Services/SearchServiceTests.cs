@@ -3,6 +3,7 @@ using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Search;
+using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using DataModels = Melodee.Common.Data.Models;
 
@@ -424,12 +425,12 @@ public class SearchServiceTests : ServiceTestBase
         await using var context = await MockFactory().CreateDbContextAsync();
         await CreateTestUser(context, userApiKey);
         var library = await CreateTestLibrary(context);
-        var artist1 = await CreateTestArtist(context, library, "Artist One");
-        var artist2 = await CreateTestArtist(context, library, "Artist Two");
-        var album1 = await CreateTestAlbum(context, artist1, "Album One");
-        var album2 = await CreateTestAlbum(context, artist2, "Album Two");
-        var song1 = await CreateTestSong(context, album1, "Song One");
-        var song2 = await CreateTestSong(context, album2, "Song Two");
+        var artist1 = await CreateTestArtist(context, library, "Test Artist One");
+        var artist2 = await CreateTestArtist(context, library, "Test Artist Two");
+        var album1 = await CreateTestAlbum(context, artist1, "Test Album One");
+        var album2 = await CreateTestAlbum(context, artist2, "Test Album Two");
+        var song1 = await CreateTestSong(context, album1, "Test Song One");
+        var song2 = await CreateTestSong(context, album2, "Test Song Two");
 
         var result = await service.DoSearchAsync(
             userApiKey,
@@ -1047,9 +1048,9 @@ public class SearchServiceTests : ServiceTestBase
         {
             ApiKey = Guid.NewGuid(),
             Name = name,
-            NameNormalized = name.ToNormalizedString()?.Replace(" ", "") ?? name,
+            NameNormalized = name.ToNormalizedString() ?? name,
             LibraryId = library.Id,
-            Directory = $"/{name.ToNormalizedString()?.Replace(" ", "") ?? name}/",
+            Directory = $"/{name.ToNormalizedString() ?? name}/",
             CreatedAt = SystemClock.Instance.GetCurrentInstant(),
             LastUpdatedAt = SystemClock.Instance.GetCurrentInstant()
         };
@@ -1064,9 +1065,9 @@ public class SearchServiceTests : ServiceTestBase
         {
             ApiKey = Guid.NewGuid(),
             Name = name,
-            NameNormalized = name.ToNormalizedString()?.Replace(" ", "") ?? name,
+            NameNormalized = name.ToNormalizedString() ?? name,
             ArtistId = artist.Id,
-            Directory = $"/{name.ToNormalizedString()?.Replace(" ", "") ?? name}/",
+            Directory = $"/{name.ToNormalizedString() ?? name}/",
             ReleaseDate = new LocalDate(2023, 1, 1),
             CreatedAt = SystemClock.Instance.GetCurrentInstant(),
             LastUpdatedAt = SystemClock.Instance.GetCurrentInstant()
@@ -1082,7 +1083,7 @@ public class SearchServiceTests : ServiceTestBase
         {
             ApiKey = Guid.NewGuid(),
             Title = title,
-            TitleNormalized = title.ToNormalizedString()?.Replace(" ", "") ?? title,
+            TitleNormalized = title.ToNormalizedString() ?? title,
             AlbumId = album.Id,
             SongNumber = songNumber,
             FileName = $"test{songNumber}.mp3",

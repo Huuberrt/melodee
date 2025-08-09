@@ -87,6 +87,7 @@ public sealed class SearchService(
                     new FilterOperatorInfo(nameof(ArtistDataInfo.AlternateNames), FilterOperator.Contains, searchTermNormalized, FilterOperatorInfo.OrJoinOperator)
                 ]
             }, cancellationToken);
+            totalArtists = artistResult.TotalCount;
             artists = artistResult.Data.OrderBy(x => x.Name).ToList();
         }
 
@@ -95,7 +96,7 @@ public sealed class SearchService(
             var albumFilters = new List<FilterOperatorInfo>();
             
             // Add search term filters (these should be OR'd together)
-            albumFilters.Add(new FilterOperatorInfo(nameof(AlbumDataInfo.NameNormalized), FilterOperator.Contains, searchTermNormalized));
+            albumFilters.Add(new FilterOperatorInfo(nameof(AlbumDataInfo.NameNormalized), FilterOperator.Contains, searchTermNormalized, FilterOperatorInfo.OrJoinOperator));
             albumFilters.Add(new FilterOperatorInfo(nameof(AlbumDataInfo.AlternateNames), FilterOperator.Contains, searchTermNormalized, FilterOperatorInfo.OrJoinOperator));
             
             // Add artist filter separately (this should be AND'd with the search results)
@@ -146,7 +147,7 @@ public sealed class SearchService(
             };
             if (filterByArtistId.HasValue)
             {
-                songFilters.Add(new FilterOperatorInfo(nameof(SongDataInfo.ArtistApiKey), FilterOperator.Equals, filterByArtistId.Value));
+                songFilters.Add(new FilterOperatorInfo(nameof(SongDataInfo.ArtistApiKey), FilterOperator.Equals, filterByArtistId.Value, FilterOperatorInfo.AndJoinOperator));
             }
             var songResult = await songService.ListAsync(new PagedRequest
             {
