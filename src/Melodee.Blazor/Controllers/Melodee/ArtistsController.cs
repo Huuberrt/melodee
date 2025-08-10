@@ -91,7 +91,7 @@ public sealed class ArtistsController(
         var filterBy = new List<FilterOperatorInfo>();
         if (q.Nullify() != null)
         {
-            filterBy.Add(new FilterOperatorInfo(nameof(ArtistDataInfo.Name), FilterOperator.Contains, q));;
+            filterBy.Add(new FilterOperatorInfo(nameof(ArtistDataInfo.Name), FilterOperator.Contains, q!));
         }
         var listResult = await artistService.ListAsync(new PagedRequest
         {

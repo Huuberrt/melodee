@@ -477,12 +477,6 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             Logger,
             CacheManager,
             MockFactory(),
-            MockConfigurationFactory(),
-            GetLibraryService(),
-            GetArtistService(),
-            GetAlbumService(),
-            GetSongService(),
-            GetUserService(),
-            MockBus());
+            GetUserService());
     }
 }

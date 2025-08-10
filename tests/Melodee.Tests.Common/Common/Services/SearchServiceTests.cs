@@ -893,13 +893,13 @@ public class SearchServiceTests : ServiceTestBase
         if (result.Data.Albums.Length == 0)
         {
             // No albums returned - might be a different issue
-            Assert.True(false, "No albums returned from search");
+            Assert.Fail("No albums returned from search");
         }
         else if (result.Data.Albums.Any(a => a.ArtistApiKey != artist1.ApiKey))
         {
             // Albums from wrong artist returned - filtering not working
             var wrongAlbums = result.Data.Albums.Where(a => a.ArtistApiKey != artist1.ApiKey).ToList();
-            Assert.True(false, $"Filtering not working: Found {wrongAlbums.Count} albums from wrong artist. " +
+            Assert.Fail($"Filtering not working: Found {wrongAlbums.Count} albums from wrong artist. " +
                               $"Expected artist: {artist1.ApiKey}, but found albums from: {string.Join(", ", wrongAlbums.Select(a => a.ArtistApiKey).Distinct())}");
         }
         else

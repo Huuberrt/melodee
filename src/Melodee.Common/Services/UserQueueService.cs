@@ -1,17 +1,11 @@
-using Melodee.Common.Configuration;
 using Melodee.Common.Data.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models.Extensions;
-using Melodee.Common.Models;
 using Melodee.Common.Models.OpenSubsonic;
-using Melodee.Common.Models.OpenSubsonic.Requests;
-using Melodee.Common.Models.OpenSubsonic.Responses;
-using Melodee.Common.Models.Extensions;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Utility;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
-using Rebus.Bus;
 using Serilog;
 using dbModels = Melodee.Common.Data.Models;
 
@@ -24,13 +18,7 @@ public class UserQueueService(
     ILogger logger,
     ICacheManager cacheManager,
     IDbContextFactory<MelodeeDbContext> contextFactory,
-    IMelodeeConfigurationFactory configurationFactory,
-    LibraryService libraryService,
-    ArtistService artistService,
-    AlbumService albumService,
-    SongService songService,
-    UserService userService,
-    IBus bus)
+    UserService userService)
     : ServiceBase(logger, cacheManager, contextFactory)
 {
     public async Task<PlayQueue?> GetPlayQueueForUserAsync(string username,

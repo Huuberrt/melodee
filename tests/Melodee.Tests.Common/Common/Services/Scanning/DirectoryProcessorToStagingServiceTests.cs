@@ -402,11 +402,9 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
             Name = "EventTest"
         };
 
-        var processingStartTriggered = false;
-
-        processor.OnProcessingStart += (_, _) => processingStartTriggered = true;
-        processor.OnProcessingEvent += (_, _) => _ = true;
-        processor.OnDirectoryProcessed += (_, _) => _ = true;
+        processor.OnProcessingStart += (_, _) => { /* processing started */ };
+        processor.OnProcessingEvent += (_, _) => { /* processing event */ };
+        processor.OnDirectoryProcessed += (_, _) => { /* directory processed */ };
 
         // Act
         var result = await processor.ProcessDirectoryAsync(testDirectory, null, null);

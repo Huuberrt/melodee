@@ -155,6 +155,8 @@ Full compatibility with Subsonic 1.16.1 and OpenSubsonic specifications:
 
 #### Tested Clients
 
+- [MeloAmp (desktop)](https://github.com/melodee-project/meloamp)
+- [Melodee Player (Android Auto)](https://github.com/melodee-project/melodee-player)
 - [Airsonic (refix)](https://github.com/tamland/airsonic-refix)
 - [Dsub](https://github.com/DataBiosphere/dsub)
 - [Feishin](https://github.com/jeffvli/feishin)

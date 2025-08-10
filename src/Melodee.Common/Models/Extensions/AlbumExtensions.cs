@@ -180,7 +180,7 @@ public static class AlbumExtensions
 // Handle string conversion specially to avoid StringConverter issues
             if (typeof(T?) == typeof(string))
             {
-                return (T?)(object)vv.ToString();
+                return (T?)(object)(vv.ToString() ?? string.Empty);
             }
 
             return (T?)converter.ConvertFrom(vv);

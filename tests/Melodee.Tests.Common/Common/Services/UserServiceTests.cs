@@ -136,7 +136,7 @@ public class UserServiceTests : ServiceTestBase
         if (result.IsSuccess)
         {
             Assert.NotNull(result.Data);
-            Assert.Equal(email, result.Data.Email);
+            Assert.Equal(email, result.Data!.Email);
         }
         else
         {
@@ -541,6 +541,7 @@ public class UserServiceTests : ServiceTestBase
         var result = await userService.GetByEmailAddressAsync(email);
         // Assert
         Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
         Assert.Equal(email, result.Data.Email);
     }
 

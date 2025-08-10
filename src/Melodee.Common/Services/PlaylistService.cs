@@ -366,7 +366,7 @@ public async Task<MelodeeModels.PagedResult<SongDataInfo>> SongsForPlaylistAsync
             };
         }
 
-        return await GetAsync(id.Value, cancellationToken).ConfigureAwait(false);
+        return await GetAsync(id!.Value, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<OperationResult<Playlist?>> GetAsync(int id, CancellationToken cancellationToken = default)

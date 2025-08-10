@@ -234,7 +234,7 @@ public class FileSystemServiceTests
         var file = service.GetFileName(combined);
 
         // Assert
-        Assert.True(dir.EndsWith(Path.Combine("root", "child")));
+        Assert.EndsWith(Path.Combine("root", "child"), dir);
         Assert.Equal("file.ext", file);
     }
 
