@@ -266,8 +266,16 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStatusCodePagesWithRedirects("/Error");
 
-// Enable HTTPS redirection (addresses Lighthouse: HTTPS issues)
-app.UseHttpsRedirection();
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+else
+{
+    // Enable HTTPS redirection (addresses Lighthouse: HTTPS issues)
+    app.UseHttpsRedirection();   
+}
+
 
 #region Scheduling Quartz Jobs with Configuration
 
