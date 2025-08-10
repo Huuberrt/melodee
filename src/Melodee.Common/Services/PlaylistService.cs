@@ -347,7 +347,7 @@ public async Task<MelodeeModels.PagedResult<SongDataInfo>> SongsForPlaylistAsync
                     .ConfigureAwait(false);
             }
         }, cancellationToken);
-        if (id == null)
+        if ((id ?? 0) < 1)
         {
             // See if Dynamic playlist exists for given ApiKey. If so return it versus calling detail.
             var dynamicPlayLists = await DynamicListAsync(userInfo, new PagedRequest { PageSize = short.MaxValue }, cancellationToken).ConfigureAwait(false);

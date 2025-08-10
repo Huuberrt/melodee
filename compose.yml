@@ -13,17 +13,23 @@ services:
     ports:
       - "5432:5432"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U melodeeuser -d melodeedb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   melodee.blazor:
     build:
       context: .
       dockerfile: Dockerfile
     depends_on:
-      - melodee-db
+      melodee-db:
+        condition: service_healthy
     environment:
-      - ConnectionStrings__DefaultConnection=Host=melodee-db;Port=5432;Database=melodeedb;Username=melodeeuser;Password=${DB_PASSWORD};Pooling=true;MinPoolSize=10;MaxPoolSize=50;SSL Mode=Disable;Include Error Detail=true;
-      - ConnectionStrings__MusicBrainzConnection=/app/storage/_search-engines/musicbrainz/musicbrainz.db,
-      - ConnectionStrings__ArtistSearchEngineConnection=Data Source=/app/storage/_search-engines/artistSearchEngine.db;Cache=Shared;
+      - ConnectionStrings__DefaultConnection=Host=melodee-db;Port=5432;Database=melodeedb;Username=melodeeuser;Password=${DB_PASSWORD};Pooling=true;MinPoolSize=10;MaxPoolSize=50;SSL Mode=Disable;Include Error Detail=true
+      - ConnectionStrings__MusicBrainzConnection=Data Source=/app/storage/_search-engines/musicbrainz/musicbrainz.db
+      - ConnectionStrings__ArtistSearchEngineConnection=Data Source=/app/storage/_search-engines/artistSearchEngine.db;Cache=Shared
     volumes:
       - storage:/app/storage
       - inbound:/app/inbound
@@ -31,7 +37,7 @@ services:
       - user_images:/app/user-images
       - playlists:/app/playlists
     ports:
-      - "${MELODEE_PORT}:8080"
+      - "${MELODEE_PORT:-8080}:8080"
     restart: unless-stopped
     user: "0:0"  # Start as root to fix permissions
     entrypoint: ["/entrypoint.sh"]

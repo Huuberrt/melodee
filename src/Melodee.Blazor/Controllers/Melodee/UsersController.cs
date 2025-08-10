@@ -8,12 +8,14 @@ using Melodee.Blazor.Filters;
 using Melodee.Blazor.Services;
 using Melodee.Common.Configuration;
 using Melodee.Common.Data.Models.Extensions;
+using Melodee.Common.Extensions;
 using Melodee.Common.Models;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services;
 using Melodee.Common.Utility;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
+using Data = Melodee.Common.Data.Models;
 
 namespace Melodee.Blazor.Controllers.Melodee;
 
@@ -38,7 +40,19 @@ public class UsersController(
     [Route("auth")]
     public async Task<IActionResult> AuthenticateUserAsync([FromBody] LoginModel model, CancellationToken cancellationToken = default)
     {
-        var authResult = await userService.LoginUserAsync(model.Email, model.Password, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(model.Email) && string.IsNullOrWhiteSpace(model.Password))
+        {
+            return BadRequest(new { error = "Email or password are required" });
+        }
+        OperationResult<Data.User?> authResult;
+        if (model.UserName.Nullify() != null)
+        {
+            authResult = await userService.LoginUserByUsernameAsync(model.UserName ?? string.Empty, model.Password, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            authResult = await userService.LoginUserAsync(model.Email ?? string.Empty, model.Password, cancellationToken).ConfigureAwait(false);            
+        }
         if (!authResult.IsSuccess || authResult.Data == null)
         {
             return Unauthorized();

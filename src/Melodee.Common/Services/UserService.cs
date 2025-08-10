@@ -936,7 +936,9 @@ public sealed class UserService(
         };
     }
 
-    public async Task<MelodeeModels.OperationResult<User?>> LoginUserByUsernameAsync(string userName, string? password,
+    public async Task<MelodeeModels.OperationResult<User?>> LoginUserByUsernameAsync(
+        string userName, 
+        string? password,
         CancellationToken cancellationToken = default)
     {
         var user = await GetByUsernameAsync(userName, cancellationToken).ConfigureAwait(false);
@@ -952,7 +954,9 @@ public sealed class UserService(
         return await LoginUserAsync(user.Data.Email, password, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<MelodeeModels.OperationResult<User?>> LoginUserAsync(string emailAddress, string? password,
+    public async Task<MelodeeModels.OperationResult<User?>> LoginUserAsync(
+        string emailAddress, 
+        string? password,
         CancellationToken cancellationToken = default)
     {
         Guard.Against.NullOrWhiteSpace(emailAddress, nameof(emailAddress));
