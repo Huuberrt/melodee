@@ -4,6 +4,7 @@ using Melodee.Blazor.Controllers.Melodee.Models;
 using Melodee.Blazor.Filters;
 using Melodee.Common.Configuration;
 using Melodee.Common.Data.Models.Extensions;
+using Melodee.Common.Extensions;
 using Melodee.Common.Filtering;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Collection;
@@ -11,7 +12,9 @@ using Melodee.Common.Serialization;
 using Melodee.Common.Services;
 using Melodee.Common.Utility;
 using Microsoft.AspNetCore.Mvc;
+using Nextended.Core.Extensions;
 using Album = Melodee.Blazor.Controllers.Melodee.Models.Album;
+using Artist = Melodee.Blazor.Controllers.Melodee.Models.Artist;
 
 namespace Melodee.Blazor.Controllers.Melodee;
 
@@ -24,6 +27,7 @@ public sealed class ArtistsController(
     UserService userService,
     ArtistService artistService,
     AlbumService albumService,
+    SongService songService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory) : ControllerBase(
     etagRepository,
@@ -63,7 +67,7 @@ public sealed class ArtistsController(
     }
 
     [HttpGet]
-    public async Task<IActionResult> ListAsync(short page, short pageSize, string? orderBy, string? orderDirection, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> ListAsync(string? q, short page, short pageSize, string? orderBy, string? orderDirection, CancellationToken cancellationToken = default)
     {
         if (!ApiRequest.IsAuthorized)
         {
@@ -84,10 +88,16 @@ public sealed class ArtistsController(
         var orderByValue = orderBy ?? nameof(AlbumDataInfo.CreatedAt);
         var orderDirectionValue = orderDirection ?? PagedRequest.OrderDescDirection;
 
+        var filterBy = new List<FilterOperatorInfo>();
+        if (q.Nullify() != null)
+        {
+            filterBy.Add(new FilterOperatorInfo(nameof(ArtistDataInfo.Name), FilterOperator.Contains, q));;
+        }
         var listResult = await artistService.ListAsync(new PagedRequest
         {
             Page = page,
             PageSize = pageSize,
+            FilterBy = filterBy.ToArray(),
             OrderBy = new Dictionary<string, string> { { orderByValue, orderDirectionValue } }
         }, cancellationToken).ConfigureAwait(false);
 
@@ -202,8 +212,54 @@ public sealed class ArtistsController(
 
     [HttpGet]
     [Route("{id:guid}/songs")]
-    public Task<IActionResult> ArtistSongsAsync(Guid id, short page, short pageSize, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> ArtistSongsAsync(Guid id, string? q, short page, short pageSize, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        if (!ApiRequest.IsAuthorized)
+        {
+            return Unauthorized(new { error = "Authorization token is invalid" });
+        }
+
+        var userResult = await userService.GetByApiKeyAsync(SafeParser.ToGuid(ApiRequest.ApiKey) ?? Guid.Empty, cancellationToken).ConfigureAwait(false);
+        if (!userResult.IsSuccess || userResult.Data == null)
+        {
+            return Unauthorized(new { error = "Authorization token is invalid" });
+        }
+
+        if (userResult.Data.IsLocked)
+        {
+            return Forbid("User is locked");
+        }        
+        
+        var artistResult = await artistService.GetByApiKeyAsync(id, cancellationToken).ConfigureAwait(false);
+        if (!artistResult.IsSuccess || artistResult.Data == null)
+        {
+            return NotFound(new { error = "Artist not found" });
+        }
+     
+        var searchTermNormalized = q?.ToNormalizedString() ?? q ?? string.Empty;        
+        var pageValue = page > 0 ? page : (short)1;
+        var songsResult = await songService.ListAsync(new PagedRequest
+        {
+            Page = pageValue,
+            PageSize = pageSize,
+            FilterBy =
+            [
+                new FilterOperatorInfo(nameof(SongDataInfo.ArtistApiKey), FilterOperator.Equals, artistResult.Data.ApiKey),
+                new FilterOperatorInfo(nameof(SongDataInfo.TitleNormalized), FilterOperator.Contains, searchTermNormalized)
+            ],
+            OrderBy = new Dictionary<string, string> { { nameof(SongDataInfo.CreatedAt), PagedRequest.OrderDescDirection } }
+        }, userResult.Data.Id, cancellationToken).ConfigureAwait(false);
+        var baseUrl = GetBaseUrl(await ConfigurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false));
+        
+        return Ok(new
+        {
+            meta = new PaginationMetadata(
+                songsResult.TotalCount,
+                pageSize,
+                page,
+                songsResult.TotalPages
+            ),
+            data = songsResult.Data.Select(x => x.ToSongModel(baseUrl, userResult.Data.ToUserModel(baseUrl), userResult.Data.PublicKey)).ToArray()
+        });        
     }
 }
