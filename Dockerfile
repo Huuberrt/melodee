@@ -2,7 +2,7 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
 # Install EF Core tools globally in the build stage where SDK is available
-RUN dotnet tool install --global dotnet-ef --version 9.0.5
+RUN dotnet tool install --global dotnet-ef
 
 # Copy Directory.Packages.props first for central package management
 COPY ["Directory.Packages.props", "./"]
@@ -23,7 +23,7 @@ RUN dotnet build "Melodee.Blazor.csproj" -c Release -o /app/build
 
 # Publish
 FROM build AS publish
-RUN dotnet publish "Melodee.Blazor.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "Melodee.Blazor.csproj" -c Release -o /app/publish --self-contained false -p:PublishTrimmed=false
 
 # Final image - use SDK instead of runtime to support EF migrations
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS final
@@ -75,7 +75,7 @@ ENV MELODEE_PLAYLISTS_PATH="/app/playlists"
 USER melodee
 
 # Install EF Core tools globally for the melodee user
-RUN dotnet tool install --global dotnet-ef --version 9.0.5
+RUN dotnet tool install --global dotnet-ef
 
 # Add tools to PATH
 ENV PATH="$PATH:/home/melodee/.dotnet/tools"

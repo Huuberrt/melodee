@@ -46,9 +46,9 @@ Melodee is a comprehensive music management and streaming system built with .NET
    cd melodee
    ```
 
-2. **Configure podman.environment variables**
+2. **Configure environment variables**
    ```bash
-   # Copy and edit the example.environment file
+   # Copy and edit the example environment file
    cp example.env .env
    nano .env
    ```
@@ -65,10 +65,10 @@ Melodee is a comprehensive music management and streaming system built with .NET
 3. **Deploy the application**
    ```bash
    # Using Podman Compose
-   podman-compose --env-file .env up -d
+   podman-compose up -d
 
    # Or using Docker Compose
-   docker-compose --env-file .env up -d
+   docker compose up -d
    ```
 
 4. **Access the application**
@@ -90,7 +90,7 @@ podman-compose down
 git pull origin main
 
 # Rebuild and restart
-podman-compose --env-file .env up -d --build
+podman-compose up -d --build
 ```
 
 > **Note**: Database migrations are handled automatically during container startup.
