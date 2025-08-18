@@ -421,7 +421,7 @@ app.UseStaticFiles(new StaticFileOptions
             "style-src 'self' 'unsafe-inline'; " +
             "img-src 'self' data: blob:; " +
             "font-src 'self'; " +
-            "connect-src 'self'; " +
+            "connect-src 'self' wss: ws:; " +
             "media-src 'self'; " +
             "object-src 'none'; " +
             "frame-ancestors 'self';";
