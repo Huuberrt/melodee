@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using Asp.Versioning;
+using Microsoft.AspNetCore.HttpOverrides;
 using Blazored.SessionStorage;
 using Melodee.Blazor.Components;
 using Melodee.Blazor.Constants;
@@ -88,6 +89,19 @@ builder.Services.AddApiVersioning(options =>
         options.SubstituteApiVersionInUrl = true;
     });
 
+
+// Configure forwarded headers for reverse proxy (only if enabled)
+var useForwardedHeaders = SafeParser.ToBoolean(builder.Configuration["UseForwardedHeaders"]);
+if (useForwardedHeaders)
+{
+    Trace.WriteLine("Using forwarded headers");
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+}
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();
@@ -254,6 +268,12 @@ builder.Services.AddScoped<IStartupMelodeeConfigurationService, StartupMelodeeCo
 
 
 var app = builder.Build();
+
+// Use forwarded headers for reverse proxy FIRST (only if enabled)
+if (useForwardedHeaders)
+{
+    app.UseForwardedHeaders();
+}
 
 // Enable response compression early in the pipeline
 app.UseResponseCompression();
