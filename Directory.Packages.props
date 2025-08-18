@@ -19,11 +19,11 @@
     <PackageVersion Include="Crc32.NET" Version="1.2.0" />
     <PackageVersion Include="CsvHelper" Version="33.1.0" />
     <PackageVersion Include="Dapper" Version="2.1.66" />
-    <PackageVersion Include="EntityFrameworkCore.Sqlite.NodaTime" Version="9.1.0" />
+    <PackageVersion Include="EntityFrameworkCore.Sqlite.NodaTime" Version="9.2.1" />
     <PackageVersion Include="Fastenshtein" Version="1.0.10" />
     <PackageVersion Include="FbNetExternalEngine.Integration" Version="6.0.0" />
     <PackageVersion Include="FFMpegCore" Version="5.2.0" />
-    <PackageVersion Include="FluentAssertions" Version="8.5.0" />
+    <PackageVersion Include="FluentAssertions" Version="8.6.0" />
     <PackageVersion Include="FluentValidation" Version="12.0.0" />
     <PackageVersion Include="Hashids.net" Version="1.7.0" />
     <PackageVersion Include="Hqub.Last.fm" Version="2.5.0" />
@@ -61,7 +61,7 @@
     <PackageVersion Include="Microsoft.Extensions.Configuration.FileExtensions" Version="9.0.8" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="9.0.8" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="9.0.8" />
-    <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.13.1" />
+    <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.14.0" />
     <PackageVersion Include="Microsoft.Net.Http.Headers" Version="9.0.8" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="MimeKit" Version="4.13.0" />
@@ -79,7 +79,7 @@
     <PackageVersion Include="Quartz.Jobs" Version="3.15.0" />
     <PackageVersion Include="Quartz.Plugins.TimeZoneConverter" Version="3.15.0" />
     <PackageVersion Include="Quartz.Serialization.SystemTextJson" Version="3.15.0" />
-    <PackageVersion Include="Radzen.Blazor" Version="7.1.7" />
+    <PackageVersion Include="Radzen.Blazor" Version="7.2.1" />
     <PackageVersion Include="Rebus" Version="8.8.0" />
     <PackageVersion Include="Rebus.ServiceProvider" Version="10.5.0" />
     <PackageVersion Include="Serilog" Version="4.3.0" />
@@ -97,7 +97,7 @@
     <PackageVersion Include="Spectre.Console.Json" Version="0.50.0" />
     <PackageVersion Include="SpotifyAPI.Web" Version="7.2.1" />
     <PackageVersion Include="Sqids" Version="3.1.0" />
-    <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.13.1" />
+    <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.14.0" />
     <PackageVersion Include="System.IO.Hashing" Version="9.0.8" />
     <PackageVersion Include="System.Linq.Dynamic.Core" Version="1.6.7" />
     <PackageVersion Include="System.Net.Http" Version="4.3.4" />
@@ -105,7 +105,7 @@
     <PackageVersion Include="Toolbelt.Blazor.HotKeys2" Version="5.1.0" />
     <PackageVersion Include="Xamarin.UITest" Version="4.3.4" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.3">
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageVersion>
