@@ -168,6 +168,20 @@ public sealed class AlbumsController(
         {
             return NotFound(new { error = "Album not found" });
         }
+        
+        var userSongsForAlbum = await userService.UserSongsForAlbumAsync(userResult.Data.Id, albumResult.Data!.ApiKey, cancellationToken);
+        if (userSongsForAlbum != null)
+        {
+            // Now set the userrating on songs for the album 
+            foreach (var song in albumResult.Data.Songs)
+            {
+                var userSong = userSongsForAlbum.FirstOrDefault(x => x.Song.ApiKey == song.ApiKey);
+                if (userSong != null)
+                {
+                    song.UserSongs.Add(userSong);
+                }
+            }
+        }
 
         var baseUrl = GetBaseUrl(await ConfigurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false));
 
@@ -179,7 +193,7 @@ public sealed class AlbumsController(
                 1,
                 1
             ),
-            data = albumResult.Data.Songs.Select(x => x.ToSongDataInfo().ToSongModel(baseUrl, userResult.Data.ToUserModel(baseUrl), userResult.Data.PublicKey)).ToArray()
+            data = albumResult.Data.Songs.Select(x => x.ToSongDataInfo(x.UserSongs.FirstOrDefault()).ToSongModel(baseUrl, userResult.Data.ToUserModel(baseUrl), userResult.Data.PublicKey)).ToArray()
         });
     }
 }

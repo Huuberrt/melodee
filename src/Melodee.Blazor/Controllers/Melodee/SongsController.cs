@@ -157,6 +157,40 @@ public class SongsController(
 
         return BadRequest("Unable to toggle star for song for user.");
     }
+    
+    [HttpPost]
+    [Route("setrating/{apiKey:guid}/{rating:int}")]
+    public async Task<IActionResult>? ToggleSongStarred(Guid apiKey, int rating, CancellationToken cancellationToken = default)
+    {
+        if (!ApiRequest.IsAuthorized)
+        {
+            return Unauthorized(new { error = "Authorization token is invalid" });
+        }
+
+        var userResult = await userService.GetByApiKeyAsync(SafeParser.ToGuid(ApiRequest.ApiKey) ?? Guid.Empty, cancellationToken).ConfigureAwait(false);
+        if (!userResult.IsSuccess || userResult.Data == null)
+        {
+            return Unauthorized(new { error = "Authorization token is invalid" });
+        }
+
+        if (userResult.Data.IsLocked)
+        {
+            return Forbid("User is locked");
+        }
+
+        if (await blacklistService.IsEmailBlacklistedAsync(userResult.Data.Email).ConfigureAwait(false) ||
+            await blacklistService.IsIpBlacklistedAsync(GetRequestIp(HttpContext)).ConfigureAwait(false))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "User is blacklisted" });
+        }
+        var setRatingResult = await userService.SetSongRatingAsync(userResult.Data.Id, apiKey, rating, cancellationToken).ConfigureAwait(false);
+        if (setRatingResult.IsSuccess)
+        {
+            return Ok();
+        }
+        
+        return BadRequest("Unable to toggle star for song for user.");
+    }
 
     [HttpGet]
     [Route("/song/stream/{apiKey:guid}/{userApiKey:guid}/{authToken}")]

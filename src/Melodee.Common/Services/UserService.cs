@@ -758,7 +758,10 @@ public sealed class UserService(
         };
     }
 
-    public async Task<MelodeeModels.OperationResult<bool>> SetSongRatingAsync(int userId, Guid songApiKey, int rating,
+    public async Task<MelodeeModels.OperationResult<bool>> SetSongRatingAsync(
+        int userId, 
+        Guid songApiKey, 
+        int rating,
         CancellationToken cancellationToken = default)
     {
         Guard.Against.Expression(x => x < 1, userId, nameof(userId));
@@ -1061,7 +1064,8 @@ public sealed class UserService(
     }
 
     public async Task<MelodeeModels.OperationResult<int>> ImportUserFavoriteSongs(
-        UserFavoriteSongConfiguration configuration, CancellationToken cancellationToken = default)
+        UserFavoriteSongConfiguration configuration, 
+        CancellationToken cancellationToken = default)
     {
         Guard.Against.Null(configuration, nameof(configuration));
 

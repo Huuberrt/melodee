@@ -24,7 +24,7 @@ public static class SongDataInfoExtensions
                 $"{baseUrl}/images/{artistInfoData.ToApiKey()}/{MelodeeConfiguration.DefaultThumbNailSize}",
                 $"{baseUrl}/images/{artistInfoData.ToApiKey()}/{MelodeeConfiguration.DefaultImageSize}",
                 songDataInfo.ArtistName,
-                false,
+                false, 
                 0,
                 0,
                 0,
