@@ -26,7 +26,7 @@
     <PackageVersion Include="FluentAssertions" Version="8.6.0" />
     <PackageVersion Include="FluentValidation" Version="12.0.0" />
     <PackageVersion Include="Hashids.net" Version="1.7.0" />
-    <PackageVersion Include="Hqub.Last.fm" Version="2.5.0" />
+    <PackageVersion Include="Hqub.Last.fm" Version="2.5.1" />
     <PackageVersion Include="HtmlAgilityPack" Version="1.12.2" />
     <PackageVersion Include="IdGen" Version="3.0.7" />
     <PackageVersion Include="IdSharp.Common" Version="2.0.3" />
@@ -72,14 +72,14 @@
     <PackageVersion Include="NodaTime" Version="3.2.2" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime" Version="9.0.4" />
-    <PackageVersion Include="Polly.Core" Version="8.6.2" />
+    <PackageVersion Include="Polly.Core" Version="8.6.3" />
     <PackageVersion Include="PSC.Blazor.Components.MarkdownEditor" Version="8.0.8" />
     <PackageVersion Include="Quartz.AspNetCore" Version="3.15.0" />
     <PackageVersion Include="Quartz.Extensions.DependencyInjection" Version="3.15.0" />
     <PackageVersion Include="Quartz.Jobs" Version="3.15.0" />
     <PackageVersion Include="Quartz.Plugins.TimeZoneConverter" Version="3.15.0" />
     <PackageVersion Include="Quartz.Serialization.SystemTextJson" Version="3.15.0" />
-    <PackageVersion Include="Radzen.Blazor" Version="7.2.1" />
+    <PackageVersion Include="Radzen.Blazor" Version="7.2.3" />
     <PackageVersion Include="Rebus" Version="8.8.0" />
     <PackageVersion Include="Rebus.ServiceProvider" Version="10.5.0" />
     <PackageVersion Include="Serilog" Version="4.3.0" />
