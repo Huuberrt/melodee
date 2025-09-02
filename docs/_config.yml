@@ -27,7 +27,7 @@ baseurl: "" # the subpath of your site, e.g. /blog
 url: "https://melodee.org" # the base hostname & protocol for your site
 
 # Social (First three Required)
-repo: "https://github.com/sphildreth/melodee"
+repo: "https://github.com/melodee-project/melodee"
 github_user: "sphildreth"
 github_repo: "melodee"
 github_branch: "main"
