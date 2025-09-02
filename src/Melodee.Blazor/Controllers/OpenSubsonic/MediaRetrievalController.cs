@@ -1,10 +1,12 @@
 using System.Net;
 using Melodee.Blazor.Filters;
 using Melodee.Common.Configuration;
+using Melodee.Common.Constants;
 using Melodee.Common.Models;
 using Melodee.Common.Models.OpenSubsonic;
 using Melodee.Common.Models.OpenSubsonic.Requests;
 using Melodee.Common.Models.OpenSubsonic.Responses;
+using Melodee.Common.Models.Streaming;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services;
 using Melodee.Results;
@@ -12,7 +14,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Melodee.Blazor.Controllers.OpenSubsonic;
 
-public class MediaRetrievalController(ISerializer serializer, EtagRepository etagRepository, OpenSubsonicApiService openSubsonicApiService, IMelodeeConfigurationFactory configurationFactory) : ControllerBase(etagRepository, serializer, configurationFactory)
+public class MediaRetrievalController(ISerializer serializer, EtagRepository etagRepository, OpenSubsonicApiService openSubsonicApiService, IMelodeeConfigurationFactory configurationFactory, StreamingLimiter streamingLimiter) : ControllerBase(etagRepository, serializer, configurationFactory)
 {
     /// <summary>
     ///     Searches for and returns lyrics for a given song.
@@ -108,10 +110,96 @@ public class MediaRetrievalController(ISerializer serializer, EtagRepository eta
     public async Task<IActionResult> DownloadAsync(StreamRequest request, CancellationToken cancellationToken = default)
     {
         request.IsDownloadingRequest = true;
-        var streamResult = await openSubsonicApiService.StreamAsync(request, ApiRequest, cancellationToken).ConfigureAwait(false);
-        if (streamResult.IsSuccess)
+        var melodeeConfig = await ConfigurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false);
+        var useBuffered = melodeeConfig.GetValue<bool?>(SettingRegistry.StreamingUseBufferedResponses) ?? false;
+
+        // Optional streaming limit; key off username
+        var userKey = $"subsonic:{ApiRequest.Username ?? "unknown"}";
+        if (!await streamingLimiter.TryEnterAsync(userKey, cancellationToken).ConfigureAwait(false))
         {
-            return File(streamResult.Bytes, streamResult.ContentType ?? string.Empty, streamResult.FileName);
+            return StatusCode((int)HttpStatusCode.TooManyRequests, new { error = "Too many concurrent streams" });
+        }
+        HttpContext.Response.OnCompleted(() => { streamingLimiter.Exit(userKey); return Task.CompletedTask; });
+
+        if (useBuffered)
+        {
+            // Buffered fallback using descriptor
+            var bufferedDescriptorResult = await openSubsonicApiService.GetStreamingDescriptorAsync(request, ApiRequest, cancellationToken).ConfigureAwait(false);
+            if (!bufferedDescriptorResult.IsSuccess || bufferedDescriptorResult.Data == null)
+            {
+                return StatusCode((int)HttpStatusCode.NotFound);
+            }
+            var bufferedDescriptor = bufferedDescriptorResult.Data;
+
+            foreach (var header in RangeParser.CreateResponseHeaders(bufferedDescriptor, bufferedDescriptor.Range != null ? 206 : 200))
+            {
+                Response.Headers[header.Key] = header.Value;
+            }
+            Response.StatusCode = bufferedDescriptor.Range != null ? 206 : 200;
+
+            byte[] bytes;
+            if (bufferedDescriptor.Range != null)
+            {
+                await using var fs = new FileStream(bufferedDescriptor.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                fs.Seek(bufferedDescriptor.Range.Start, SeekOrigin.Begin);
+                var len = (int)bufferedDescriptor.Range.GetContentLength(bufferedDescriptor.FileSize);
+                bytes = new byte[len];
+                var read = await fs.ReadAsync(bytes, 0, len, cancellationToken);
+                if (read != len) Array.Resize(ref bytes, read);
+            }
+            else
+            {
+                bytes = await System.IO.File.ReadAllBytesAsync(bufferedDescriptor.FilePath, cancellationToken);
+            }
+
+            return new FileContentResult(bytes, bufferedDescriptor.ContentType ?? "application/octet-stream")
+            {
+                FileDownloadName = bufferedDescriptor.FileName
+            };
+        }
+
+        var descriptorResult = await openSubsonicApiService.GetStreamingDescriptorAsync(request, ApiRequest, cancellationToken).ConfigureAwait(false);
+        
+        if (descriptorResult.IsSuccess && descriptorResult.Data != null)
+        {
+            var descriptor = descriptorResult.Data;
+            
+            // Create response headers
+            var statusCode = descriptor.Range != null ? 206 : 200;
+            var responseHeaders = RangeParser.CreateResponseHeaders(descriptor, statusCode);
+            
+            foreach (var header in responseHeaders)
+            {
+                Response.Headers[header.Key] = header.Value;
+            }
+            
+            Response.StatusCode = statusCode;
+            
+            // Return efficient file streaming result
+            if (descriptor.Range != null)
+            {
+                // For range requests
+                var fileStream = new FileStream(descriptor.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read,
+                    bufferSize: 65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                
+                fileStream.Seek(descriptor.Range.Start, SeekOrigin.Begin);
+                var rangeStream = new BoundedStream(fileStream, descriptor.Range.GetContentLength(descriptor.FileSize));
+                
+                return new FileStreamResult(rangeStream, descriptor.ContentType)
+                {
+                    EnableRangeProcessing = true,
+                    FileDownloadName = descriptor.FileName
+                };
+            }
+            else
+            {
+                // For full file downloads
+                return new PhysicalFileResult(descriptor.FilePath, descriptor.ContentType)
+                {
+                    EnableRangeProcessing = true,
+                    FileDownloadName = descriptor.FileName
+                };
+            }
         }
 
         Response.StatusCode = (int)HttpStatusCode.NotFound;
@@ -138,18 +226,96 @@ public class MediaRetrievalController(ISerializer serializer, EtagRepository eta
     [Route("/rest/stream")]
     public async Task<IActionResult> StreamAsync(StreamRequest request, CancellationToken cancellationToken = default)
     {
-        var streamResult = await openSubsonicApiService.StreamAsync(request, ApiRequest, cancellationToken).ConfigureAwait(false);
-        if (streamResult.IsSuccess)
+        var melodeeConfig = await ConfigurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false);
+        var useBuffered = melodeeConfig.GetValue<bool?>(SettingRegistry.StreamingUseBufferedResponses) ?? false;
+
+        // Optional streaming limit; key off username
+        var userKey = $"subsonic:{ApiRequest.Username ?? "unknown"}";
+        if (!await streamingLimiter.TryEnterAsync(userKey, cancellationToken).ConfigureAwait(false))
         {
-            foreach (var responseHeader in streamResult.ResponseHeaders)
+            return StatusCode((int)HttpStatusCode.TooManyRequests, new { error = "Too many concurrent streams" });
+        }
+        HttpContext.Response.OnCompleted(() => { streamingLimiter.Exit(userKey); return Task.CompletedTask; });
+
+        if (useBuffered)
+        {
+            // Buffered fallback using descriptor
+            var bufferedDescriptorResult = await openSubsonicApiService.GetStreamingDescriptorAsync(request, ApiRequest, cancellationToken).ConfigureAwait(false);
+            if (!bufferedDescriptorResult.IsSuccess || bufferedDescriptorResult.Data == null)
             {
-                Response.Headers[responseHeader.Key] = responseHeader.Value;
+                return StatusCode((int)HttpStatusCode.NotFound);
+            }
+            var bufferedDescriptor = bufferedDescriptorResult.Data;
+
+            foreach (var header in RangeParser.CreateResponseHeaders(bufferedDescriptor, bufferedDescriptor.Range != null ? 206 : 200))
+            {
+                Response.Headers[header.Key] = header.Value;
+            }
+            Response.StatusCode = bufferedDescriptor.Range != null ? 206 : 200;
+
+            byte[] bytes;
+            if (bufferedDescriptor.Range != null)
+            {
+                await using var fs = new FileStream(bufferedDescriptor.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                fs.Seek(bufferedDescriptor.Range.Start, SeekOrigin.Begin);
+                var len = (int)bufferedDescriptor.Range.GetContentLength(bufferedDescriptor.FileSize);
+                bytes = new byte[len];
+                var read = await fs.ReadAsync(bytes, 0, len, cancellationToken);
+                if (read != len) Array.Resize(ref bytes, read);
+            }
+            else
+            {
+                bytes = await System.IO.File.ReadAllBytesAsync(bufferedDescriptor.FilePath, cancellationToken);
             }
 
-            await Response.Body
-                .WriteAsync(streamResult.Bytes.AsMemory(0, streamResult.Bytes.Length), cancellationToken)
-                .ConfigureAwait(false);
-            return new EmptyResult();
+            return new FileContentResult(bytes, bufferedDescriptor.ContentType ?? "application/octet-stream")
+            {
+                FileDownloadName = request.IsDownloadingRequest ? bufferedDescriptor.FileName : null
+            };
+        }
+
+        var descriptorResult = await openSubsonicApiService.GetStreamingDescriptorAsync(request, ApiRequest, cancellationToken).ConfigureAwait(false);
+        
+        if (descriptorResult.IsSuccess && descriptorResult.Data != null)
+        {
+            var descriptor = descriptorResult.Data;
+            
+            // Create response headers
+            var statusCode = descriptor.Range != null ? 206 : 200;
+            var responseHeaders = RangeParser.CreateResponseHeaders(descriptor, statusCode);
+            
+            foreach (var header in responseHeaders)
+            {
+                Response.Headers[header.Key] = header.Value;
+            }
+            
+            Response.StatusCode = statusCode;
+            
+            // Return efficient file streaming result
+            if (descriptor.Range != null)
+            {
+                // For range requests
+                var fileStream = new FileStream(descriptor.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read,
+                    bufferSize: 65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                
+                fileStream.Seek(descriptor.Range.Start, SeekOrigin.Begin);
+                var rangeStream = new BoundedStream(fileStream, descriptor.Range.GetContentLength(descriptor.FileSize));
+                
+                return new FileStreamResult(rangeStream, descriptor.ContentType)
+                {
+                    EnableRangeProcessing = true,
+                    FileDownloadName = descriptor.IsDownload ? descriptor.FileName : null
+                };
+            }
+            else
+            {
+                // For full file streaming
+                return new PhysicalFileResult(descriptor.FilePath, descriptor.ContentType)
+                {
+                    EnableRangeProcessing = true,
+                    FileDownloadName = descriptor.IsDownload ? descriptor.FileName : null
+                };
+            }
         }
 
         Response.StatusCode = (int)HttpStatusCode.NotFound;

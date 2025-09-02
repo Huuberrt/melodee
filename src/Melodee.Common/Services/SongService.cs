@@ -7,6 +7,7 @@ using Melodee.Common.Extensions;
 using Melodee.Common.Models.Collection;
 using Melodee.Common.Models.OpenSubsonic.DTO;
 using Melodee.Common.Models.OpenSubsonic.Responses;
+using Melodee.Common.Models.Streaming;
 using Melodee.Common.Plugins.Scrobbling;
 using Melodee.Common.Services.Caching;
 using Microsoft.EntityFrameworkCore;
@@ -367,6 +368,108 @@ public class SongService(
         throw new NotImplementedException();
     }
 
+    /// <summary>
+    /// Get streaming descriptor for song - memory-efficient approach without loading file contents
+    /// </summary>
+    public async Task<MelodeeModels.OperationResult<StreamingDescriptor>> GetStreamingDescriptorAsync(
+        MelodeeModels.UserInfo user, 
+        Guid apiKey, 
+        string? rangeHeader = null,
+        bool isDownload = false,
+        CancellationToken cancellationToken = default)
+    {
+        var song = await GetByApiKeyAsync(apiKey, cancellationToken).ConfigureAwait(false);
+        if (song.Data == null)
+        {
+            return new MelodeeModels.OperationResult<StreamingDescriptor>("Unknown song")
+            {
+                Type = MelodeeModels.OperationResponseType.NotFound,
+                Data = null!
+            };
+        }
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        // Get song file information
+        var songStreamInfo = await scopedContext.Songs
+            .Where(s => s.ApiKey == apiKey)
+            .Include(s => s.Album)
+            .ThenInclude(a => a.Artist)
+            .ThenInclude(ar => ar.Library)
+            .AsNoTracking()
+            .Select(s => new SongStreamInfo(
+                s.Album.Artist.Library.Path + s.Album.Artist.Directory + s.Album.Directory + s.FileName,
+                s.FileSize,
+                s.Duration / 1000.0,
+                s.BitRate,
+                s.ContentType
+            ))
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!(songStreamInfo?.TrackFileInfo.Exists ?? false))
+        {
+            Logger.Warning("[{ServiceName}] Stream request for song that was not found. User [{User}] Song ApiKey [{ApiKey}]",
+                nameof(SongService), user.ToString(), apiKey);
+            return new MelodeeModels.OperationResult<StreamingDescriptor>("Song file not found")
+            {
+                Type = MelodeeModels.OperationResponseType.NotFound,
+                Data = null!
+            };
+        }
+
+        // Parse range if provided
+        RangeInfo? range = null;
+        if (!string.IsNullOrWhiteSpace(rangeHeader))
+        {
+            range = RangeParser.ParseRange(rangeHeader, songStreamInfo.FileSize);
+            if (range == null)
+            {
+                return new MelodeeModels.OperationResult<StreamingDescriptor>("Invalid range request")
+                {
+                    Type = MelodeeModels.OperationResponseType.Error,
+                    Data = null!
+                };
+            }
+        }
+
+        // Create base headers
+        var baseHeaders = new Dictionary<string, StringValues>
+        {
+            { "Access-Control-Allow-Origin", "*" },
+            { "Cache-Control", "no-store, must-revalidate, no-cache, max-age=0" },
+            { "Content-Duration", songStreamInfo.Duration.ToString(CultureInfo.InvariantCulture) },
+            { "Expires", "Mon, 01 Jan 1990 00:00:00 GMT" }
+        };
+
+        // Get file info for cache headers
+        var fileInfo = songStreamInfo.TrackFileInfo;
+        var lastModified = fileInfo.LastWriteTimeUtc;
+        var etag = $"{fileInfo.Length}-{lastModified.Ticks}";
+
+        var descriptor = new StreamingDescriptor
+        {
+            FilePath = songStreamInfo.TrackFileInfo.FullName,
+            FileSize = songStreamInfo.FileSize,
+            ContentType = songStreamInfo.ContentType,
+            ResponseHeaders = baseHeaders,
+            Range = range,
+            FileName = isDownload ? fileInfo.Name : null,
+            IsDownload = isDownload,
+            LastModified = lastModified,
+            ETag = etag
+        };
+
+        return new MelodeeModels.OperationResult<StreamingDescriptor>
+        {
+            Data = descriptor
+        };
+    }
+
+    /// <summary>
+    /// DEPRECATED: Use GetStreamingDescriptorAsync instead for memory-efficient streaming
+    /// </summary>
+    [Obsolete("Use GetStreamingDescriptorAsync instead for memory-efficient streaming")]
     public async Task<MelodeeModels.OperationResult<StreamResponse>> GetStreamForSongAsync(MelodeeModels.UserInfo user, Guid apiKey, CancellationToken cancellationToken = default)
     {
         var song = await GetByApiKeyAsync(apiKey, cancellationToken).ConfigureAwait(false);
@@ -456,6 +559,10 @@ public class SongService(
         };
     }
 
+    /// <summary>
+    /// DEPRECATED: Use GetStreamingDescriptorAsync instead for memory-efficient streaming
+    /// </summary>
+    [Obsolete("Use GetStreamingDescriptorAsync instead for memory-efficient streaming")]
     public async Task<MelodeeModels.OperationResult<StreamResponse>> GetStreamForSongAsync(
         MelodeeModels.UserInfo user, 
         Guid apiKey, 

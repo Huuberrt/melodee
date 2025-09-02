@@ -21,6 +21,7 @@ namespace Melodee.Blazor.Controllers.OpenSubsonic;
 public abstract class ControllerBase(EtagRepository etagRepository, ISerializer serializer, IMelodeeConfigurationFactory configurationFactory) : CommonBase
 {
     protected readonly ISerializer Serializer = serializer;
+    protected IMelodeeConfigurationFactory ConfigurationFactory { get; } = configurationFactory;
 
     protected async Task<IActionResult> ImageResult(string apiKey, Task<ResponseModel> action)
     {
@@ -111,7 +112,7 @@ public abstract class ControllerBase(EtagRepository etagRepository, ISerializer 
         }
 
         var requiresAuth = true;
-        var configuration = await configurationFactory.GetConfigurationAsync();
+        var configuration = await ConfigurationFactory.GetConfigurationAsync();
 
         // If the request is from localhost, from baseUrl, or an image request, then do not require authentication
         if (context.HttpContext.IsLocalRequest() ||

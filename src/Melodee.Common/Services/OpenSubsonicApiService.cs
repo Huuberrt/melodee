@@ -16,6 +16,7 @@ using Melodee.Common.Models.OpenSubsonic.Enums;
 using Melodee.Common.Models.OpenSubsonic.Requests;
 using Melodee.Common.Models.OpenSubsonic.Responses;
 using Melodee.Common.Models.OpenSubsonic.Searching;
+using Melodee.Common.Models.Streaming;
 using Melodee.Common.Plugins.Conversion.Image;
 using Melodee.Common.Plugins.MetaData.Song;
 using Melodee.Common.Services.Caching;
@@ -1862,14 +1863,18 @@ public class OpenSubsonicApiService(
     }
 
     /// <summary>
-    ///     Get bytes for song with support for chunking from request header values.
+    /// Get streaming descriptor for song - memory-efficient approach
     /// </summary>
-    public async Task<StreamResponse> StreamAsync(StreamRequest request, ApiRequest apiRequest, CancellationToken cancellationToken)
+    public async Task<OperationResult<StreamingDescriptor>> GetStreamingDescriptorAsync(StreamRequest request, ApiRequest apiRequest, CancellationToken cancellationToken)
     {
         var authResponse = await AuthenticateSubsonicApiAsync(apiRequest, cancellationToken);
         if (!authResponse.IsSuccess)
         {
-            return new StreamResponse(new HeaderDictionary(), false, []);
+            return new OperationResult<StreamingDescriptor>("Authentication failed")
+            {
+                Type = OperationResponseType.Unauthorized,
+                Data = null!
+            };
         }
 
         if (request.IsDownloadingRequest)
@@ -1878,71 +1883,129 @@ public class OpenSubsonicApiService(
                 (await Configuration.Value).GetValue<bool?>(SettingRegistry.SystemIsDownloadingEnabled) ?? false;
             if (!isDownloadingEnabled)
             {
-                Logger.Warning("[{ServiceName}] Downloading is disabled [{SettingName}]. Request [{Request}",
+                Logger.Warning("[{ServiceName}] Downloading is disabled [{SettingName}]. Request [{Request}]",
                     nameof(OpenSubsonicApiService),
                     SettingRegistry.SystemIsDownloadingEnabled,
                     request);
-                return new StreamResponse(new HeaderDictionary(), false, []);
+                return new OperationResult<StreamingDescriptor>("Downloading is disabled")
+                {
+                    Type = OperationResponseType.AccessDenied,
+                    Data = null!
+                };
             }
         }
 
         if (request is { IsDownloadingRequest: false, TimeOffset: not null })
         {
-            Logger.Warning("[{ServiceName}] Stream request has TimeOffset. Request [{Request}",
+            Logger.Warning("[{ServiceName}] Stream request has TimeOffset. Request [{Request}]",
                 nameof(OpenSubsonicApiService), request);
-            throw new NotImplementedException();
+            return new OperationResult<StreamingDescriptor>("TimeOffset not supported for streaming")
+            {
+                Type = OperationResponseType.NotImplementedOrDisabled,
+                Data = null!
+            };
         }
 
         var apiKey = ApiKeyFromId(request.Id);
         if (apiKey == null)
         {
             Logger.Warning("[{ServiceName}] Invalid song ID [{Id}]", nameof(OpenSubsonicApiService), request.Id);
-            return new StreamResponse(new HeaderDictionary(), false, []);
+            return new OperationResult<StreamingDescriptor>("Invalid song ID")
+            {
+                Type = OperationResponseType.NotFound,
+                Data = null!
+            };
         }
 
-        // Parse range header
-        long rangeBegin = 0;
-        long rangeEnd = 0;
-        var range = apiRequest.RequestHeaders.FirstOrDefault(x => x.Key == "Range")?.Value ?? string.Empty;
-        if (!request.IsDownloadingRequest && range.Nullify() != null)
-        {
-            if (string.Equals(range, "bytes=0-", StringComparison.OrdinalIgnoreCase))
-            {
-                long.TryParse(range, out rangeBegin);
-            }
-            else
-            {
-                var rangeParts = range.Split('-');
-                long.TryParse(rangeParts[0], out rangeBegin);
-                if (rangeParts.Length > 1)
-                {
-                    long.TryParse(rangeParts[1], out rangeEnd);
-                }
-            }
-        }
+        // Use proper range header parsing
+        var rangeHeader = apiRequest.RequestHeaders.FirstOrDefault(x => x.Key.Equals("Range", StringComparison.OrdinalIgnoreCase))?.Value;
 
-        // Use SongService for streaming
-        var streamResult = await songService.GetStreamForSongAsync(
+        // Use new streaming descriptor approach
+        var descriptorResult = await songService.GetStreamingDescriptorAsync(
             authResponse.UserInfo,
             apiKey.Value,
-            rangeBegin,
-            rangeEnd,
-            request.Format,
-            request.MaxBitRate,
+            rangeHeader,
             request.IsDownloadingRequest,
             cancellationToken);
 
-        if (!streamResult.IsSuccess)
+        if (!descriptorResult.IsSuccess || descriptorResult.Data == null)
         {
-            Logger.Warning("[{ServiceName}] Failed to get stream for song [{ApiKey}]: {Message}",
-                nameof(OpenSubsonicApiService), apiKey.Value, streamResult.Messages?.FirstOrDefault());
-            return new StreamResponse(new HeaderDictionary(), false, []);
+            Logger.Warning("[{ServiceName}] Failed to get streaming descriptor for song [{ApiKey}]: {Message}",
+                nameof(OpenSubsonicApiService), apiKey.Value, descriptorResult.Messages?.FirstOrDefault());
+            return new OperationResult<StreamingDescriptor>("Failed to get song stream")
+            {
+                Type = OperationResponseType.Error,
+                Data = null!
+            };
         }
 
         // Send stream event for scrobbling
         await bus.SendLocal(new UserStreamEvent(apiRequest, request)).ConfigureAwait(false);
 
-        return streamResult.Data;
+        return descriptorResult;
+    }
+
+    /// <summary>
+    /// DEPRECATED: Get bytes for song with support for chunking from request header values.
+    /// Use GetStreamingDescriptorAsync for memory-efficient streaming.
+    /// </summary>
+    [Obsolete("Use GetStreamingDescriptorAsync instead for memory-efficient streaming")]
+    public async Task<StreamResponse> StreamAsync(StreamRequest request, ApiRequest apiRequest, CancellationToken cancellationToken)
+    {
+        // Use the new streaming descriptor approach for better implementation
+        var descriptorResult = await GetStreamingDescriptorAsync(request, apiRequest, cancellationToken);
+        
+        if (!descriptorResult.IsSuccess || descriptorResult.Data == null)
+        {
+            return new StreamResponse(new HeaderDictionary(), false, []);
+        }
+
+        var descriptor = descriptorResult.Data;
+
+        // For backward compatibility, we need to read the file into a byte array
+        // This defeats the memory efficiency but maintains API compatibility during transition
+        try
+        {
+            byte[] fileBytes;
+            if (descriptor.Range != null)
+            {
+                // Read only the requested range
+                await using var fileStream = new FileStream(descriptor.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                fileStream.Seek(descriptor.Range.Start, SeekOrigin.Begin);
+                
+                var bytesToRead = (int)descriptor.Range.GetContentLength(descriptor.FileSize);
+                fileBytes = new byte[bytesToRead];
+                var bytesRead = await fileStream.ReadAsync(fileBytes, 0, bytesToRead, cancellationToken);
+                
+                if (bytesRead != bytesToRead)
+                {
+                    Array.Resize(ref fileBytes, bytesRead);
+                }
+            }
+            else
+            {
+                // Read entire file - this is the problematic part we're trying to fix
+                fileBytes = await File.ReadAllBytesAsync(descriptor.FilePath, cancellationToken);
+            }
+
+            // Create headers using the improved helper
+            var statusCode = descriptor.Range != null ? 206 : 200;
+            var headers = RangeParser.CreateResponseHeaders(descriptor, statusCode);
+
+            return new StreamResponse(
+                headers,
+                true,
+                fileBytes,
+                descriptor.FileName,
+                descriptor.ContentType
+            );
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "[{ServiceName}] Error reading file [{FilePath}] for backward compatibility",
+                nameof(OpenSubsonicApiService), descriptor.FilePath);
+            return new StreamResponse(new HeaderDictionary(), false, []);
+        }
     }
 
     public async Task<ResponseModel> GetNowPlayingAsync(ApiRequest apiRequest, CancellationToken cancellationToken)

@@ -27,6 +27,7 @@
 
 @code {
     [Parameter] public required string ShareUniqueId { get; set; }
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
 
     private IAuralizerTrack[] _songInfos = [new AuralizerTrack(string.Empty, string.Empty, string.Empty)];
 
@@ -45,7 +46,7 @@
                     {
                         _songInfos =
                         [
-                            new AuralizerTrack(songResult.Data.ToApiStreamUrl(configuration),
+                            new AuralizerTrack(songResult.Data.ToApiStreamUrl(configuration, HttpContext),
                                 $"{songResult.Data.Album.Name} - {songResult.Data.Title}",
                                 $"/images/{songResult.Data.ToCoverArtId()}/{ ImageSize.Large }")
                         ];
@@ -57,7 +58,7 @@
                     if (albumResult is { IsSuccess: true, Data: not null })
                     {
                         _songInfos = albumResult.Data.Songs.Select(x =>
-                            new AuralizerTrack(x.ToApiStreamUrl(configuration),
+                            new AuralizerTrack(x.ToApiStreamUrl(configuration, HttpContext),
                                 $"{albumResult.Data.Name} - {x.Title}",
                                 $"/images/{albumResult.Data.ToCoverArtId()}/{ ImageSize.Large }")
                         ).ToArray();
@@ -69,7 +70,7 @@
                     if (playlistResult is { IsSuccess: true, Data: not null })
                     {
                         _songInfos = playlistResult.Data.Songs.Select(x =>
-                            new AuralizerTrack(x.Song.ToApiStreamUrl(configuration),
+                            new AuralizerTrack(x.Song.ToApiStreamUrl(configuration, HttpContext),
                                 $"{x.Song.Album.Name} - {x.Song.Title}",
                                 $"/images/{x.Song.ToCoverArtId()}/{ ImageSize.Large }")
                         ).ToArray();

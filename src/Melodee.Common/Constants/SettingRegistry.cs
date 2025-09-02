@@ -101,6 +101,10 @@ public static class SettingRegistry
     public const string SystemBaseUrl = "system.baseUrl";
     public const string SystemApiVersion = "system.apiVersion";
     public const string SystemIsDownloadingEnabled = "system.isDownloadingEnabled";
+    // Streaming settings
+    public const string StreamingUseBufferedResponses = "streaming.useBufferedResponses"; // bool: fallback to buffered responses
+    public const string StreamingMaxConcurrentStreamsGlobal = "streaming.maxConcurrentStreams.global"; // int: 0 or less = unlimited
+    public const string StreamingMaxConcurrentStreamsPerUser = "streaming.maxConcurrentStreams.perUser"; // int: 0 or less = unlimited
     public const string TranscodingCommandAac = "transcoding.command.aac";
     public const string TranscodingCommandMp3 = "transcoding.command.mp3";
     public const string TranscodingCommandOpus = "transcoding.command.opus";

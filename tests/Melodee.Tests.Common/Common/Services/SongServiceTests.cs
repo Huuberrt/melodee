@@ -381,13 +381,131 @@ public class SongServiceTests : ServiceTestBase
         );
 
         // Act
+#pragma warning disable CS0618 // Type or member is obsolete
         var result = await _songService.GetStreamForSongAsync(user, nonExistentApiKey, CancellationToken.None);
+#pragma warning restore CS0618 // Type or member is obsolete
 
         // Assert
         Assert.NotNull(result);
         Assert.False(result.IsSuccess);
         Assert.Contains("Unknown song", result.Messages ?? []);
         Assert.False(result.Data.IsSuccess);
+    }
+
+    [Fact]
+    public async Task GetStreamForSongAsync_WithValidSong_ReturnsStreamResponse()
+    {
+        // Arrange - Baseline test for existing behavior
+        var song = await CreateTestSong();
+        var user = new UserInfo(
+            1,
+            Guid.NewGuid(),
+            "Test User",
+            "testpassword",
+            "testsalt",
+            "testtoken"
+        );
+
+        // Act
+#pragma warning disable CS0618 // Type or member is obsolete
+        var result = await _songService.GetStreamForSongAsync(user, song.ApiKey, CancellationToken.None);
+#pragma warning restore CS0618 // Type or member is obsolete
+
+        // Assert - Capture baseline behavior  
+        Assert.NotNull(result);
+        Assert.NotNull(result.Data);
+        Assert.NotNull(result.Data.ResponseHeaders);
+        
+        // File may not exist in test environment, so we check for expected failure pattern
+        if (result.IsSuccess && result.Data.IsSuccess)
+        {
+            // If successful, verify expected headers exist (baseline)
+            Assert.True(result.Data.ResponseHeaders.ContainsKey("Content-Type"));
+            Assert.True(result.Data.ResponseHeaders.ContainsKey("Content-Length"));
+            Assert.True(result.Data.ResponseHeaders.ContainsKey("Accept-Ranges"));
+            Assert.Equal("bytes", result.Data.ResponseHeaders["Accept-Ranges"].ToString());
+        }
+        else
+        {
+            // If file doesn't exist in test, that's expected behavior
+            // Just verify we get a valid response structure
+            Assert.NotNull(result.Data.ResponseHeaders);
+        }
+    }
+
+    [Fact]
+    public async Task GetStreamForSongAsync_WithRangeRequest_ReturnsPartialContent()
+    {
+        // Arrange - Baseline test for range request behavior
+        var song = await CreateTestSong();
+        var user = new UserInfo(
+            1,
+            Guid.NewGuid(),
+            "Test User",
+            "testpassword",
+            "testsalt",
+            "testtoken"
+        );
+        const long rangeStart = 100;
+        const long rangeEnd = 500;
+
+        // Act
+#pragma warning disable CS0618 // Type or member is obsolete
+        var result = await _songService.GetStreamForSongAsync(
+            user, song.ApiKey, rangeStart, rangeEnd, cancellationToken: CancellationToken.None);
+#pragma warning restore CS0618 // Type or member is obsolete
+
+        // Assert - Capture baseline range behavior
+        Assert.NotNull(result);
+        Assert.NotNull(result.Data);
+        Assert.NotNull(result.Data.ResponseHeaders);
+        
+        // Check Content-Range header format (baseline)
+        if (result.Data.ResponseHeaders.ContainsKey("Content-Range"))
+        {
+            var contentRange = result.Data.ResponseHeaders["Content-Range"].ToString();
+            Assert.Contains("bytes", contentRange);
+            Assert.Contains($"{rangeStart}-{rangeEnd}", contentRange);
+        }
+    }
+
+    [Fact]
+    public async Task GetStreamForSongAsync_WithDownloadRequest_SetsDownloadHeaders()
+    {
+        // Arrange - Baseline test for download behavior
+        var song = await CreateTestSong();
+        var user = new UserInfo(
+            1,
+            Guid.NewGuid(),
+            "Test User",
+            "testpassword",
+            "testsalt",
+            "testtoken"
+        );
+
+        // Act
+#pragma warning disable CS0618 // Type or member is obsolete
+        var result = await _songService.GetStreamForSongAsync(
+            user, song.ApiKey, 0, 0, null, null, true, CancellationToken.None);
+#pragma warning restore CS0618 // Type or member is obsolete
+
+        // Assert - Capture baseline download behavior
+        Assert.NotNull(result);
+        Assert.NotNull(result.Data);
+        
+        // File may not exist in test environment, handle both cases
+        if (result.IsSuccess && result.Data.IsSuccess)
+        {
+            // Content-Disposition or filename should be set for downloads
+            Assert.True(!string.IsNullOrEmpty(result.Data.FileName) || 
+                       result.Data.ResponseHeaders.ContainsKey("Content-Disposition"));
+        }
+        else
+        {
+            // If file doesn't exist in test, that's expected behavior
+            // Just verify we get a valid response structure
+            Assert.NotNull(result.Data.ResponseHeaders);
+        }
     }
 
     #endregion

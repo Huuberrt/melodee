@@ -4,10 +4,12 @@ using Melodee.Blazor.Controllers.Melodee.Models;
 using Melodee.Blazor.Filters;
 using Melodee.Blazor.Services;
 using Melodee.Common.Configuration;
+using Melodee.Common.Constants;
 using Melodee.Common.Data.Models.Extensions;
 using Melodee.Common.Extensions;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Collection;
+using Melodee.Common.Models.Streaming;
 using Melodee.Common.Security;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services;
@@ -24,6 +26,7 @@ public class SongsController(
     EtagRepository etagRepository,
     UserService userService,
     SongService songService,
+    StreamingLimiter streamingLimiter,
     IConfiguration configuration,
     IBlacklistService blacklistService,
     IMelodeeConfigurationFactory configurationFactory) : ControllerBase(
@@ -221,22 +224,121 @@ public class SongsController(
             return Unauthorized(new { error = "Invalid Auth Token" });
         }
 
-        var streamResult = await songService.GetStreamForSongAsync(userResult.Data.ToUserInfo(), apiKey, cancellationToken).ConfigureAwait(false);
-        if (!streamResult.IsSuccess)
+        // Optional: enforce streaming concurrency limits
+        var userKey = $"web:{userResult.Data.Id}";
+        if (!await streamingLimiter.TryEnterAsync(userKey, cancellationToken).ConfigureAwait(false))
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests, new { error = "Too many concurrent streams" });
+        }
+
+        // Ensure exit on request completion
+        HttpContext.Response.OnCompleted(() => { streamingLimiter.Exit(userKey); return Task.CompletedTask; });
+
+        // Parse range header if present
+        var rangeHeader = Request.Headers["Range"].ToString();
+        
+        var melodeeConfig = await ConfigurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false);
+        var useBuffered = melodeeConfig.GetValue<bool?>(SettingRegistry.StreamingUseBufferedResponses) ?? false;
+
+        if (useBuffered)
+        {
+            // Buffered fallback using descriptor
+            var bufferedDescriptorResult = await songService.GetStreamingDescriptorAsync(
+                userResult.Data.ToUserInfo(),
+                apiKey,
+                rangeHeader,
+                false,
+                cancellationToken).ConfigureAwait(false);
+
+            if (!bufferedDescriptorResult.IsSuccess || bufferedDescriptorResult.Data == null)
+            {
+                return BadRequest(new { error = "Unable to load song" });
+            }
+            var bufferedDescriptor = bufferedDescriptorResult.Data;
+
+            foreach (var header in RangeParser.CreateResponseHeaders(bufferedDescriptor, bufferedDescriptor.Range != null ? 206 : 200))
+            {
+                Response.Headers[header.Key] = header.Value;
+            }
+            Response.StatusCode = bufferedDescriptor.Range != null ? 206 : 200;
+
+            byte[] bytes;
+            if (bufferedDescriptor.Range != null)
+            {
+                await using var fs = new FileStream(bufferedDescriptor.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                fs.Seek(bufferedDescriptor.Range.Start, SeekOrigin.Begin);
+                var len = (int)bufferedDescriptor.Range.GetContentLength(bufferedDescriptor.FileSize);
+                bytes = new byte[len];
+                var read = await fs.ReadAsync(bytes, 0, len, cancellationToken);
+                if (read != len) Array.Resize(ref bytes, read);
+            }
+            else
+            {
+                bytes = await System.IO.File.ReadAllBytesAsync(bufferedDescriptor.FilePath, cancellationToken);
+            }
+
+            return new FileContentResult(bytes, bufferedDescriptor.ContentType ?? "application/octet-stream")
+            {
+                FileDownloadName = bufferedDescriptor.FileName
+            };
+        }
+
+        var descriptorResult = await songService.GetStreamingDescriptorAsync(
+            userResult.Data.ToUserInfo(), 
+            apiKey, 
+            rangeHeader,
+            false, // not a download
+            cancellationToken).ConfigureAwait(false);
+            
+        if (!descriptorResult.IsSuccess || descriptorResult.Data == null)
         {
             return BadRequest(new { error = "Unable to load song" });
         }
 
-        Response.Headers.Clear();
+        var descriptor = descriptorResult.Data;
+        
+        // Determine status code
+        var statusCode = descriptor.Range != null ? 206 : 200; // 206 for partial content, 200 for full
 
-        foreach (var responseHeader in streamResult.Data.ResponseHeaders)
+        // Create response headers using the helper
+        var responseHeaders = RangeParser.CreateResponseHeaders(descriptor, statusCode);
+        
+        // Set response headers (don't clear existing headers, just set/append required ones)
+        foreach (var header in responseHeaders)
         {
-            Response.Headers[responseHeader.Key] = responseHeader.Value;
+            Response.Headers[header.Key] = header.Value;
         }
 
-        await Response.Body
-            .WriteAsync(streamResult.Data.Bytes.AsMemory(0, streamResult.Data.Bytes.Length), cancellationToken)
-            .ConfigureAwait(false);
-        return Empty;
+        // Set status code
+        Response.StatusCode = statusCode;
+
+        // Return FileStreamResult for efficient streaming
+        if (descriptor.Range != null)
+        {
+            // For range requests, use FileStreamResult with range support
+            var fileStream = new FileStream(descriptor.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read,
+                bufferSize: 65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            
+            // Seek to start position
+            fileStream.Seek(descriptor.Range.Start, SeekOrigin.Begin);
+            
+            // Create a bounded stream for the range
+            var rangeStream = new BoundedStream(fileStream, descriptor.Range.GetContentLength(descriptor.FileSize));
+            
+            return new FileStreamResult(rangeStream, descriptor.ContentType)
+            {
+                EnableRangeProcessing = true,
+                FileDownloadName = descriptor.IsDownload ? descriptor.FileName : null
+            };
+        }
+        else
+        {
+            // For full file requests, use FileStreamResult with range processing enabled
+            return new PhysicalFileResult(descriptor.FilePath, descriptor.ContentType)
+            {
+                EnableRangeProcessing = true,
+                FileDownloadName = descriptor.IsDownload ? descriptor.FileName : null
+            };
+        }
     }
 }

@@ -2,11 +2,16 @@
 @inherits MelodeeComponentBase
 @using Melodee.Common.Models.Collection.Extensions
 @using SongDataInfo = Melodee.Common.Models.Collection.SongDataInfo
+@using Melodee.Common.Constants
+@using Melodee.Common.Configuration
 @inject ScrobbleService ScrobbleService
 @inject IJSRuntime JsRuntime
+@inject IBaseUrlService BaseUrlService
 @implements IAsyncDisposable
 
 <div class="music-player-container">
+    @if (Songs != null && Songs.Count > 0)
+    {
     <div class="music-player">
         <div class="song-info">
             <div class="album-art @(IsPlaying ? "playing" : "")">
@@ -68,6 +73,13 @@
             }
         </div>
     </div>
+    }
+    else
+    {
+        <div class="music-player">
+            <p>No songs to play.</p>
+        </div>
+    }
 </div>
 
 @code {
@@ -107,12 +119,15 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (firstRender && Songs != null && Songs.Count > 0)
         {
             _module = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/musicPlayer.js");
-            await _module.InvokeVoidAsync("initializeAudio", _objRef);
-            await LoadSong();
-            await PlaySong();
+            if (_module != null)
+            {
+                await _module.InvokeVoidAsync("initializeAudio", _objRef);
+                await LoadSong();
+                await PlaySong();
+            }
         }
     }
 
@@ -140,7 +155,7 @@
     {
         if (_module != null)
         {
-            await _module.InvokeVoidAsync("loadSong", CurrentSong.ToApiStreamUrl(Configuration));
+            await _module.InvokeVoidAsync("loadSong", GetStreamUrl());
             Duration = CurrentSong.DurationInSeconds();
             CurrentTime = 0;
             _nowPlayingRecordedForCurrentSong = false;
@@ -287,6 +302,18 @@
         return $"{minutes}:{remainingSeconds:00}";
     }
 
+    private string GetStreamUrl()
+    {
+        var baseUrl = BaseUrlService.GetBaseUrl();
+        if (baseUrl == null)
+        {
+            throw new Exception("Base URL is not available for generating streaming URLs. Please configure the system.baseUrl setting.");
+        }
+        
+        return $"{baseUrl}/rest/stream?id={CurrentSong.ToApiKey()}";
+    }
+
+
     public class DomRect
     {
         public double X { get; set; }
@@ -311,7 +338,6 @@
     }
 
 }
-
 
 
 

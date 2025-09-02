@@ -52,6 +52,28 @@ public static class SongExtensions
         return $"{baseUrl}/rest/stream?id={song.ToApiKey()}";
     }
 
+    public static string ToApiStreamUrl(this Song song, IMelodeeConfiguration configuration, Microsoft.AspNetCore.Http.HttpContext? httpContext)
+    {
+        var configuredBaseUrl = configuration.GetValue<string>(SettingRegistry.SystemBaseUrl);
+        
+        string baseUrl;
+        if (configuredBaseUrl.Nullify() == null || configuredBaseUrl == MelodeeConfiguration.RequiredNotSetValue)
+        {
+            if (httpContext == null)
+            {
+                throw new Exception($"Configuration setting [{SettingRegistry.SystemBaseUrl}] is invalid and no HttpContext provided for fallback.");
+            }
+            
+            baseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host.Value}";
+        }
+        else
+        {
+            baseUrl = configuredBaseUrl!;
+        }
+
+        return $"{baseUrl.TrimEnd('/')}/rest/stream?id={song.ToApiKey()}";
+    }
+
     public static Child ToApiChild(this Song song, Album album, UserSong? userSong,
         NowPlayingInfo? nowPlayingInfo = null)
     {
