@@ -1,3 +1,4 @@
+---
 title: Installing
 permalink: /installing/
 ---
