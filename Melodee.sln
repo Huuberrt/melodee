@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Melodee.Blazor", "src\Melod
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Melodee.Tests.Blazor", "tests\Melodee.Tests.Blazor\Melodee.Tests.Blazor.csproj", "{2BE52C95-0A0D-4967-A7A5-0491A9FE6C2D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Melodee.Benchmarks", "benchmarks\Melodee.Benchmarks\Melodee.Benchmarks.csproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -43,5 +45,9 @@ Global
 		{2BE52C95-0A0D-4967-A7A5-0491A9FE6C2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2BE52C95-0A0D-4967-A7A5-0491A9FE6C2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2BE52C95-0A0D-4967-A7A5-0491A9FE6C2D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

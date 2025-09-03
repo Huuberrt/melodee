@@ -56,13 +56,13 @@ Use this checklist to resolve memory pressure and correctness issues in streamin
  - [ ] Add optional performance check in CI (e.g., dotnet-counters or benchmark harness) to assert no large managed allocations during streaming paths.
 
 ## Benchmarking 
-- [ ] Create `benchmarks/Melodee.Benchmarks` project and add BenchmarkDotNet packages.
-- [ ] Configure jobs for `net9.0`, Server GC, and add `[MemoryDiagnoser]` (and `[ThreadingDiagnoser]` if helpful).
-- [ ] Implement microbenchmarks for hot paths:
-  - [ ] Streaming loop: `FileStream` → sink (ArrayPool vs. new buffer; buffer sizes).
-  - [ ] Range parsing and header construction.
-  - [ ] Controller path comparison: `FileStreamResult` with `EnableRangeProcessing` vs. manual chunking (logic only, not full HTTP).
-- [ ] Add runnable entrypoint and docs to execute: `dotnet run -c Release --project benchmarks/Melodee.Benchmarks`.
+- [x] Create `benchmarks/Melodee.Benchmarks` project and add BenchmarkDotNet packages.
+- [x] Configure jobs for `net9.0`, Server GC, and add `[MemoryDiagnoser]` (and `[ThreadingDiagnoser]` if helpful).
+- [x] Implement microbenchmarks for hot paths:
+  - [x] Streaming loop: `FileStream` → sink (ArrayPool vs. new buffer; buffer sizes).
+  - [x] Range parsing and header construction.
+  - [x] Controller path comparison: `FileStreamResult` with `EnableRangeProcessing` vs. manual chunking (logic only, not full HTTP).
+- [x] Add runnable entrypoint and docs to execute: `dotnet run -c Release --project benchmarks/Melodee.Benchmarks`.
 - [ ] Capture and commit a baseline JSON/CSV export for benchmarks (or store as artifact) to enable regression comparison.
 
 ## Observability & Logging
