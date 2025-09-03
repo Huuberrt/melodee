@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Melodee.Benchmarks.CacheBenchmarks-20250903-174143</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.2, Linux Manjaro Linux
+AMD Ryzen 9 3900X 4.67GHz, 1 CPU, 24 logical and 12 physical cores
+.NET SDK 9.0.109
+  [Host]   : .NET 9.0.8 (9.0.825.36511), X64 RyuJIT AVX2
+  .NET 9.0 : .NET 9.0.8 (9.0.825.36511), X64 RyuJIT AVX2
+</code></pre>
+<pre><code>Job=.NET 9.0  Runtime=.NET 9.0  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                   </th><th>CacheSize</th><th>accessPatternRepeat</th><th>Mean    </th><th>Error  </th><th>StdDev  </th><th>Ratio</th><th>RatioSD</th><th>Completed Work Items</th><th>Lock Contentions</th><th>Gen0</th><th>Gen1</th><th>Gen2</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>CacheHitRatio_Measurement</td><td>100</td><td>1</td><td>22.920 &mu;s</td><td>0.3890 &mu;s</td><td>0.4480 &mu;s</td><td>?</td><td>?</td><td>1.0000</td><td>0.0000</td><td>3.1433</td><td>0.1831</td><td>-</td><td>25.8 KB</td><td>?</td>
+</tr><tr><td>CacheHitRatio_Measurement</td><td>100</td><td>10</td><td>85.284 &mu;s</td><td>1.6786 &mu;s</td><td>1.6486 &mu;s</td><td>?</td><td>?</td><td>10.0000</td><td>0.0002</td><td>7.3242</td><td>0.4883</td><td>-</td><td>60.31 KB</td><td>?</td>
+</tr><tr><td>CacheHitRatio_Measurement</td><td>100</td><td>100</td><td>604.062 &mu;s</td><td>8.3925 &mu;s</td><td>7.4397 &mu;s</td><td>?</td><td>?</td><td>100.0000</td><td>-</td><td>48.8281</td><td>2.9297</td><td>-</td><td>404.84 KB</td><td>?</td>
+</tr><tr><td>MemoryCacheManager_GetOrAdd</td><td>100</td><td>?</td><td>21.530 &mu;s</td><td>0.4158 &mu;s</td><td>0.4270 &mu;s</td><td>1.00</td><td>0.03</td><td>-</td><td>-</td><td>3.6011</td><td>0.0916</td><td>-</td><td>29.5 KB</td><td>1.00</td>
+</tr><tr><td>ConcurrentDictionary_GetOrAdd</td><td>100</td><td>?</td><td>44.042 &mu;s</td><td>0.6201 &mu;s</td><td>0.5497 &mu;s</td><td>2.05</td><td>0.05</td><td>100.0000</td><td>0.0001</td><td>2.9297</td><td>0.0610</td><td>-</td><td>23.99 KB</td><td>0.81</td>
+</tr><tr><td>MemoryCache_GetOrAdd</td><td>100</td><td>?</td><td>9.018 &mu;s</td><td>0.0915 &mu;s</td><td>0.0764 &mu;s</td><td>0.42</td><td>0.01</td><td>-</td><td>-</td><td>1.2360</td><td>-</td><td>-</td><td>10.1 KB</td><td>0.34</td>
+</tr><tr><td>CacheEviction_LRU_Simulation</td><td>100</td><td>?</td><td>3,329.367 &mu;s</td><td>2.3784 &mu;s</td><td>2.2247 &mu;s</td><td>154.69</td><td>2.96</td><td>1.0000</td><td>-</td><td>-</td><td>-</td><td>-</td><td>20.76 KB</td><td>0.70</td>
+</tr><tr><td>UnboundedCache_GrowthSimulation</td><td>100</td><td>?</td><td>76.111 &mu;s</td><td>1.4218 &mu;s</td><td>1.4601 &mu;s</td><td>3.54</td><td>0.09</td><td>-</td><td>-</td><td>16.6016</td><td>5.6152</td><td>-</td><td>136.22 KB</td><td>4.62</td>
+</tr><tr><td>BoundedCache_WithEviction</td><td>100</td><td>?</td><td>12.182 &mu;s</td><td>0.1765 &mu;s</td><td>0.1651 &mu;s</td><td>0.57</td><td>0.01</td><td>-</td><td>-</td><td>14.4653</td><td>4.5319</td><td>-</td><td>118.27 KB</td><td>4.01</td>
+</tr><tr><td>ConcurrentCacheAccess</td><td>100</td><td>?</td><td>3,328.385 &mu;s</td><td>2.2461 &mu;s</td><td>1.9911 &mu;s</td><td>154.65</td><td>2.96</td><td>200.0000</td><td>5.1602</td><td>11.7188</td><td>-</td><td>-</td><td>97.54 KB</td><td>3.31</td>
+</tr><tr><td>ETagRepository_Simulation</td><td>100</td><td>?</td><td>149.952 &mu;s</td><td>0.7996 &mu;s</td><td>0.7479 &mu;s</td><td>6.97</td><td>0.14</td><td>-</td><td>-</td><td>3.4180</td><td>0.2441</td><td>-</td><td>29.57 KB</td><td>1.00</td>
+</tr><tr><td>CacheHitRatio_Measurement</td><td>1000</td><td>1</td><td>81.676 &mu;s</td><td>1.3800 &mu;s</td><td>1.8423 &mu;s</td><td>?</td><td>?</td><td>1.0000</td><td>-</td><td>7.9346</td><td>0.6104</td><td>-</td><td>65.23 KB</td><td>?</td>
+</tr><tr><td>CacheHitRatio_Measurement</td><td>1000</td><td>10</td><td>628.375 &mu;s</td><td>8.2982 &mu;s</td><td>7.7621 &mu;s</td><td>?</td><td>?</td><td>10.0000</td><td>-</td><td>49.8047</td><td>3.9063</td><td>-</td><td>411.88 KB</td><td>?</td>
+</tr><tr><td>CacheHitRatio_Measurement</td><td>1000</td><td>100</td><td>6,053.880 &mu;s</td><td>116.9760 &mu;s</td><td>120.1257 &mu;s</td><td>?</td><td>?</td><td>100.0000</td><td>-</td><td>468.7500</td><td>39.0625</td><td>-</td><td>3878.28 KB</td><td>?</td>
+</tr><tr><td>MemoryCacheManager_GetOrAdd</td><td>1000</td><td>?</td><td>214.485 &mu;s</td><td>1.8725 &mu;s</td><td>1.6599 &mu;s</td><td>1.00</td><td>0.01</td><td>-</td><td>-</td><td>35.4004</td><td>7.0801</td><td>-</td><td>289.66 KB</td><td>1.00</td>
+</tr><tr><td>ConcurrentDictionary_GetOrAdd</td><td>1000</td><td>?</td><td>484.326 &mu;s</td><td>9.5944 &mu;s</td><td>17.0540 &mu;s</td><td>2.26</td><td>0.08</td><td>1000.0000</td><td>-</td><td>27.3438</td><td>5.8594</td><td>-</td><td>230.52 KB</td><td>0.80</td>
+</tr><tr><td>MemoryCache_GetOrAdd</td><td>1000</td><td>?</td><td>97.583 &mu;s</td><td>0.9164 &mu;s</td><td>0.8572 &mu;s</td><td>0.45</td><td>0.01</td><td>-</td><td>-</td><td>12.3291</td><td>-</td><td>-</td><td>101.51 KB</td><td>0.35</td>
+</tr><tr><td>CacheEviction_LRU_Simulation</td><td>1000</td><td>?</td><td>33,266.850 &mu;s</td><td>41.8192 &mu;s</td><td>39.1177 &mu;s</td><td>155.11</td><td>1.17</td><td>10.0000</td><td>-</td><td>-</td><td>-</td><td>-</td><td>208.05 KB</td><td>0.72</td>
+</tr><tr><td>UnboundedCache_GrowthSimulation</td><td>1000</td><td>?</td><td>779.507 &mu;s</td><td>12.7612 &mu;s</td><td>11.3125 &mu;s</td><td>3.63</td><td>0.06</td><td>-</td><td>-</td><td>166.0156</td><td>139.6484</td><td>-</td><td>1358.1 KB</td><td>4.69</td>
+</tr><tr><td>BoundedCache_WithEviction</td><td>1000</td><td>?</td><td>135.183 &mu;s</td><td>2.6517 &mu;s</td><td>2.4804 &mu;s</td><td>0.63</td><td>0.01</td><td>-</td><td>-</td><td>144.0430</td><td>124.7559</td><td>-</td><td>1178.46 KB</td><td>4.07</td>
+</tr><tr><td>ConcurrentCacheAccess</td><td>1000</td><td>?</td><td>33,243.282 &mu;s</td><td>51.6139 &mu;s</td><td>48.2797 &mu;s</td><td>155.00</td><td>1.17</td><td>1100.0000</td><td>24.3125</td><td>62.5000</td><td>-</td><td>-</td><td>638.67 KB</td><td>2.20</td>
+</tr><tr><td>ETagRepository_Simulation</td><td>1000</td><td>?</td><td>6,632.477 &mu;s</td><td>28.1557 &mu;s</td><td>24.9593 &mu;s</td><td>30.92</td><td>0.26</td><td>-</td><td>-</td><td>46.8750</td><td>7.8125</td><td>-</td><td>432.64 KB</td><td>1.49</td>
+</tr><tr><td>CacheHitRatio_Measurement</td><td>10000</td><td>1</td><td>616.644 &mu;s</td><td>5.3556 &mu;s</td><td>4.4721 &mu;s</td><td>?</td><td>?</td><td>10.0000</td><td>-</td><td>49.8047</td><td>3.9063</td><td>-</td><td>412.11 KB</td><td>?</td>
+</tr><tr><td>CacheHitRatio_Measurement</td><td>10000</td><td>10</td><td>5,924.071 &mu;s</td><td>42.5657 &mu;s</td><td>35.5443 &mu;s</td><td>?</td><td>?</td><td>100.0000</td><td>-</td><td>468.7500</td><td>39.0625</td><td>-</td><td>3880.63 KB</td><td>?</td>
+</tr><tr><td>CacheHitRatio_Measurement</td><td>10000</td><td>100</td><td>57,033.303 &mu;s</td><td>567.5017 &mu;s</td><td>503.0755 &mu;s</td><td>?</td><td>?</td><td>1000.0000</td><td>-</td><td>4666.6667</td><td>-</td><td>-</td><td>38565.78 KB</td><td>?</td>
+</tr><tr><td>MemoryCacheManager_GetOrAdd</td><td>10000</td><td>?</td><td>4,314.133 &mu;s</td><td>85.1382 &mu;s</td><td>75.4728 &mu;s</td><td>1.00</td><td>0.02</td><td>-</td><td>-</td><td>390.6250</td><td>179.6875</td><td>46.8750</td><td>2990.73 KB</td><td>1.00</td>
+</tr><tr><td>ConcurrentDictionary_GetOrAdd</td><td>10000</td><td>?</td><td>5,916.178 &mu;s</td><td>117.3321 &mu;s</td><td>302.8715 &mu;s</td><td>1.37</td><td>0.07</td><td>10000.0000</td><td>-</td><td>296.8750</td><td>171.8750</td><td>46.8750</td><td>2395.01 KB</td><td>0.80</td>
+</tr><tr><td>MemoryCache_GetOrAdd</td><td>10000</td><td>?</td><td>1,019.104 &mu;s</td><td>13.1361 &mu;s</td><td>12.2875 &mu;s</td><td>0.24</td><td>0.00</td><td>-</td><td>-</td><td>123.0469</td><td>-</td><td>-</td><td>1015.57 KB</td><td>0.34</td>
+</tr><tr><td>CacheEviction_LRU_Simulation</td><td>10000</td><td>?</td><td>361,070.614 &mu;s</td><td>7,214.8631 &mu;s</td><td>16,431.8954 &mu;s</td><td>83.72</td><td>4.03</td><td>100.0000</td><td>-</td><td>-</td><td>-</td><td>-</td><td>2472.81 KB</td><td>0.83</td>
+</tr><tr><td>UnboundedCache_GrowthSimulation</td><td>10000</td><td>?</td><td>14,685.850 &mu;s</td><td>287.1986 &mu;s</td><td>282.0675 &mu;s</td><td>3.41</td><td>0.09</td><td>-</td><td>-</td><td>2093.7500</td><td>2078.1250</td><td>765.6250</td><td>13185.48 KB</td><td>4.41</td>
+</tr><tr><td>BoundedCache_WithEviction</td><td>10000</td><td>?</td><td>2,043.520 &mu;s</td><td>38.1029 &mu;s</td><td>37.4222 &mu;s</td><td>0.47</td><td>0.01</td><td>-</td><td>-</td><td>1312.5000</td><td>796.8750</td><td>167.9688</td><td>10740.76 KB</td><td>3.59</td>
+</tr><tr><td>ConcurrentCacheAccess</td><td>10000</td><td>?</td><td>364,877.449 &mu;s</td><td>7,189.7319 &mu;s</td><td>11,193.5474 &mu;s</td><td>84.60</td><td>2.92</td><td>10100.0000</td><td>170.0000</td><td>500.0000</td><td>-</td><td>-</td><td>5284.41 KB</td><td>1.77</td>
+</tr><tr><td>ETagRepository_Simulation</td><td>10000</td><td>?</td><td>150,177.089 &mu;s</td><td>1,260.2651 &mu;s</td><td>1,117.1922 &mu;s</td><td>34.82</td><td>0.63</td><td>-</td><td>-</td><td>250.0000</td><td>-</td><td>-</td><td>3508.38 KB</td><td>1.17</td>
+</tr></tbody></table>
+</body>
+</html>

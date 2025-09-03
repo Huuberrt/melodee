@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Melodee.Benchmarks.DatabaseQueryBenchmarks-20250903-173452</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.2, Linux Manjaro Linux
+AMD Ryzen 9 3900X 4.67GHz, 1 CPU, 24 logical and 12 physical cores
+.NET SDK 9.0.109
+  [Host]   : .NET 9.0.8 (9.0.825.36511), X64 RyuJIT AVX2
+  .NET 9.0 : .NET 9.0.8 (9.0.825.36511), X64 RyuJIT AVX2
+</code></pre>
+<pre><code>Job=.NET 9.0  Runtime=.NET 9.0  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                            </th><th>page</th><th>pageSize</th><th>takeCount</th><th>songCount</th><th>Mean  </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Completed Work Items</th><th>Lock Contentions</th><th>Gen0</th><th>Gen1</th><th>Gen2</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>UnboundedQuery_ToArrayAsync_AllPlaylists</td><td>?</td><td>?</td><td>?</td><td>?</td><td>116.08 &mu;s</td><td>1.705 &mu;s</td><td>1.424 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>11.1084</td><td>0.7324</td><td>-</td><td>90.86 KB</td><td>?</td>
+</tr><tr><td>BatchQuery_vs_MultipleQueries</td><td>?</td><td>?</td><td>?</td><td>?</td><td>240.32 &mu;s</td><td>2.727 &mu;s</td><td>2.551 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>16.1133</td><td>0.9766</td><td>-</td><td>133.33 KB</td><td>?</td>
+</tr><tr><td>BatchQuery_SingleQuery</td><td>?</td><td>?</td><td>?</td><td>?</td><td>98.98 &mu;s</td><td>1.159 &mu;s</td><td>1.027 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>8.5449</td><td>0.4883</td><td>-</td><td>69.82 KB</td><td>?</td>
+</tr><tr><td>PaginatedQuery_vs_FullDataset</td><td>1</td><td>10</td><td>?</td><td>?</td><td>560.83 &mu;s</td><td>9.364 &mu;s</td><td>8.759 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>81.0547</td><td>27.3438</td><td>-</td><td>665.11 KB</td><td>?</td>
+</tr><tr><td>PaginatedQuery_vs_FullDataset</td><td>1</td><td>25</td><td>?</td><td>?</td><td>760.21 &mu;s</td><td>5.778 &mu;s</td><td>5.122 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>102.5391</td><td>40.0391</td><td>-</td><td>839.62 KB</td><td>?</td>
+</tr><tr><td>PaginatedQuery_vs_FullDataset</td><td>1</td><td>50</td><td>?</td><td>?</td><td>1,126.53 &mu;s</td><td>19.687 &mu;s</td><td>18.415 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>136.7188</td><td>58.5938</td><td>-</td><td>1131.05 KB</td><td>?</td>
+</tr><tr><td>PlaylistQuery_BasicPagination</td><td>?</td><td>10</td><td>?</td><td>?</td><td>80.32 &mu;s</td><td>0.756 &mu;s</td><td>0.707 &mu;s</td><td>1.00</td><td>0.01</td><td>-</td><td>-</td><td>6.4697</td><td>0.2441</td><td>-</td><td>53.8 KB</td><td>1.00</td>
+</tr><tr><td>PlaylistQuery_WithIncludes</td><td>?</td><td>10</td><td>?</td><td>?</td><td>131.13 &mu;s</td><td>1.443 &mu;s</td><td>1.205 &mu;s</td><td>1.63</td><td>0.02</td><td>-</td><td>-</td><td>11.4746</td><td>0.7324</td><td>-</td><td>95.03 KB</td><td>1.77</td>
+</tr><tr><td>PlaylistQuery_OptimizedProjection</td><td>?</td><td>10</td><td>?</td><td>?</td><td>87.69 &mu;s</td><td>1.547 &mu;s</td><td>1.372 &mu;s</td><td>1.09</td><td>0.02</td><td>-</td><td>-</td><td>6.9580</td><td>0.2441</td><td>-</td><td>57.14 KB</td><td>1.06</td>
+</tr><tr><td>PlaylistQuery_BasicPagination</td><td>?</td><td>25</td><td>?</td><td>?</td><td>80.04 &mu;s</td><td>0.998 &mu;s</td><td>0.833 &mu;s</td><td>1.00</td><td>0.01</td><td>-</td><td>-</td><td>6.4697</td><td>0.2441</td><td>-</td><td>53.8 KB</td><td>1.00</td>
+</tr><tr><td>PlaylistQuery_WithIncludes</td><td>?</td><td>25</td><td>?</td><td>?</td><td>131.72 &mu;s</td><td>1.448 &mu;s</td><td>1.355 &mu;s</td><td>1.65</td><td>0.02</td><td>-</td><td>-</td><td>11.4746</td><td>0.7324</td><td>-</td><td>94.88 KB</td><td>1.76</td>
+</tr><tr><td>PlaylistQuery_OptimizedProjection</td><td>?</td><td>25</td><td>?</td><td>?</td><td>88.00 &mu;s</td><td>0.734 &mu;s</td><td>0.613 &mu;s</td><td>1.10</td><td>0.01</td><td>-</td><td>-</td><td>6.9580</td><td>0.2441</td><td>-</td><td>57.43 KB</td><td>1.07</td>
+</tr><tr><td>PlaylistQuery_BasicPagination</td><td>?</td><td>50</td><td>?</td><td>?</td><td>80.59 &mu;s</td><td>0.771 &mu;s</td><td>0.721 &mu;s</td><td>1.00</td><td>0.01</td><td>-</td><td>-</td><td>6.4697</td><td>0.2441</td><td>-</td><td>53.8 KB</td><td>1.00</td>
+</tr><tr><td>PlaylistQuery_WithIncludes</td><td>?</td><td>50</td><td>?</td><td>?</td><td>134.61 &mu;s</td><td>2.603 &mu;s</td><td>2.894 &mu;s</td><td>1.67</td><td>0.04</td><td>-</td><td>-</td><td>11.4746</td><td>0.7324</td><td>-</td><td>94.88 KB</td><td>1.76</td>
+</tr><tr><td>PlaylistQuery_OptimizedProjection</td><td>?</td><td>50</td><td>?</td><td>?</td><td>86.74 &mu;s</td><td>0.871 &mu;s</td><td>0.727 &mu;s</td><td>1.08</td><td>0.01</td><td>-</td><td>-</td><td>6.9580</td><td>0.2441</td><td>-</td><td>57.14 KB</td><td>1.06</td>
+</tr><tr><td>SongQuery_WithMultipleIncludes</td><td>?</td><td>?</td><td>50</td><td>?</td><td>1,102.93 &mu;s</td><td>14.815 &mu;s</td><td>13.133 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>136.7188</td><td>62.5000</td><td>-</td><td>1129.66 KB</td><td>?</td>
+</tr><tr><td>SongQuery_OptimizedWithSplitQuery</td><td>?</td><td>?</td><td>50</td><td>?</td><td>1,093.19 &mu;s</td><td>16.851 &mu;s</td><td>13.156 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>136.7188</td><td>60.5469</td><td>-</td><td>1130.77 KB</td><td>?</td>
+</tr><tr><td>ComplexQuery_MultipleToListAsync</td><td>?</td><td>?</td><td>?</td><td>100</td><td>11,862.48 &mu;s</td><td>166.410 &mu;s</td><td>138.960 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>1218.7500</td><td>859.3750</td><td>15.6250</td><td>9880.02 KB</td><td>?</td>
+</tr><tr><td>ComplexQuery_OptimizedSinglePass</td><td>?</td><td>?</td><td>?</td><td>100</td><td>7,015.29 &mu;s</td><td>101.130 &mu;s</td><td>89.649 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>804.6875</td><td>695.3125</td><td>-</td><td>6589.87 KB</td><td>?</td>
+</tr><tr><td>SongQuery_WithMultipleIncludes</td><td>?</td><td>?</td><td>100</td><td>?</td><td>1,787.52 &mu;s</td><td>13.958 &mu;s</td><td>11.655 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>207.0313</td><td>109.3750</td><td>-</td><td>1712.62 KB</td><td>?</td>
+</tr><tr><td>SongQuery_OptimizedWithSplitQuery</td><td>?</td><td>?</td><td>100</td><td>?</td><td>1,782.94 &mu;s</td><td>23.207 &mu;s</td><td>21.708 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>207.0313</td><td>109.3750</td><td>-</td><td>1713.74 KB</td><td>?</td>
+</tr><tr><td>SongQuery_WithMultipleIncludes</td><td>?</td><td>?</td><td>200</td><td>?</td><td>3,206.61 &mu;s</td><td>50.269 &mu;s</td><td>41.977 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>351.5625</td><td>250.0000</td><td>-</td><td>2878.48 KB</td><td>?</td>
+</tr><tr><td>SongQuery_OptimizedWithSplitQuery</td><td>?</td><td>?</td><td>200</td><td>?</td><td>3,236.78 &mu;s</td><td>23.202 &mu;s</td><td>21.704 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>351.5625</td><td>250.0000</td><td>-</td><td>2879.28 KB</td><td>?</td>
+</tr><tr><td>ComplexQuery_MultipleToListAsync</td><td>?</td><td>?</td><td>?</td><td>500</td><td>11,993.42 &mu;s</td><td>118.377 &mu;s</td><td>104.938 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>1218.7500</td><td>843.7500</td><td>15.6250</td><td>9882.73 KB</td><td>?</td>
+</tr><tr><td>ComplexQuery_OptimizedSinglePass</td><td>?</td><td>?</td><td>?</td><td>500</td><td>10,218.38 &mu;s</td><td>134.108 &mu;s</td><td>125.444 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>1031.2500</td><td>953.1250</td><td>-</td><td>8468.8 KB</td><td>?</td>
+</tr></tbody></table>
+</body>
+</html>

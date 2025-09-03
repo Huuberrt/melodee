@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Melodee.Benchmarks.CollectionOperationBenchmarks-20250903-175035</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.2, Linux Manjaro Linux
+AMD Ryzen 9 3900X 4.67GHz, 1 CPU, 24 logical and 12 physical cores
+.NET SDK 9.0.109
+  [Host]   : .NET 9.0.8 (9.0.825.36511), X64 RyuJIT AVX2
+  .NET 9.0 : .NET 9.0.8 (9.0.825.36511), X64 RyuJIT AVX2
+</code></pre>
+<pre><code>Job=.NET 9.0  Runtime=.NET 9.0  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                            </th><th>CollectionSize</th><th>arraySize</th><th>Mean     </th><th>Error  </th><th>StdDev </th><th>Ratio</th><th>RatioSD</th><th>Completed Work Items</th><th>Lock Contentions</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>ArrayPoolUsage_vs_NewArray</td><td>100</td><td>1024</td><td>506.4 ns</td><td>2.37 ns</td><td>2.21 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>?</td>
+</tr><tr><td>NewArray_Allocation</td><td>100</td><td>1024</td><td>730.4 ns</td><td>4.83 ns</td><td>4.28 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>0.1249</td><td>-</td><td>1048 B</td><td>?</td>
+</tr><tr><td>ArrayPoolUsage_vs_NewArray</td><td>100</td><td>4096</td><td>1,978.0 ns</td><td>16.23 ns</td><td>13.55 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>?</td>
+</tr><tr><td>NewArray_Allocation</td><td>100</td><td>4096</td><td>2,886.6 ns</td><td>22.58 ns</td><td>21.12 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>0.4921</td><td>-</td><td>4120 B</td><td>?</td>
+</tr><tr><td>ArrayPoolUsage_vs_NewArray</td><td>100</td><td>16384</td><td>5,870.1 ns</td><td>19.03 ns</td><td>16.87 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>?</td>
+</tr><tr><td>NewArray_Allocation</td><td>100</td><td>16384</td><td>11,385.2 ns</td><td>46.95 ns</td><td>39.21 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>1.9531</td><td>-</td><td>16408 B</td><td>?</td>
+</tr><tr><td>PlaylistReordering_MultipleToListCalls</td><td>100</td><td>?</td><td>2,648.9 ns</td><td>21.81 ns</td><td>19.33 ns</td><td>1.00</td><td>0.01</td><td>-</td><td>-</td><td>0.3395</td><td>-</td><td>2848 B</td><td>1.00</td>
+</tr><tr><td>PlaylistReordering_OptimizedSinglePass</td><td>100</td><td>?</td><td>563.6 ns</td><td>2.59 ns</td><td>2.16 ns</td><td>0.21</td><td>0.00</td><td>-</td><td>-</td><td>0.2613</td><td>0.0010</td><td>2192 B</td><td>0.77</td>
+</tr><tr><td>PlaylistReordering_SpanBased</td><td>100</td><td>?</td><td>308.6 ns</td><td>6.01 ns</td><td>8.43 ns</td><td>0.12</td><td>0.00</td><td>-</td><td>-</td><td>0.0982</td><td>-</td><td>824 B</td><td>0.29</td>
+</tr><tr><td>MultipleLinqOperations_Inefficient</td><td>100</td><td>?</td><td>1,223.7 ns</td><td>12.58 ns</td><td>9.82 ns</td><td>0.46</td><td>0.00</td><td>-</td><td>-</td><td>0.2384</td><td>-</td><td>2000 B</td><td>0.70</td>
+</tr><tr><td>SingleLinqChain_Optimized</td><td>100</td><td>?</td><td>946.5 ns</td><td>6.40 ns</td><td>5.67 ns</td><td>0.36</td><td>0.00</td><td>-</td><td>-</td><td>0.1564</td><td>-</td><td>1312 B</td><td>0.46</td>
+</tr><tr><td>ForLoop_Manual</td><td>100</td><td>?</td><td>464.0 ns</td><td>5.78 ns</td><td>4.51 ns</td><td>0.18</td><td>0.00</td><td>-</td><td>-</td><td>0.0772</td><td>-</td><td>648 B</td><td>0.23</td>
+</tr><tr><td>BulkOperations_vs_Individual</td><td>100</td><td>?</td><td>559.9 ns</td><td>8.64 ns</td><td>8.08 ns</td><td>0.21</td><td>0.00</td><td>-</td><td>-</td><td>0.0057</td><td>-</td><td>48 B</td><td>0.02</td>
+</tr><tr><td>BulkOperations_BatchUpdate</td><td>100</td><td>?</td><td>1,157.9 ns</td><td>22.86 ns</td><td>20.26 ns</td><td>0.44</td><td>0.01</td><td>-</td><td>-</td><td>0.1297</td><td>-</td><td>1096 B</td><td>0.38</td>
+</tr><tr><td>CollectionOperations_MemoryAllocation</td><td>100</td><td>?</td><td>360,011.6 ns</td><td>3,779.83 ns</td><td>3,535.66 ns</td><td>135.92</td><td>1.61</td><td>-</td><td>-</td><td>20.5078</td><td>0.4883</td><td>174856 B</td><td>61.40</td>
+</tr><tr><td>CollectionOperations_OptimizedAllocation</td><td>100</td><td>?</td><td>329,643.5 ns</td><td>987.93 ns</td><td>875.77 ns</td><td>124.45</td><td>0.93</td><td>-</td><td>-</td><td>-</td><td>-</td><td>1184 B</td><td>0.42</td>
+</tr><tr><td>Original_vs_Optimized_Comparison</td><td>100</td><td>?</td><td>26,120.7 ns</td><td>234.45 ns</td><td>207.84 ns</td><td>9.86</td><td>0.10</td><td>-</td><td>-</td><td>0.5188</td><td>-</td><td>4568 B</td><td>1.60</td>
+</tr><tr><td>ArrayPoolUsage_vs_NewArray</td><td>1000</td><td>1024</td><td>512.9 ns</td><td>5.57 ns</td><td>4.94 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>?</td>
+</tr><tr><td>NewArray_Allocation</td><td>1000</td><td>1024</td><td>747.8 ns</td><td>14.56 ns</td><td>13.62 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>0.1249</td><td>-</td><td>1048 B</td><td>?</td>
+</tr><tr><td>ArrayPoolUsage_vs_NewArray</td><td>1000</td><td>4096</td><td>1,991.4 ns</td><td>37.91 ns</td><td>38.93 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>?</td>
+</tr><tr><td>NewArray_Allocation</td><td>1000</td><td>4096</td><td>2,895.7 ns</td><td>25.24 ns</td><td>23.61 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>0.4921</td><td>-</td><td>4120 B</td><td>?</td>
+</tr><tr><td>ArrayPoolUsage_vs_NewArray</td><td>1000</td><td>16384</td><td>5,866.9 ns</td><td>21.70 ns</td><td>19.24 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>?</td>
+</tr><tr><td>NewArray_Allocation</td><td>1000</td><td>16384</td><td>11,387.2 ns</td><td>71.62 ns</td><td>67.00 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>1.9531</td><td>-</td><td>16408 B</td><td>?</td>
+</tr><tr><td>PlaylistReordering_MultipleToListCalls</td><td>1000</td><td>?</td><td>29,534.5 ns</td><td>272.94 ns</td><td>255.31 ns</td><td>1.00</td><td>0.01</td><td>-</td><td>-</td><td>2.7771</td><td>0.1526</td><td>23296 B</td><td>1.000</td>
+</tr><tr><td>PlaylistReordering_OptimizedSinglePass</td><td>1000</td><td>?</td><td>5,062.3 ns</td><td>93.44 ns</td><td>87.40 ns</td><td>0.17</td><td>0.00</td><td>-</td><td>-</td><td>1.9836</td><td>0.0534</td><td>16600 B</td><td>0.713</td>
+</tr><tr><td>PlaylistReordering_SpanBased</td><td>1000</td><td>?</td><td>4,058.0 ns</td><td>80.61 ns</td><td>145.35 ns</td><td>0.14</td><td>0.00</td><td>-</td><td>-</td><td>0.9537</td><td>-</td><td>8024 B</td><td>0.344</td>
+</tr><tr><td>MultipleLinqOperations_Inefficient</td><td>1000</td><td>?</td><td>12,604.4 ns</td><td>149.40 ns</td><td>139.75 ns</td><td>0.43</td><td>0.01</td><td>-</td><td>-</td><td>1.5259</td><td>0.0305</td><td>12816 B</td><td>0.550</td>
+</tr><tr><td>SingleLinqChain_Optimized</td><td>1000</td><td>?</td><td>5,205.9 ns</td><td>31.84 ns</td><td>28.22 ns</td><td>0.18</td><td>0.00</td><td>-</td><td>-</td><td>0.8011</td><td>-</td><td>6728 B</td><td>0.289</td>
+</tr><tr><td>ForLoop_Manual</td><td>1000</td><td>?</td><td>7,459.2 ns</td><td>138.93 ns</td><td>123.16 ns</td><td>0.25</td><td>0.00</td><td>-</td><td>-</td><td>0.5493</td><td>-</td><td>4608 B</td><td>0.198</td>
+</tr><tr><td>BulkOperations_vs_Individual</td><td>1000</td><td>?</td><td>509.9 ns</td><td>2.93 ns</td><td>2.60 ns</td><td>0.02</td><td>0.00</td><td>-</td><td>-</td><td>0.0057</td><td>-</td><td>48 B</td><td>0.002</td>
+</tr><tr><td>BulkOperations_BatchUpdate</td><td>1000</td><td>?</td><td>1,175.7 ns</td><td>16.27 ns</td><td>14.42 ns</td><td>0.04</td><td>0.00</td><td>-</td><td>-</td><td>0.1297</td><td>-</td><td>1096 B</td><td>0.047</td>
+</tr><tr><td>CollectionOperations_MemoryAllocation</td><td>1000</td><td>?</td><td>3,424,309.9 ns</td><td>23,510.61 ns</td><td>20,841.54 ns</td><td>115.95</td><td>1.18</td><td>-</td><td>-</td><td>27.3438</td><td>3.9063</td><td>239696 B</td><td>10.289</td>
+</tr><tr><td>CollectionOperations_OptimizedAllocation</td><td>1000</td><td>?</td><td>3,349,396.1 ns</td><td>11,724.19 ns</td><td>10,966.81 ns</td><td>113.41</td><td>1.01</td><td>-</td><td>-</td><td>-</td><td>-</td><td>8424 B</td><td>0.362</td>
+</tr><tr><td>Original_vs_Optimized_Comparison</td><td>1000</td><td>?</td><td>427,181.7 ns</td><td>2,174.97 ns</td><td>1,816.20 ns</td><td>14.46</td><td>0.13</td><td>-</td><td>-</td><td>4.3945</td><td>-</td><td>37384 B</td><td>1.605</td>
+</tr><tr><td>ArrayPoolUsage_vs_NewArray</td><td>5000</td><td>1024</td><td>504.2 ns</td><td>2.37 ns</td><td>2.10 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>?</td>
+</tr><tr><td>NewArray_Allocation</td><td>5000</td><td>1024</td><td>731.4 ns</td><td>5.60 ns</td><td>4.97 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>0.1249</td><td>-</td><td>1048 B</td><td>?</td>
+</tr><tr><td>ArrayPoolUsage_vs_NewArray</td><td>5000</td><td>4096</td><td>1,981.3 ns</td><td>22.54 ns</td><td>21.08 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>?</td>
+</tr><tr><td>NewArray_Allocation</td><td>5000</td><td>4096</td><td>2,963.1 ns</td><td>58.97 ns</td><td>78.73 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>0.4921</td><td>-</td><td>4120 B</td><td>?</td>
+</tr><tr><td>ArrayPoolUsage_vs_NewArray</td><td>5000</td><td>16384</td><td>5,890.7 ns</td><td>28.32 ns</td><td>23.65 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>?</td>
+</tr><tr><td>NewArray_Allocation</td><td>5000</td><td>16384</td><td>11,431.5 ns</td><td>127.66 ns</td><td>106.60 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>1.9531</td><td>-</td><td>16408 B</td><td>?</td>
+</tr><tr><td>PlaylistReordering_MultipleToListCalls</td><td>5000</td><td>?</td><td>159,025.3 ns</td><td>2,021.74 ns</td><td>1,891.14 ns</td><td>1.000</td><td>0.02</td><td>-</td><td>-</td><td>13.1836</td><td>1.7090</td><td>112704 B</td><td>1.000</td>
+</tr><tr><td>PlaylistReordering_OptimizedSinglePass</td><td>5000</td><td>?</td><td>27,615.9 ns</td><td>423.23 ns</td><td>395.89 ns</td><td>0.174</td><td>0.00</td><td>-</td><td>-</td><td>15.5945</td><td>-</td><td>131360 B</td><td>1.166</td>
+</tr><tr><td>PlaylistReordering_SpanBased</td><td>5000</td><td>?</td><td>19,094.0 ns</td><td>377.34 ns</td><td>352.96 ns</td><td>0.120</td><td>0.00</td><td>-</td><td>-</td><td>4.7607</td><td>-</td><td>40024 B</td><td>0.355</td>
+</tr><tr><td>MultipleLinqOperations_Inefficient</td><td>5000</td><td>?</td><td>89,530.8 ns</td><td>1,474.06 ns</td><td>1,306.71 ns</td><td>0.563</td><td>0.01</td><td>-</td><td>-</td><td>7.2021</td><td>0.4883</td><td>60816 B</td><td>0.540</td>
+</tr><tr><td>SingleLinqChain_Optimized</td><td>5000</td><td>?</td><td>22,519.4 ns</td><td>379.77 ns</td><td>355.24 ns</td><td>0.142</td><td>0.00</td><td>-</td><td>-</td><td>3.6621</td><td>0.2441</td><td>30728 B</td><td>0.273</td>
+</tr><tr><td>ForLoop_Manual</td><td>5000</td><td>?</td><td>45,064.0 ns</td><td>881.71 ns</td><td>1,146.47 ns</td><td>0.283</td><td>0.01</td><td>-</td><td>-</td><td>3.9673</td><td>0.1831</td><td>33352 B</td><td>0.296</td>
+</tr><tr><td>BulkOperations_vs_Individual</td><td>5000</td><td>?</td><td>512.0 ns</td><td>2.45 ns</td><td>2.04 ns</td><td>0.003</td><td>0.00</td><td>-</td><td>-</td><td>0.0057</td><td>-</td><td>48 B</td><td>0.000</td>
+</tr><tr><td>BulkOperations_BatchUpdate</td><td>5000</td><td>?</td><td>1,096.2 ns</td><td>10.95 ns</td><td>9.71 ns</td><td>0.007</td><td>0.00</td><td>-</td><td>-</td><td>0.1297</td><td>-</td><td>1096 B</td><td>0.010</td>
+</tr><tr><td>CollectionOperations_MemoryAllocation</td><td>5000</td><td>?</td><td>17,842,177.8 ns</td><td>133,839.00 ns</td><td>118,644.79 ns</td><td>112.212</td><td>1.47</td><td>-</td><td>-</td><td>31.2500</td><td>-</td><td>358664 B</td><td>3.182</td>
+</tr><tr><td>CollectionOperations_OptimizedAllocation</td><td>5000</td><td>?</td><td>17,739,314.2 ns</td><td>72,301.99 ns</td><td>67,631.33 ns</td><td>111.565</td><td>1.34</td><td>-</td><td>-</td><td>-</td><td>-</td><td>65840 B</td><td>0.584</td>
+</tr><tr><td>Original_vs_Optimized_Comparison</td><td>5000</td><td>?</td><td>2,659,854.4 ns</td><td>19,732.27 ns</td><td>18,457.58 ns</td><td>16.728</td><td>0.22</td><td>-</td><td>-</td><td>19.5313</td><td>-</td><td>188200 B</td><td>1.670</td>
+</tr></tbody></table>
+</body>
+</html>
