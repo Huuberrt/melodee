@@ -396,6 +396,7 @@ public class AlbumService(
                     .Include(x => x.Artist).ThenInclude(x => x.Library)
                     .Include(x => x.Contributors).ThenInclude(x => x.Artist)
                     .Include(x => x.Songs).ThenInclude(x => x.Contributors).ThenInclude(x => x.Artist)
+                    .AsSplitQuery()
                     .AsNoTracking()
                     .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
                     .ConfigureAwait(false);

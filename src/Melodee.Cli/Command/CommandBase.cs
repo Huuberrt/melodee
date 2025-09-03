@@ -47,7 +47,8 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddSingleton<ISerializer, Serializer>();
         services.AddHttpClient();
         services.AddDbContextFactory<MelodeeDbContext>(opt =>
-            opt.UseNpgsql(configuration.GetConnectionString("DefaultConnection"), o => o.UseNodaTime()));
+            opt.UseNpgsql(configuration.GetConnectionString("DefaultConnection"),
+                o => o.UseNodaTime().UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
         services.AddDbContextFactory<MusicBrainzDbContext>(opt =>
             opt.UseSqlite(configuration.GetConnectionString("MusicBrainzConnection")));
         services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(opt

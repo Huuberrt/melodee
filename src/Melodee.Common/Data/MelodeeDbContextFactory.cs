@@ -14,7 +14,7 @@ public class MelodeeDbContextFactory : IDesignTimeDbContextFactory<MelodeeDbCont
             .Build();
         var builder = new DbContextOptionsBuilder<MelodeeDbContext>();
         var connectionString = configuration.GetConnectionString("DefaultConnection");
-        builder.UseNpgsql(connectionString, o => o.UseNodaTime());
+        builder.UseNpgsql(connectionString, o => o.UseNodaTime().UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery));
         return new MelodeeDbContext(builder.Options);
     }
 }

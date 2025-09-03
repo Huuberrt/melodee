@@ -255,12 +255,7 @@ builder.Services.AddSingleton<IBlacklistService, BlacklistService>();
 #region Quartz Related
 
 builder.Services.AddQuartz(q => { q.UseTimeZoneConverter(); });
-builder.Services.AddSingleton<IScheduler>(provider =>
-{
-    var factory = provider.GetRequiredService<ISchedulerFactory>();
-    var scheduler = factory.GetScheduler().Result;
-    return scheduler;
-});
+// Resolve IScheduler via factory where needed; avoid blocking sync calls here
 
 builder.Services.AddQuartzServer(opts => { opts.WaitForJobsToComplete = true; });
 
@@ -328,7 +323,8 @@ else
 var isQuartzDisabled = SafeParser.ToBoolean(builder.Configuration[AppSettingsKeys.QuartzDisabled]);
 if (!isQuartzDisabled)
 {
-    var quartzScheduler = app.Services.GetRequiredService<IScheduler>();
+    var quartzSchedulerFactory = app.Services.GetRequiredService<ISchedulerFactory>();
+    var quartzScheduler = await quartzSchedulerFactory.GetScheduler();
     var melodeeConfigurationFactory = app.Services.GetRequiredService<IMelodeeConfigurationFactory>();
     var melodeeConfiguration = await melodeeConfigurationFactory.GetConfigurationAsync();
 

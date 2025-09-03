@@ -112,25 +112,43 @@ public sealed class StatisticsService(
             genresCountTask
         ).ConfigureAwait(false);
 
+        var albumsCount = await albumsCountTask.ConfigureAwait(false);
+        var artistsCount = await artistsCountTask.ConfigureAwait(false);
+        var contributorsCount = await contributorsCountTask.ConfigureAwait(false);
+        var librariesCount = await librariesCountTask.ConfigureAwait(false);
+        var playlistsCount = await playlistsCountTask.ConfigureAwait(false);
+        var radioStationsCount = await radioStationsCountTask.ConfigureAwait(false);
+        var sharesCount = await sharesCountTask.ConfigureAwait(false);
+        var songsCount = await songsCountTask.ConfigureAwait(false);
+        var songsPlayedCount = await songsPlayedCountTask.ConfigureAwait(false);
+        var usersCount = await usersCountTask.ConfigureAwait(false);
+        var userArtistsFavorited = await userArtistsFavoritedTask.ConfigureAwait(false);
+        var userAlbumsFavorited = await userAlbumsFavoritedTask.ConfigureAwait(false);
+        var userSongsFavorited = await userSongsFavoritedTask.ConfigureAwait(false);
+        var userSongsRated = await userSongsRatedTask.ConfigureAwait(false);
+        var songsFileSize = await songsFileSizeTask.ConfigureAwait(false);
+        var songsDuration = await songsDurationTask.ConfigureAwait(false);
+        var genresCount = await genresCountTask.ConfigureAwait(false);
+
         // Build results efficiently
         results.AddRange([
-            new Statistic(StatisticType.Count, "Albums", albumsCountTask.Result, null, null, 1, "album", true, StatisticCategory.CountAlbum),
-            new Statistic(StatisticType.Count, "Artists", artistsCountTask.Result, null, null, 2, "artist", true, StatisticCategory.CountArtist),
-            new Statistic(StatisticType.Count, "Contributors", contributorsCountTask.Result, null, null, 3, "contacts_product"),
-            new Statistic(StatisticType.Count, "Genres", genresCountTask.Result, null, null, 4, "genres"),
-            new Statistic(StatisticType.Count, "Libraries", librariesCountTask.Result, null, null, 5, "library_music"),
-            new Statistic(StatisticType.Count, "Playlists", playlistsCountTask.Result, null, null, 6, "playlist_play", true),
-            new Statistic(StatisticType.Count, "Radio Stations", radioStationsCountTask.Result, null, null, 7, "radio"),
-            new Statistic(StatisticType.Count, "Shares", sharesCountTask.Result, null, null, 8, "share"),
-            new Statistic(StatisticType.Count, "Songs", songsCountTask.Result, null, null, 9, "music_note", true, StatisticCategory.CountSong),
-            new Statistic(StatisticType.Count, "Songs: Played count", songsPlayedCountTask.Result, null, null, 10, "analytics"),
-            new Statistic(StatisticType.Count, "Users", usersCountTask.Result, null, null, 11, "group", false, StatisticCategory.CountUsers),
-            new Statistic(StatisticType.Count, "Users: Favorited artists", userArtistsFavoritedTask.Result, null, null, 12, "analytics"),
-            new Statistic(StatisticType.Count, "Users: Favorited albums", userAlbumsFavoritedTask.Result, null, null, 13, "analytics"),
-            new Statistic(StatisticType.Count, "Users: Favorited songs", userSongsFavoritedTask.Result, null, null, 14, "analytics"),
-            new Statistic(StatisticType.Count, "Users: Rated songs", userSongsRatedTask.Result, null, null, 15, "analytics"),
-            new Statistic(StatisticType.Information, "Total: Song Mb", songsFileSizeTask.Result.FormatFileSize(), null, null, 16, "bar_chart"),
-            new Statistic(StatisticType.Information, "Total: Song Duration", songsDurationTask.Result.ToTimeSpan().ToYearDaysMinutesHours(), null, "Total song duration in Year:Day:Hour:Minute format.", 17, "bar_chart")
+            new Statistic(StatisticType.Count, "Albums", albumsCount, null, null, 1, "album", true, StatisticCategory.CountAlbum),
+            new Statistic(StatisticType.Count, "Artists", artistsCount, null, null, 2, "artist", true, StatisticCategory.CountArtist),
+            new Statistic(StatisticType.Count, "Contributors", contributorsCount, null, null, 3, "contacts_product"),
+            new Statistic(StatisticType.Count, "Genres", genresCount, null, null, 4, "genres"),
+            new Statistic(StatisticType.Count, "Libraries", librariesCount, null, null, 5, "library_music"),
+            new Statistic(StatisticType.Count, "Playlists", playlistsCount, null, null, 6, "playlist_play", true),
+            new Statistic(StatisticType.Count, "Radio Stations", radioStationsCount, null, null, 7, "radio"),
+            new Statistic(StatisticType.Count, "Shares", sharesCount, null, null, 8, "share"),
+            new Statistic(StatisticType.Count, "Songs", songsCount, null, null, 9, "music_note", true, StatisticCategory.CountSong),
+            new Statistic(StatisticType.Count, "Songs: Played count", songsPlayedCount, null, null, 10, "analytics"),
+            new Statistic(StatisticType.Count, "Users", usersCount, null, null, 11, "group", false, StatisticCategory.CountUsers),
+            new Statistic(StatisticType.Count, "Users: Favorited artists", userArtistsFavorited, null, null, 12, "analytics"),
+            new Statistic(StatisticType.Count, "Users: Favorited albums", userAlbumsFavorited, null, null, 13, "analytics"),
+            new Statistic(StatisticType.Count, "Users: Favorited songs", userSongsFavorited, null, null, 14, "analytics"),
+            new Statistic(StatisticType.Count, "Users: Rated songs", userSongsRated, null, null, 15, "analytics"),
+            new Statistic(StatisticType.Information, "Total: Song Mb", songsFileSize.FormatFileSize(), null, null, 16, "bar_chart"),
+            new Statistic(StatisticType.Information, "Total: Song Duration", songsDuration.ToTimeSpan().ToYearDaysMinutesHours(), null, "Total song duration in Year:Day:Hour:Minute format.", 17, "bar_chart")
         ]);
 
         return new OperationResult<Statistic[]>
@@ -189,11 +207,13 @@ public sealed class StatisticsService(
 
         // Wait for both queries to complete
         await Task.WhenAll(favoriteSongsCountTask, ratedSongsCountTask).ConfigureAwait(false);
+        var favCount = await favoriteSongsCountTask.ConfigureAwait(false);
+        var ratedCount = await ratedSongsCountTask.ConfigureAwait(false);
 
         var results = new Statistic[]
         {
-            new(StatisticType.Count, "Your Favorite songs", favoriteSongsCountTask.Result, null, null, 1, "analytics"),
-            new(StatisticType.Count, "Your Rated songs", ratedSongsCountTask.Result, null, null, 2, "analytics")
+            new(StatisticType.Count, "Your Favorite songs", favCount, null, null, 1, "analytics"),
+            new(StatisticType.Count, "Your Rated songs", ratedCount, null, null, 2, "analytics")
         };
 
         return new OperationResult<Statistic[]>

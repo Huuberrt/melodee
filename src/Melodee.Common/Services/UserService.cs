@@ -259,7 +259,7 @@ public sealed class UserService(
         {
             foreach (var userId in userIds)
             {
-                var user = scopedContext.Users.FirstOrDefaultAsync(x => x.Id == userId, cancellationToken).Result;
+                var user = await scopedContext.Users.FirstOrDefaultAsync(x => x.Id == userId, cancellationToken).ConfigureAwait(false);
                 if (user != null)
                 {
                     var userAvatarFullname = user.ToAvatarFileName(userImageLibrary.Data.Path);
@@ -382,6 +382,7 @@ public sealed class UserService(
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
         return await scopedContext.UserArtists
+            .AsNoTracking()
             .Include(ua => ua.Artist)
             .Where(ua => ua.UserId == userId && ua.Artist.ApiKey == artistApiKey)
             .FirstOrDefaultAsync(cancellationToken)
@@ -396,6 +397,7 @@ public sealed class UserService(
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
         return await scopedContext.UserAlbums
+            .AsNoTracking()
             .Include(ua => ua.Album)
             .Where(ua => ua.UserId == userId && ua.Album.ApiKey == albumApiKey)
             .FirstOrDefaultAsync(cancellationToken)
@@ -409,6 +411,7 @@ public sealed class UserService(
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
         return await scopedContext.UserSongs
+            .AsNoTracking()
             .Include(us => us.Song)
             .Where(us => us.UserId == userId && us.Song.ApiKey == songApiKey)
             .FirstOrDefaultAsync(cancellationToken)
@@ -422,6 +425,7 @@ public sealed class UserService(
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
         var data = await scopedContext.UserSongs
+            .AsNoTracking()
             .Where(us => us.UserId == userId)
             .OrderByDescending(us => us.LastPlayedAt)
             .Take(count)
@@ -470,6 +474,7 @@ public sealed class UserService(
 
         // Get user songs for songs in the playlist
         return await scopedContext.UserSongs
+            .AsNoTracking()
             .Include(us => us.Song)
             .Where(us => us.UserId == userId && playlistSongIds.Contains(us.SongId))
             .ToArrayAsync(cancellationToken)
@@ -1354,7 +1359,7 @@ public sealed class UserService(
 
             await LoginUserAsync(emailAddress, plainTextPassword, cancellationToken).ConfigureAwait(false);
 
-            return GetByEmailAddressAsync(emailAddress, cancellationToken).Result;
+            return await GetByEmailAddressAsync(emailAddress, cancellationToken).ConfigureAwait(false);
         }
     }
 
