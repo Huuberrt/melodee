@@ -108,6 +108,46 @@ public class AlbumDiscoveryServiceTests : ServiceTestBase
     }
 
     [Fact]
+    public async Task DirectoryCache_WithTimeBasedEviction_RemovesExpiredEntries()
+    {
+        // Arrange: set very short TTL for cache entries
+        var directoryPath = "/test/albums";
+        var albumFile = Path.Combine(directoryPath, Album.JsonFileName);
+        var mockFileSystem = new MockFileSystemService()
+            .SetDirectoryExists(directoryPath)
+            .AddFilesToDirectory(directoryPath, albumFile)
+            .SetAlbumForFile(albumFile, CreateTestAlbum(title: "A1"));
+
+        var service = new AlbumDiscoveryService(
+            Logger,
+            CacheManager,
+            MockFactory(),
+            MockConfigurationFactory(),
+            mockFileSystem,
+            TimeSpan.FromMilliseconds(50), // TTL
+            100 // capacity
+        );
+        await service.InitializeAsync();
+
+        var directoryInfo = new FileSystemDirectoryInfo { Path = directoryPath, Name = "albums" };
+
+        // First call should cache
+        var first = await service.AllMelodeeAlbumDataFilesForDirectoryAsync(directoryInfo);
+        Assert.True(first.IsSuccess);
+
+        // Wait for TTL to expire and change data
+        await Task.Delay(80);
+        mockFileSystem.SetAlbumForFile(albumFile, CreateTestAlbum(title: "A2"));
+
+        // Second call should miss cache and reflect new data
+        var second = await service.AllMelodeeAlbumDataFilesForDirectoryAsync(directoryInfo);
+        Assert.True(second.IsSuccess);
+        var title1 = first.Data!.First().Tags?.FirstOrDefault(t => t.Identifier == MetaTagIdentifier.Album)?.Value?.ToString();
+        var title2 = second.Data!.First().Tags?.FirstOrDefault(t => t.Identifier == MetaTagIdentifier.Album)?.Value?.ToString();
+        Assert.NotEqual(title1, title2);
+    }
+
+    [Fact]
     public async Task InitializeAsync_WithCancellationToken_ShouldRespectCancellation()
     {
         // Arrange

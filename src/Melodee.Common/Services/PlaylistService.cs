@@ -583,18 +583,25 @@ public async Task<MelodeeModels.PagedResult<SongDataInfo>> SongsForPlaylistAsync
 
         if (playlist != null)
         {
-            var songsToRemove = playlist.Songs
-                .Where(ps => songApiKeys.Contains(ps.Song.ApiKey))
-                .ToList();
+            // Use HashSet for O(1) lookups and avoid multiple ToList and OrderBy passes
+            var keys = new HashSet<Guid>(songApiKeys);
+            var songsToRemove = new List<PlaylistSong>();
+            foreach (var ps in playlist.Songs)
+            {
+                if (keys.Contains(ps.Song.ApiKey))
+                {
+                    songsToRemove.Add(ps);
+                }
+            }
 
             foreach (var playlistSong in songsToRemove)
             {
                 playlist.Songs.Remove(playlistSong);
             }
 
-            // Reorder remaining songs
-            var remainingSongs = playlist.Songs.OrderBy(x => x.PlaylistOrder).ToList();
-            for (int i = 0; i < remainingSongs.Count; i++)
+            // Reorder remaining songs (single pass after sorting)
+            var remainingSongs = playlist.Songs.OrderBy(x => x.PlaylistOrder).ToArray();
+            for (int i = 0; i < remainingSongs.Length; i++)
             {
                 remainingSongs[i].PlaylistOrder = i + 1;
             }
@@ -638,10 +645,10 @@ public async Task<MelodeeModels.PagedResult<SongDataInfo>> SongsForPlaylistAsync
 
         if (playlist != null)
         {
-            var orderedSongs = playlist.Songs.OrderBy(x => x.PlaylistOrder).ToList();
+            var orderedSongs = playlist.Songs.OrderBy(x => x.PlaylistOrder).ToArray();
             var songsToRemove = new List<PlaylistSong>();
 
-            foreach (var index in songIndexes.Where(i => i >= 0 && i < orderedSongs.Count))
+            foreach (var index in songIndexes.Where(i => i >= 0 && i < orderedSongs.Length))
             {
                 songsToRemove.Add(orderedSongs[index]);
             }
@@ -651,9 +658,9 @@ public async Task<MelodeeModels.PagedResult<SongDataInfo>> SongsForPlaylistAsync
                 playlist.Songs.Remove(playlistSong);
             }
 
-            // Reorder remaining songs
-            var remainingSongs = playlist.Songs.OrderBy(x => x.PlaylistOrder).ToList();
-            for (int i = 0; i < remainingSongs.Count; i++)
+            // Reorder remaining songs (single pass)
+            var remainingSongs = playlist.Songs.OrderBy(x => x.PlaylistOrder).ToArray();
+            for (int i = 0; i < remainingSongs.Length; i++)
             {
                 remainingSongs[i].PlaylistOrder = i + 1;
             }

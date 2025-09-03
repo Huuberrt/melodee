@@ -1,0 +1,32 @@
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+WORKDIR /app
+EXPOSE 8080
+EXPOSE 8081
+
+# Install minimal tools for healthcheck (curl)
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+# Runtime environment
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
+ENV ASPNETCORE_URLS=http://+:8080
+
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+COPY ["Directory.Packages.props", "./"]
+COPY ["src/Melodee.Blazor/Melodee.Blazor.csproj", "src/Melodee.Blazor/"]
+COPY ["src/Melodee.Common/Melodee.Common.csproj", "src/Melodee.Common/"]
+RUN dotnet restore "src/Melodee.Blazor/Melodee.Blazor.csproj"
+COPY ["src/Melodee.Blazor/", "src/Melodee.Blazor/"]
+COPY ["src/Melodee.Common/", "src/Melodee.Common/"]
+WORKDIR "/src/src/Melodee.Blazor"
+RUN dotnet publish "Melodee.Blazor.csproj" -c Release -o /app/publish --no-restore --self-contained false -p:PublishTrimmed=false
+
+FROM base AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=5 \
+  CMD curl -fsS http://localhost:8080/health || exit 1
+
+ENTRYPOINT ["dotnet", "server.dll"]
+

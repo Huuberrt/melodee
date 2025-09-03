@@ -42,6 +42,7 @@ using Rebus.Transport.InMem;
 using Serilog;
 using SpotifyAPI.Web;
 using ILogger = Serilog.ILogger;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -62,8 +63,28 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddControllers(options => { options.Filters.Add<ETagFilter>(); });
 
+// Build connection string with optional pool-size overrides via environment variables
+var defaultConnString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(defaultConnString))
+{
+    throw new InvalidOperationException("Missing connection string 'DefaultConnection'");
+}
+
+var npgsqlBuilder = new NpgsqlConnectionStringBuilder(defaultConnString);
+var envMinPool = Environment.GetEnvironmentVariable("DB_MIN_POOL_SIZE");
+var envMaxPool = Environment.GetEnvironmentVariable("DB_MAX_POOL_SIZE");
+if (int.TryParse(envMinPool, out var minPool) && minPool > 0)
+{
+    npgsqlBuilder.MinPoolSize = minPool;
+}
+if (int.TryParse(envMaxPool, out var maxPool) && maxPool > 0)
+{
+    npgsqlBuilder.MaxPoolSize = maxPool;
+}
+var effectiveConnString = npgsqlBuilder.ToString();
+
 builder.Services.AddDbContextFactory<MelodeeDbContext>(opt =>
-    opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"), o
+    opt.UseNpgsql(effectiveConnString, o
         => o.UseNodaTime()
             .UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 
@@ -168,6 +189,9 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthStateProvider>();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<ILocalStorageService, LocalStorageService>();
+
+// Health checks
+builder.Services.AddHealthChecks();
 
 #region Melodee Services
 
@@ -449,6 +473,9 @@ app.UseCors(bb => bb.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 app.UseMelodeeBlazorHeader();
 
 app.MapControllers();
+
+// Map health checks for readiness/liveness probes
+app.MapHealthChecks("/health");
 
 using (var scope = app.Services.CreateScope())
 {

@@ -3,11 +3,13 @@ using Melodee.Common.Enums;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Collection;
 using NodaTime;
+using Microsoft.EntityFrameworkCore;
 
 namespace Melodee.Tests.Common.Common.Services;
 
 public class PlaylistServiceTests : ServiceTestBase
 {
+    // Note: Functional reordering correctness is validated in PlaylistReorderingAlgorithmTests
     [Fact]
     public async Task ListAsync_WithValidRequest_ReturnsPlaylists()
     {

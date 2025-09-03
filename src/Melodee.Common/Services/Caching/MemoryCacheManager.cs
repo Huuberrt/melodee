@@ -26,6 +26,8 @@ public sealed class MemoryCacheManager(ILogger logger, TimeSpan defaultTimeSpan,
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, Task<object>>> _pendingTasksByRegion = new();
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, object>> _regionCacheData = new();
     private readonly ConcurrentDictionary<string, MemoryCache> _regionCaches = new();
+    private long _hitCount;
+    private long _missCount;
 
     public override void Clear()
     {
@@ -112,8 +114,10 @@ public sealed class MemoryCacheManager(ILogger logger, TimeSpan defaultTimeSpan,
         if (!EqualityComparer<TOut>.Default.Equals(cachedValue, default))
         {
             Logger.Verbose("-!> Cache Hit for Key {0}, Region {1}", key, region ?? DefaultRegion);
+            Interlocked.Increment(ref _hitCount);
             return cachedValue!;
         }
+        Interlocked.Increment(ref _missCount);
 
         // Get or create the region-specific pending tasks dictionary
         var regionKey = string.IsNullOrEmpty(region) ? DefaultRegion : region;
@@ -359,6 +363,33 @@ public sealed class MemoryCacheManager(ILogger logger, TimeSpan defaultTimeSpan,
             "Cache Regions",
             _regionCaches.Count,
             "#607d8b"
+        ));
+
+        // Hit/Miss metrics
+        var hits = Interlocked.Read(ref _hitCount);
+        var misses = Interlocked.Read(ref _missCount);
+        var total = Math.Max(1, hits + misses);
+        var hitRatio = (double)hits / total;
+
+        stats.Add(new Statistic(
+            StatisticType.Information,
+            "Cache Hit Ratio",
+            hitRatio.ToString("P2"),
+            "#9c27b0"
+        ));
+
+        stats.Add(new Statistic(
+            StatisticType.Count,
+            "Cache Hits",
+            hits,
+            "#4caf50"
+        ));
+
+        stats.Add(new Statistic(
+            StatisticType.Count,
+            "Cache Misses",
+            misses,
+            "#f44336"
         ));
 
         return stats;

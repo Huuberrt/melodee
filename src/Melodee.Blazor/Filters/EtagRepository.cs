@@ -10,6 +10,8 @@ public class EtagRepository
     private volatile int _currentCount;
     private DateTime _lastCleanup = DateTime.UtcNow;
     private readonly object _cleanupLock = new object();
+    private long _hitCount;
+    private long _missCount;
     
     private readonly record struct ETagEntry(string ETag, DateTime CreatedAt);
 
@@ -54,7 +56,16 @@ public class EtagRepository
                 // Check if entry is still valid (not expired)
                 if (DateTime.UtcNow - entry.CreatedAt <= _entryMaxAge)
                 {
-                    return entry.ETag == etag;
+                    var match = entry.ETag == etag;
+                    if (match)
+                    {
+                        Interlocked.Increment(ref _hitCount);
+                    }
+                    else
+                    {
+                        Interlocked.Increment(ref _missCount);
+                    }
+                    return match;
                 }
                 else
                 {
@@ -63,7 +74,12 @@ public class EtagRepository
                     {
                         Interlocked.Decrement(ref _currentCount);
                     }
+                    Interlocked.Increment(ref _missCount);
                 }
+            }
+            else
+            {
+                Interlocked.Increment(ref _missCount);
             }
         }
 
@@ -139,4 +155,6 @@ public class EtagRepository
     // For testing purposes
     public int CurrentCount => _currentCount;
     public void ForceCleanup() => CleanupExpiredEntries();
+    public long HitCount => Interlocked.Read(ref _hitCount);
+    public long MissCount => Interlocked.Read(ref _missCount);
 }

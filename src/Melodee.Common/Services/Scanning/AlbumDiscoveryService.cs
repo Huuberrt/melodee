@@ -26,7 +26,9 @@ public sealed class AlbumDiscoveryService(
     ICacheManager cacheManager,
     IDbContextFactory<MelodeeDbContext> contextFactory,
     IMelodeeConfigurationFactory configurationFactory,
-    IFileSystemService fileSystemService)
+    IFileSystemService fileSystemService,
+    TimeSpan? directoryCacheEntryMaxAge = null,
+    int? directoryCacheCapacity = null)
     : ServiceBase(logger, cacheManager, contextFactory), IDisposable
 {
     private static readonly ParallelOptions DefaultParallelOptions = new()
@@ -38,6 +40,10 @@ public sealed class AlbumDiscoveryService(
 
     // Performance optimizations
     private readonly ConcurrentDictionary<string, (DateTime LastWriteTime, Album[] Albums)> _directoryCache = new();
+    private readonly TimeSpan _directoryCacheEntryMaxAge = directoryCacheEntryMaxAge ?? TimeSpan.FromSeconds(30);
+    private readonly int _directoryCacheCapacity = directoryCacheCapacity is > 0 ? directoryCacheCapacity.Value : 1000;
+    private long _directoryCacheHits;
+    private long _directoryCacheMisses;
     private IAlbumValidator _albumValidator = null!;
     private IMelodeeConfiguration _configuration = new MelodeeConfiguration([]);
     private bool _initialized;
@@ -441,10 +447,11 @@ public sealed class AlbumDiscoveryService(
         {
             try
             {
-                // Cache for 30 seconds to balance performance vs. freshness
+                // Cache for configured window to balance performance vs. freshness
                 if (fileSystemService.DirectoryExists(fileSystemDirectoryInfo.Path) &&
-                    DateTime.UtcNow - cached.LastWriteTime < TimeSpan.FromSeconds(30))
+                    DateTime.UtcNow - cached.LastWriteTime < _directoryCacheEntryMaxAge)
                 {
+                    Interlocked.Increment(ref _directoryCacheHits);
                     return new OperationResult<IEnumerable<Album>?>
                     {
                         Data = cached.Albums
@@ -455,6 +462,7 @@ public sealed class AlbumDiscoveryService(
             {
                 // If we can't check timestamps, proceed with fresh scan
             }
+            Interlocked.Increment(ref _directoryCacheMisses);
         }
 
         var albums = new ConcurrentBag<Album>();
@@ -546,11 +554,11 @@ public sealed class AlbumDiscoveryService(
                     (_, _) => (currentWriteTime, albums));
 
                 // Implement cache size management to prevent memory bloat
-                if (_directoryCache.Count > 1000) // Configurable threshold
+                if (_directoryCache.Count > _directoryCacheCapacity) // Configurable threshold
                 {
                     var oldestEntries = _directoryCache
                         .OrderBy(kvp => kvp.Value.LastWriteTime)
-                        .Take(_directoryCache.Count - 800) // Keep 800 most recent
+                        .Take(_directoryCache.Count - (int)Math.Floor(_directoryCacheCapacity * 0.8)) // Keep 80% most recent
                         .Select(kvp => kvp.Key)
                         .ToArray();
 
@@ -575,4 +583,7 @@ public sealed class AlbumDiscoveryService(
     {
         _directoryCache.Clear();
     }
+
+    public (long Hits, long Misses, int Count) GetDirectoryCacheStats()
+        => (Interlocked.Read(ref _directoryCacheHits), Interlocked.Read(ref _directoryCacheMisses), _directoryCache.Count);
 }
