@@ -13,6 +13,33 @@ dotnet run -c Release --project benchmarks/Melodee.Benchmarks streaming
 dotnet run -c Release --project benchmarks/Melodee.Benchmarks database
 dotnet run -c Release --project benchmarks/Melodee.Benchmarks cache
 dotnet run -c Release --project benchmarks/Melodee.Benchmarks collection
+
+# Run with custom exporters and artifacts path
+dotnet run -c Release --project benchmarks/Melodee.Benchmarks all -- --exporters json,github,csv --artifacts benchmarks/artifacts
+dotnet run -c Release --project benchmarks/Melodee.Benchmarks streaming -- --exporters json,csv --artifacts results/streaming
+```
+
+## Configuration Options
+
+### Exporters
+The benchmark project supports multiple output formats:
+- `json`: JSON format for programmatic analysis
+- `csv`: CSV format for spreadsheet analysis  
+- `github`: GitHub-flavored markdown tables
+- `html`: HTML reports for web viewing
+
+**Usage**: `--exporters json,csv,github,html`
+
+### Artifacts Path
+Specify where benchmark results are saved:
+- Default: BenchmarkDotNet creates temporary directories
+- Custom: `--artifacts your/custom/path`
+
+**Usage**: `--artifacts benchmarks/artifacts`
+
+### Combined Example
+```bash
+dotnet run -c Release --project benchmarks/Melodee.Benchmarks all -- --exporters json,github,csv --artifacts benchmarks/artifacts
 ```
 
 ## Benchmark Categories
@@ -108,16 +135,20 @@ Based on performance review requirements:
 
 ## Running Specific Tests
 
+The new configuration supports BenchmarkDotNet's native filtering and parameter options:
+
 ```bash
-# Run only streaming buffer size comparison
-dotnet run -c Release -- --filter "*BufferSize*"
+# Run specific benchmark category with custom output
+dotnet run -c Release --project benchmarks/Melodee.Benchmarks streaming -- --exporters json --artifacts results/streaming-only
 
-# Run only database pagination tests  
-dotnet run -c Release -- --filter "*Paginated*"
+# Run database benchmarks with artifacts path
+dotnet run -c Release --project benchmarks/Melodee.Benchmarks database -- --artifacts database-results
 
-# Run with specific parameters
-dotnet run -c Release -- --filter "*CacheSize*" --params CacheSize=1000
+# Multiple categories with full export options
+dotnet run -c Release --project benchmarks/Melodee.Benchmarks cache -- --exporters json,csv,github --artifacts benchmarks/cache-artifacts
 ```
+
+**Note**: The `--filter` and `--params` options mentioned in the original documentation are standard BenchmarkDotNet features that require direct BenchmarkDotNet CLI usage rather than this wrapper.
 
 ## Baseline Data
 
@@ -140,11 +171,25 @@ Benchmark results should be compared against baseline measurements. The project 
 The benchmarks can be integrated into continuous integration:
 
 ```bash
-# Run benchmarks and export results
-dotnet run -c Release --project benchmarks/Melodee.Benchmarks all --exporters json csv
+# Run benchmarks and export results to a consistent location
+dotnet run -c Release --project benchmarks/Melodee.Benchmarks all -- --exporters json,csv --artifacts benchmarks/artifacts
+
+# Run specific categories for faster CI feedback
+dotnet run -c Release --project benchmarks/Melodee.Benchmarks streaming -- --exporters json --artifacts ci-results
 
 # Compare against baseline (future enhancement)
 # dotnet run -c Release -- --baseline baseline.json --threshold 10%
+```
+
+### CI Output Structure
+When using `--artifacts benchmarks/artifacts`, results are organized as:
+```
+benchmarks/artifacts/
+├── results/
+│   ├── Melodee.Benchmarks.StreamingBenchmarks-report.json
+│   ├── Melodee.Benchmarks.StreamingBenchmarks-report.csv
+│   └── Melodee.Benchmarks.StreamingBenchmarks-report-github.md
+└── Melodee.Benchmarks.StreamingBenchmarks-20231203-142035.log
 ```
 
 ## Troubleshooting

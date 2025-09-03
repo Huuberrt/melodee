@@ -71,9 +71,7 @@ public record MelodeeConfiguration(Dictionary<string, object?> Configuration) : 
         var baseUrl = GetValue<string>(SettingRegistry.SystemBaseUrl);
         if (baseUrl.Nullify() == null || baseUrl == RequiredNotSetValue)
         {
-            // Fall back to relative path when not configured in DB.
-            // Many clients accept relative URLs; avoids 500s during bootstrap.
-            return $"/images/{apiKey}/{imageSize.ToString().ToLower()}";
+            throw new Exception($"Configuration setting [{SettingRegistry.SystemBaseUrl}] is invalid");
         }
 
         return $"{baseUrl!.TrimEnd('/')}/images/{apiKey}/{imageSize.ToString().ToLower()}";

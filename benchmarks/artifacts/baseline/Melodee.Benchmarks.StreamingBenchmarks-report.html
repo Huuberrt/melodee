@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Melodee.Benchmarks.StreamingBenchmarks-20250903-072259</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.14.0, Manjaro Linux
+AMD Ryzen 9 3900X, 1 CPU, 24 logical and 12 physical cores
+.NET SDK 9.0.109
+  [Host]   : .NET 9.0.8 (9.0.825.36511), X64 RyuJIT AVX2
+  .NET 9.0 : .NET 9.0.8 (9.0.825.36511), X64 RyuJIT AVX2
+</code></pre>
+<pre><code>Job=.NET 9.0  Runtime=.NET 9.0  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                      </th><th>BufferSize</th><th>start</th><th>length</th><th>Mean      </th><th>Error   </th><th>StdDev  </th><th>Ratio</th><th>RatioSD</th><th>Completed Work Items</th><th>Lock Contentions</th><th>Gen0</th><th>Gen1</th><th>Gen2</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>RangeRequestProcessing</td><td>4096</td><td>0</td><td>-1</td><td>37,367,612.45 ns</td><td>567,197.628 ns</td><td>473,635.708 ns</td><td>?</td><td>?</td><td>12801.0714</td><td>-</td><td>714.2857</td><td>714.2857</td><td>714.2857</td><td>134215598 B</td><td>?</td>
+</tr><tr><td>RangeRequestProcessing</td><td>4096</td><td>0</td><td>1024</td><td>7,171.62 ns</td><td>57.310 ns</td><td>50.804 ns</td><td>?</td><td>?</td><td>1.0005</td><td>-</td><td>0.2136</td><td>-</td><td>-</td><td>1752 B</td><td>?</td>
+</tr><tr><td>RangeRequestProcessing</td><td>4096</td><td>1024</td><td>8192</td><td>9,939.02 ns</td><td>103.564 ns</td><td>80.856 ns</td><td>?</td><td>?</td><td>2.0002</td><td>-</td><td>1.8005</td><td>0.0458</td><td>-</td><td>13040 B</td><td>?</td>
+</tr><tr><td>FileStreamToMemoryStream_NewBuffer</td><td>4096</td><td>?</td><td>?</td><td>37,956,474.37 ns</td><td>616,317.103 ns</td><td>546,349.059 ns</td><td>1.000</td><td>0.02</td><td>12801.0000</td><td>-</td><td>615.3846</td><td>615.3846</td><td>615.3846</td><td>134219551 B</td><td>1.000</td>
+</tr><tr><td>FileStreamToMemoryStream_ArrayPool</td><td>4096</td><td>?</td><td>?</td><td>38,184,656.75 ns</td><td>498,488.433 ns</td><td>466,286.390 ns</td><td>1.006</td><td>0.02</td><td>12801.0714</td><td>-</td><td>714.2857</td><td>714.2857</td><td>714.2857</td><td>134215553 B</td><td>1.000</td>
+</tr><tr><td>FileStreamCopyToAsync</td><td>4096</td><td>?</td><td>?</td><td>36,748,829.37 ns</td><td>443,093.778 ns</td><td>414,470.195 ns</td><td>0.968</td><td>0.02</td><td>12801.0000</td><td>-</td><td>714.2857</td><td>714.2857</td><td>714.2857</td><td>134215838 B</td><td>1.000</td>
+</tr><tr><td>RangeParsing_ValidRange</td><td>4096</td><td>?</td><td>?</td><td>155.92 ns</td><td>0.974 ns</td><td>0.911 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0238</td><td>-</td><td>-</td><td>200 B</td><td>0.000</td>
+</tr><tr><td>RangeParsing_StartOnly</td><td>4096</td><td>?</td><td>?</td><td>130.93 ns</td><td>0.456 ns</td><td>0.404 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0219</td><td>-</td><td>-</td><td>184 B</td><td>0.000</td>
+</tr><tr><td>RangeParsing_SuffixOnly</td><td>4096</td><td>?</td><td>?</td><td>126.64 ns</td><td>0.409 ns</td><td>0.342 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0200</td><td>-</td><td>-</td><td>168 B</td><td>0.000</td>
+</tr><tr><td>HeaderConstruction</td><td>4096</td><td>?</td><td>?</td><td>49.71 ns</td><td>0.154 ns</td><td>0.144 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0086</td><td>-</td><td>-</td><td>72 B</td><td>0.000</td>
+</tr><tr><td>RangeRequestProcessing</td><td>8192</td><td>0</td><td>-1</td><td>31,887,432.47 ns</td><td>255,326.536 ns</td><td>238,832.601 ns</td><td>?</td><td>?</td><td>6401.0000</td><td>-</td><td>625.0000</td><td>625.0000</td><td>625.0000</td><td>134211386 B</td><td>?</td>
+</tr><tr><td>RangeRequestProcessing</td><td>8192</td><td>0</td><td>1024</td><td>7,198.13 ns</td><td>99.449 ns</td><td>93.025 ns</td><td>?</td><td>?</td><td>1.0001</td><td>-</td><td>0.2136</td><td>-</td><td>-</td><td>1752 B</td><td>?</td>
+</tr><tr><td>RangeRequestProcessing</td><td>8192</td><td>1024</td><td>8192</td><td>8,010.65 ns</td><td>112.305 ns</td><td>105.050 ns</td><td>?</td><td>?</td><td>1.0000</td><td>0.0000</td><td>1.0529</td><td>0.0305</td><td>-</td><td>8920 B</td><td>?</td>
+</tr><tr><td>FileStreamToMemoryStream_NewBuffer</td><td>8192</td><td>?</td><td>?</td><td>31,594,209.28 ns</td><td>273,429.060 ns</td><td>242,387.740 ns</td><td>1.000</td><td>0.01</td><td>6401.0000</td><td>-</td><td>625.0000</td><td>625.0000</td><td>625.0000</td><td>134219578 B</td><td>1.000</td>
+</tr><tr><td>FileStreamToMemoryStream_ArrayPool</td><td>8192</td><td>?</td><td>?</td><td>31,727,227.15 ns</td><td>270,634.190 ns</td><td>239,910.160 ns</td><td>1.004</td><td>0.01</td><td>6401.0625</td><td>-</td><td>625.0000</td><td>625.0000</td><td>625.0000</td><td>134211362 B</td><td>1.000</td>
+</tr><tr><td>FileStreamCopyToAsync</td><td>8192</td><td>?</td><td>?</td><td>31,026,484.27 ns</td><td>239,659.670 ns</td><td>224,177.804 ns</td><td>0.982</td><td>0.01</td><td>6401.0000</td><td>-</td><td>625.0000</td><td>625.0000</td><td>625.0000</td><td>134211626 B</td><td>1.000</td>
+</tr><tr><td>RangeParsing_ValidRange</td><td>8192</td><td>?</td><td>?</td><td>152.26 ns</td><td>1.028 ns</td><td>0.962 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0238</td><td>-</td><td>-</td><td>200 B</td><td>0.000</td>
+</tr><tr><td>RangeParsing_StartOnly</td><td>8192</td><td>?</td><td>?</td><td>161.05 ns</td><td>0.773 ns</td><td>0.685 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0219</td><td>-</td><td>-</td><td>184 B</td><td>0.000</td>
+</tr><tr><td>RangeParsing_SuffixOnly</td><td>8192</td><td>?</td><td>?</td><td>124.24 ns</td><td>0.910 ns</td><td>0.852 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0200</td><td>-</td><td>-</td><td>168 B</td><td>0.000</td>
+</tr><tr><td>HeaderConstruction</td><td>8192</td><td>?</td><td>?</td><td>49.48 ns</td><td>0.263 ns</td><td>0.219 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0086</td><td>-</td><td>-</td><td>72 B</td><td>0.000</td>
+</tr><tr><td>RangeRequestProcessing</td><td>16384</td><td>0</td><td>-1</td><td>29,069,046.01 ns</td><td>165,487.766 ns</td><td>154,797.359 ns</td><td>?</td><td>?</td><td>3201.0000</td><td>-</td><td>593.7500</td><td>593.7500</td><td>593.7500</td><td>134203096 B</td><td>?</td>
+</tr><tr><td>RangeRequestProcessing</td><td>16384</td><td>0</td><td>1024</td><td>7,633.85 ns</td><td>42.757 ns</td><td>37.903 ns</td><td>?</td><td>?</td><td>1.0000</td><td>-</td><td>0.2136</td><td>-</td><td>-</td><td>1752 B</td><td>?</td>
+</tr><tr><td>RangeRequestProcessing</td><td>16384</td><td>1024</td><td>8192</td><td>8,512.85 ns</td><td>79.046 ns</td><td>66.007 ns</td><td>?</td><td>?</td><td>1.0000</td><td>-</td><td>1.0529</td><td>0.0305</td><td>-</td><td>8920 B</td><td>?</td>
+</tr><tr><td>FileStreamToMemoryStream_NewBuffer</td><td>16384</td><td>?</td><td>?</td><td>29,097,049.58 ns</td><td>126,492.427 ns</td><td>112,132.242 ns</td><td>1.000</td><td>0.01</td><td>3201.0000</td><td>-</td><td>593.7500</td><td>593.7500</td><td>593.7500</td><td>134219480 B</td><td>1.000</td>
+</tr><tr><td>FileStreamToMemoryStream_ArrayPool</td><td>16384</td><td>?</td><td>?</td><td>28,823,888.65 ns</td><td>148,100.568 ns</td><td>123,670.682 ns</td><td>0.991</td><td>0.01</td><td>3201.0000</td><td>-</td><td>593.7500</td><td>593.7500</td><td>593.7500</td><td>134203072 B</td><td>1.000</td>
+</tr><tr><td>FileStreamCopyToAsync</td><td>16384</td><td>?</td><td>?</td><td>28,531,065.18 ns</td><td>254,779.956 ns</td><td>238,321.329 ns</td><td>0.981</td><td>0.01</td><td>3201.0000</td><td>-</td><td>593.7500</td><td>593.7500</td><td>593.7500</td><td>134203328 B</td><td>1.000</td>
+</tr><tr><td>RangeParsing_ValidRange</td><td>16384</td><td>?</td><td>?</td><td>148.22 ns</td><td>2.424 ns</td><td>2.148 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0238</td><td>-</td><td>-</td><td>200 B</td><td>0.000</td>
+</tr><tr><td>RangeParsing_StartOnly</td><td>16384</td><td>?</td><td>?</td><td>147.86 ns</td><td>1.817 ns</td><td>1.699 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0219</td><td>-</td><td>-</td><td>184 B</td><td>0.000</td>
+</tr><tr><td>RangeParsing_SuffixOnly</td><td>16384</td><td>?</td><td>?</td><td>127.05 ns</td><td>1.071 ns</td><td>0.836 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0200</td><td>-</td><td>-</td><td>168 B</td><td>0.000</td>
+</tr><tr><td>HeaderConstruction</td><td>16384</td><td>?</td><td>?</td><td>51.26 ns</td><td>0.384 ns</td><td>0.359 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0086</td><td>-</td><td>-</td><td>72 B</td><td>0.000</td>
+</tr><tr><td>RangeRequestProcessing</td><td>32768</td><td>0</td><td>-1</td><td>27,618,182.80 ns</td><td>158,984.581 ns</td><td>148,714.276 ns</td><td>?</td><td>?</td><td>1601.0000</td><td>-</td><td>593.7500</td><td>593.7500</td><td>593.7500</td><td>134186688 B</td><td>?</td>
+</tr><tr><td>RangeRequestProcessing</td><td>32768</td><td>0</td><td>1024</td><td>8,734.01 ns</td><td>77.147 ns</td><td>60.231 ns</td><td>?</td><td>?</td><td>1.0000</td><td>-</td><td>0.2136</td><td>-</td><td>-</td><td>1752 B</td><td>?</td>
+</tr><tr><td>RangeRequestProcessing</td><td>32768</td><td>1024</td><td>8192</td><td>9,995.69 ns</td><td>155.832 ns</td><td>145.765 ns</td><td>?</td><td>?</td><td>1.0000</td><td>-</td><td>1.0529</td><td>0.0305</td><td>-</td><td>8920 B</td><td>?</td>
+</tr><tr><td>FileStreamToMemoryStream_NewBuffer</td><td>32768</td><td>?</td><td>?</td><td>27,668,954.08 ns</td><td>120,436.789 ns</td><td>112,656.647 ns</td><td>1.000</td><td>0.01</td><td>1601.0000</td><td>-</td><td>593.7500</td><td>593.7500</td><td>593.7500</td><td>134219448 B</td><td>1.000</td>
+</tr><tr><td>FileStreamToMemoryStream_ArrayPool</td><td>32768</td><td>?</td><td>?</td><td>27,635,237.88 ns</td><td>84,774.123 ns</td><td>79,297.767 ns</td><td>0.999</td><td>0.00</td><td>1601.0000</td><td>-</td><td>593.7500</td><td>593.7500</td><td>593.7500</td><td>134186656 B</td><td>1.000</td>
+</tr><tr><td>FileStreamCopyToAsync</td><td>32768</td><td>?</td><td>?</td><td>27,151,365.22 ns</td><td>145,801.610 ns</td><td>121,750.948 ns</td><td>0.981</td><td>0.01</td><td>1601.0000</td><td>-</td><td>593.7500</td><td>593.7500</td><td>593.7500</td><td>134186928 B</td><td>1.000</td>
+</tr><tr><td>RangeParsing_ValidRange</td><td>32768</td><td>?</td><td>?</td><td>149.24 ns</td><td>0.942 ns</td><td>0.882 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0238</td><td>-</td><td>-</td><td>200 B</td><td>0.000</td>
+</tr><tr><td>RangeParsing_StartOnly</td><td>32768</td><td>?</td><td>?</td><td>140.48 ns</td><td>0.943 ns</td><td>0.882 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0219</td><td>-</td><td>-</td><td>184 B</td><td>0.000</td>
+</tr><tr><td>RangeParsing_SuffixOnly</td><td>32768</td><td>?</td><td>?</td><td>132.61 ns</td><td>1.112 ns</td><td>1.041 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0200</td><td>-</td><td>-</td><td>168 B</td><td>0.000</td>
+</tr><tr><td>HeaderConstruction</td><td>32768</td><td>?</td><td>?</td><td>50.66 ns</td><td>0.513 ns</td><td>0.480 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0086</td><td>-</td><td>-</td><td>72 B</td><td>0.000</td>
+</tr><tr><td>RangeRequestProcessing</td><td>65536</td><td>0</td><td>-1</td><td>26,828,734.98 ns</td><td>79,967.765 ns</td><td>70,889.340 ns</td><td>?</td><td>?</td><td>801.0000</td><td>-</td><td>593.7500</td><td>593.7500</td><td>593.7500</td><td>134153896 B</td><td>?</td>
+</tr><tr><td>RangeRequestProcessing</td><td>65536</td><td>0</td><td>1024</td><td>11,192.84 ns</td><td>188.934 ns</td><td>167.485 ns</td><td>?</td><td>?</td><td>1.0000</td><td>0.0000</td><td>0.2136</td><td>-</td><td>-</td><td>1752 B</td><td>?</td>
+</tr><tr><td>RangeRequestProcessing</td><td>65536</td><td>1024</td><td>8192</td><td>12,841.13 ns</td><td>199.811 ns</td><td>186.903 ns</td><td>?</td><td>?</td><td>1.0000</td><td>0.0001</td><td>1.0529</td><td>0.0305</td><td>-</td><td>8921 B</td><td>?</td>
+</tr><tr><td>FileStreamToMemoryStream_NewBuffer</td><td>65536</td><td>?</td><td>?</td><td>27,001,698.21 ns</td><td>127,583.245 ns</td><td>119,341.447 ns</td><td>1.000</td><td>0.01</td><td>801.0000</td><td>-</td><td>593.7500</td><td>593.7500</td><td>593.7500</td><td>134219432 B</td><td>1.000</td>
+</tr><tr><td>FileStreamToMemoryStream_ArrayPool</td><td>65536</td><td>?</td><td>?</td><td>26,836,132.60 ns</td><td>157,843.593 ns</td><td>147,646.995 ns</td><td>0.994</td><td>0.01</td><td>801.0000</td><td>-</td><td>593.7500</td><td>593.7500</td><td>593.7500</td><td>134153872 B</td><td>1.000</td>
+</tr><tr><td>FileStreamCopyToAsync</td><td>65536</td><td>?</td><td>?</td><td>26,867,064.57 ns</td><td>117,841.355 ns</td><td>104,463.292 ns</td><td>0.995</td><td>0.01</td><td>801.0313</td><td>-</td><td>593.7500</td><td>593.7500</td><td>593.7500</td><td>134154128 B</td><td>1.000</td>
+</tr><tr><td>RangeParsing_ValidRange</td><td>65536</td><td>?</td><td>?</td><td>145.11 ns</td><td>1.016 ns</td><td>0.950 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0238</td><td>-</td><td>-</td><td>200 B</td><td>0.000</td>
+</tr><tr><td>RangeParsing_StartOnly</td><td>65536</td><td>?</td><td>?</td><td>128.03 ns</td><td>0.582 ns</td><td>0.516 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0219</td><td>-</td><td>-</td><td>184 B</td><td>0.000</td>
+</tr><tr><td>RangeParsing_SuffixOnly</td><td>65536</td><td>?</td><td>?</td><td>130.20 ns</td><td>0.892 ns</td><td>0.790 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0200</td><td>-</td><td>-</td><td>168 B</td><td>0.000</td>
+</tr><tr><td>HeaderConstruction</td><td>65536</td><td>?</td><td>?</td><td>50.73 ns</td><td>0.293 ns</td><td>0.274 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0086</td><td>-</td><td>-</td><td>72 B</td><td>0.000</td>
+</tr><tr><td>RangeRequestProcessing</td><td>131072</td><td>0</td><td>-1</td><td>24,624,334.51 ns</td><td>70,004.313 ns</td><td>62,057.000 ns</td><td>?</td><td>?</td><td>401.0000</td><td>-</td><td>531.2500</td><td>531.2500</td><td>531.2500</td><td>134088265 B</td><td>?</td>
+</tr><tr><td>RangeRequestProcessing</td><td>131072</td><td>0</td><td>1024</td><td>24,533.85 ns</td><td>410.259 ns</td><td>383.756 ns</td><td>?</td><td>?</td><td>1.0000</td><td>0.0030</td><td>0.2136</td><td>-</td><td>-</td><td>1814 B</td><td>?</td>
+</tr><tr><td>RangeRequestProcessing</td><td>131072</td><td>1024</td><td>8192</td><td>24,610.48 ns</td><td>335.037 ns</td><td>313.394 ns</td><td>?</td><td>?</td><td>1.0000</td><td>0.0009</td><td>1.0681</td><td>0.0305</td><td>-</td><td>8984 B</td><td>?</td>
+</tr><tr><td>FileStreamToMemoryStream_NewBuffer</td><td>131072</td><td>?</td><td>?</td><td>26,366,403.77 ns</td><td>134,829.513 ns</td><td>126,119.610 ns</td><td>1.000</td><td>0.01</td><td>401.0000</td><td>-</td><td>593.7500</td><td>593.7500</td><td>593.7500</td><td>134220135 B</td><td>1.000</td>
+</tr><tr><td>FileStreamToMemoryStream_ArrayPool</td><td>131072</td><td>?</td><td>?</td><td>24,459,904.69 ns</td><td>148,288.592 ns</td><td>131,453.974 ns</td><td>0.928</td><td>0.01</td><td>401.0000</td><td>-</td><td>531.2500</td><td>531.2500</td><td>531.2500</td><td>134088242 B</td><td>0.999</td>
+</tr><tr><td>FileStreamCopyToAsync</td><td>131072</td><td>?</td><td>?</td><td>25,110,714.03 ns</td><td>122,037.651 ns</td><td>114,154.095 ns</td><td>0.952</td><td>0.01</td><td>401.0000</td><td>-</td><td>531.2500</td><td>531.2500</td><td>531.2500</td><td>134088750 B</td><td>0.999</td>
+</tr><tr><td>RangeParsing_ValidRange</td><td>131072</td><td>?</td><td>?</td><td>145.11 ns</td><td>1.069 ns</td><td>0.893 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0238</td><td>-</td><td>-</td><td>200 B</td><td>0.000</td>
+</tr><tr><td>RangeParsing_StartOnly</td><td>131072</td><td>?</td><td>?</td><td>143.94 ns</td><td>1.228 ns</td><td>1.149 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0219</td><td>-</td><td>-</td><td>184 B</td><td>0.000</td>
+</tr><tr><td>RangeParsing_SuffixOnly</td><td>131072</td><td>?</td><td>?</td><td>128.20 ns</td><td>0.715 ns</td><td>0.669 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0200</td><td>-</td><td>-</td><td>168 B</td><td>0.000</td>
+</tr><tr><td>HeaderConstruction</td><td>131072</td><td>?</td><td>?</td><td>50.46 ns</td><td>0.544 ns</td><td>0.482 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0086</td><td>-</td><td>-</td><td>72 B</td><td>0.000</td>
+</tr><tr><td>RangeRequestProcessing</td><td>262144</td><td>0</td><td>-1</td><td>26,209,926.48 ns</td><td>194,385.343 ns</td><td>181,828.170 ns</td><td>?</td><td>?</td><td>201.0000</td><td>-</td><td>531.2500</td><td>531.2500</td><td>531.2500</td><td>133957170 B</td><td>?</td>
+</tr><tr><td>RangeRequestProcessing</td><td>262144</td><td>0</td><td>1024</td><td>37,155.33 ns</td><td>279.689 ns</td><td>247.937 ns</td><td>?</td><td>?</td><td>1.0000</td><td>0.0001</td><td>0.1831</td><td>-</td><td>-</td><td>1816 B</td><td>?</td>
+</tr><tr><td>RangeRequestProcessing</td><td>262144</td><td>1024</td><td>8192</td><td>38,861.66 ns</td><td>759.350 ns</td><td>779.796 ns</td><td>?</td><td>?</td><td>1.0000</td><td>-</td><td>1.0376</td><td>-</td><td>-</td><td>8984 B</td><td>?</td>
+</tr><tr><td>FileStreamToMemoryStream_NewBuffer</td><td>262144</td><td>?</td><td>?</td><td>26,058,110.91 ns</td><td>167,698.688 ns</td><td>156,865.457 ns</td><td>1.000</td><td>0.01</td><td>201.0000</td><td>-</td><td>593.7500</td><td>593.7500</td><td>593.7500</td><td>134220112 B</td><td>1.000</td>
+</tr><tr><td>FileStreamToMemoryStream_ArrayPool</td><td>262144</td><td>?</td><td>?</td><td>26,102,262.58 ns</td><td>229,837.095 ns</td><td>214,989.761 ns</td><td>1.002</td><td>0.01</td><td>201.0000</td><td>-</td><td>531.2500</td><td>531.2500</td><td>531.2500</td><td>133957146 B</td><td>0.998</td>
+</tr><tr><td>FileStreamCopyToAsync</td><td>262144</td><td>?</td><td>?</td><td>25,128,941.85 ns</td><td>166,413.787 ns</td><td>155,663.559 ns</td><td>0.964</td><td>0.01</td><td>201.0000</td><td>-</td><td>531.2500</td><td>531.2500</td><td>531.2500</td><td>133957410 B</td><td>0.998</td>
+</tr><tr><td>RangeParsing_ValidRange</td><td>262144</td><td>?</td><td>?</td><td>149.71 ns</td><td>1.055 ns</td><td>0.987 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0238</td><td>-</td><td>-</td><td>200 B</td><td>0.000</td>
+</tr><tr><td>RangeParsing_StartOnly</td><td>262144</td><td>?</td><td>?</td><td>137.24 ns</td><td>0.852 ns</td><td>0.797 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0219</td><td>-</td><td>-</td><td>184 B</td><td>0.000</td>
+</tr><tr><td>RangeParsing_SuffixOnly</td><td>262144</td><td>?</td><td>?</td><td>132.89 ns</td><td>0.856 ns</td><td>0.801 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0200</td><td>-</td><td>-</td><td>168 B</td><td>0.000</td>
+</tr><tr><td>HeaderConstruction</td><td>262144</td><td>?</td><td>?</td><td>50.22 ns</td><td>0.451 ns</td><td>0.422 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>0.0086</td><td>-</td><td>-</td><td>72 B</td><td>0.000</td>
+</tr></tbody></table>
+</body>
+</html>
