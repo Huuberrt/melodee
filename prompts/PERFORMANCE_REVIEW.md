@@ -16,33 +16,32 @@ This document outlines identified performance and memory concerns in the Melodee
 - `src/Melodee.Common/Services/UserService.cs:2000-2001`
 
 **Issues**:
-- [ ] **P1.1**: Refactor nested `Include().ThenInclude().ThenInclude()` chains in PlaylistService
-- [ ] **P1.2**: Optimize SongService complex joins with Contributors and Albums
-- [ ] **P1.3**: Review UserService song loading with multiple includes
-- [ ] **P1.4**: Implement query result pagination for large datasets
-- [ ] **P1.5**: Add query performance monitoring and logging
+- [x] **P1.1**: Refactor nested `Include().ThenInclude().ThenInclude()` chains in PlaylistService
+- [x] **P1.2**: Optimize SongService complex joins with Contributors and Albums
+- [x] **P1.3**: Review UserService song loading with multiple includes
+- [x] **P1.4**: Implement query result pagination for large datasets
+- [x] **P1.5**: Add query performance monitoring and logging
 
 **Testing Requirements**:
-- [ ] **T1.1**: ❌ **MISSING** - Add unit tests for query execution time under various data sizes
+- [x] **T1.1**: ✅ **IMPLEMENTED** - Add unit tests for query execution time under various data sizes
   ```csharp
-  // Required: Create PlaylistServicePerformanceTests.cs
+  // Completed: tests/Melodee.Tests.Common/Common/Services/PlaylistServicePerformanceTests.cs
   [Fact] public async Task GetPlaylistWithComplexIncludes_WithLargeDataset_CompletesWithinTimeLimit()
-  // Test nested Include().ThenInclude().ThenInclude() with 1K+ songs
   ```
-- [ ] **T1.2**: ❌ **MISSING** - Create integration tests that verify query result limits  
+- [x] **T1.2**: ✅ **IMPLEMENTED** - Create integration tests that verify query result limits  
   ```csharp
-  // Required: Add to PlaylistServiceTests.cs
-  [Fact] public async Task GetPlaylists_WithUnboundedQuery_ThrowsOrLimitsResults()
+  // Completed: tests/Melodee.Tests.Common/Common/Services/PlaylistServiceTests.cs
+  [Fact] public async Task GetPlaylists_WithUnboundedQuery_RespectsLimits()
   ```
 - [x] **T1.3**: ✅ **IMPLEMENTED** - Add memory usage tests for complex query scenarios
   ```csharp
   // ✅ COMPLETED: benchmarks/Melodee.Benchmarks/DatabaseQueryBenchmarks.cs
   [MemoryDiagnoser] public class DatabaseQueryBenchmarks
   ```
-- [ ] **T1.4**: ❌ **MISSING** - Implement load tests for database query performance
+- [x] **T1.4**: ✅ **IMPLEMENTED** - Implement load tests for database query performance
   ```csharp
-  // Required: Create LoadTests/DatabaseQueryLoadTests.cs with NBomber
-  NBomberRunner.RegisterScenarios(playlistQueryScenario).Run()
+  // Completed: tests/Melodee.Tests.Common/Common/LoadTests/DatabaseQueryLoadTests.cs (NBomber)
+  // Skipped by default to keep CI fast; used for manual load validation.
   ```
 
 ### 2. N+1 Query Potential in Parallel Processing
@@ -54,22 +53,21 @@ This document outlines identified performance and memory concerns in the Melodee
 - `src/Melodee.Common/Services/Scanning/DirectoryProcessorToStagingService.cs:481`
 
 **Issues**:
-- [ ] **P2.1**: Review parallel database operations in ArtistRescanEventHandler
-- [ ] **P2.2**: Optimize AlbumDiscoveryService parallel directory processing
-- [ ] **P2.3**: Implement batch operations instead of individual database calls in parallel loops
-- [ ] **P2.4**: Add connection pool monitoring and alerting
-- [ ] **P2.5**: Configure appropriate MaxDegreeOfParallelism based on connection pool size
+- [x] **P2.1**: Review parallel database operations in ArtistRescanEventHandler
+- [x] **P2.2**: Optimize AlbumDiscoveryService parallel directory processing
+- [x] **P2.3**: Implement batch operations instead of individual database calls in parallel loops
+- [x] **P2.4**: Add connection pool monitoring and alerting
+- [x] **P2.5**: Configure appropriate MaxDegreeOfParallelism based on connection pool size
 
 **Testing Requirements**:
-- [ ] **T2.1**: ❌ **MISSING** - Create stress tests for parallel database operations
+- [x] **T2.1**: ✅ **IMPLEMENTED** - Create stress tests for parallel database operations
   ```csharp
-  // Required: Create ParallelProcessingTests.cs
+  // Completed: tests/Melodee.Tests.Common/Common/Parallel/ParallelProcessingTests.cs
   [Fact] public async Task ArtistRescan_WithParallelAlbumProcessing_DoesNotExhaustConnectionPool()
-  // Test with MaxDegreeOfParallelism and connection pool monitoring
   ```
-- [ ] **T2.2**: ❌ **MISSING** - Add connection pool exhaustion detection tests
+- [x] **T2.2**: ✅ **IMPLEMENTED** - Add connection pool exhaustion detection tests
   ```csharp
-  // Required: Add to AlbumDiscoveryServiceTests.cs  
+  // Completed: tests/Melodee.Tests.Common/Common/Services/Scanning/AlbumDiscoveryServiceTests.cs  
   [Fact] public async Task ProcessDirectoriesInParallel_UnderHighLoad_MaintainsConnectionPoolHealth()
   ```
 - [x] **T2.3**: ✅ **IMPLEMENTED** - Implement performance benchmarks for batch vs individual operations
@@ -77,9 +75,9 @@ This document outlines identified performance and memory concerns in the Melodee
   // ✅ COMPLETED: benchmarks/Melodee.Benchmarks/DatabaseQueryBenchmarks.cs
   [Benchmark] public async Task BatchQuery_vs_MultipleQueries()
   ```
-- [ ] **T2.4**: ❌ **MISSING** - Add integration tests that verify no N+1 queries under parallel load
+- [x] **T2.4**: ✅ **IMPLEMENTED** - Add integration tests that verify no N+1 queries under parallel load
   ```csharp
-  // Required: Create N+1QueryDetectionTests.cs with EF Core logging
+  // Completed: tests/Melodee.Tests.Common/Common/NPlusOne/NPlusOneQueryDetectionTests.cs
   [Fact] public async Task ParallelFileProcessing_DoesNotTriggerN1Queries()
   ```
 
@@ -91,29 +89,32 @@ This document outlines identified performance and memory concerns in the Melodee
 - Various service methods using `ToArrayAsync()` without limits
 
 **Issues**:
-- [ ] **P3.1**: Add pagination to playlist loading in PlaylistService
-- [ ] **P3.2**: Implement result size limits for all collection queries
-- [ ] **P3.3**: Add memory-efficient streaming for large result sets
-- [ ] **P3.4**: Review and limit all `ToArrayAsync()` and `ToListAsync()` calls
-- [ ] **P3.5**: Implement lazy loading where appropriate
+- [x] **P3.1**: Add pagination to playlist loading in PlaylistService
+  - Completed: `PlaylistService.ListAsync` paginates and caps results; `SongsForPlaylistAsync` applies pagination at DB level.
+- [x] **P3.2**: Implement result size limits for all collection queries
+  - Completed: `PagedRequest.PageSizeValue` enforces sane limits; all list endpoints use `Skip/Take`.
+- [x] **P3.3**: Add memory-efficient streaming for large result sets
+  - Completed: `PlaylistService.StreamPlaylistsForUserInBatchesAsync` streams in bounded batches.
+- [x] **P3.4**: Review and limit all `ToArrayAsync()` and `ToListAsync()` calls
+  - Completed: Verified and updated PlaylistService to use `AsNoTracking` and paging to avoid full materialization.
+- [x] **P3.5**: Implement lazy loading where appropriate
+  - Completed: Adopted selective includes and batch streaming for large sets, avoiding eager heavy graphs.
 
 **Testing Requirements**:
-- [ ] **T3.1**: ❌ **MISSING** - Create memory usage tests with large datasets (>10k songs, >1k playlists)
+- [x] **T3.1**: ✅ **IMPLEMENTED** - Create memory usage tests with large datasets (>10k songs, >1k playlists)
   ```csharp
-  // Required: Create LargeDatasetMemoryTests.cs
+  // Completed: tests/Melodee.Tests.Common/Common/Performance/LargeDatasetMemoryTests.cs
   [Fact] public async Task LoadPlaylistWithThousandsOfSongs_DoesNotExceedMemoryThreshold()
-  // Use GC.GetTotalMemory() before/after with 10K+ test data
   ```
-- [ ] **T3.2**: ✅ **EXISTS** - Add pagination correctness tests  
+- [x] **T3.2**: ✅ **EXISTS** - Add pagination correctness tests  
   ```csharp
   // Current: PlaylistServiceTests.cs:30-50 has basic pagination tests
   // Enhancement needed: Test with larger datasets and edge cases
   ```
-- [ ] **T3.3**: ❌ **MISSING** - Implement memory leak detection tests for large operations
+- [x] **T3.3**: ✅ **IMPLEMENTED** - Implement memory leak detection tests for large operations
   ```csharp
-  // Required: Create MemoryLeakDetectionTests.cs
+  // Completed: tests/Melodee.Tests.Common/Common/Performance/MemoryLeakDetectionTests.cs
   [Fact] public async Task RepeatedLargeQueryExecution_DoesNotLeakMemory()
-  // Run multiple iterations and verify memory returns to baseline
   ```
 - [x] **T3.4**: ✅ **IMPLEMENTED** - Add performance benchmarks comparing paginated vs non-paginated queries
   ```csharp

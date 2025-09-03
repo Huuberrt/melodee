@@ -52,6 +52,58 @@ public class PlaylistServiceTests : ServiceTestBase
     }
 
     [Fact]
+    public async Task GetPlaylists_WithUnboundedQuery_RespectsLimits()
+    {
+        // Arrange: create one user with a large number of playlists
+        var service = GetPlaylistService();
+        await using var context = await MockFactory().CreateDbContextAsync();
+
+        var user = new User
+        {
+            UserName = "limit_user",
+            UserNameNormalized = "LIMIT_USER",
+            Email = "limit@example.com",
+            EmailNormalized = "LIMIT@EXAMPLE.COM",
+            PublicKey = "limitkey",
+            PasswordEncrypted = "encryptedpassword",
+            ApiKey = Guid.NewGuid(),
+            CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+            IsAdmin = false,
+            IsLocked = false
+        };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        // Seed 1,200 playlists for the user
+        var many = Enumerable.Range(0, 1200).Select(i => new Playlist
+        {
+            ApiKey = Guid.NewGuid(),
+            Name = $"User Playlist {i}",
+            IsPublic = true,
+            CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+            UserId = user.Id
+        }).ToArray();
+        context.Playlists.AddRange(many);
+        await context.SaveChangesAsync();
+
+        // Act: use ListAsync which supports paging and should cap results to PageSize
+        var firstPage = await service.ListAsync(
+            new UserInfo(user.Id, user.ApiKey, user.UserName, user.Email, string.Empty, string.Empty),
+            new PagedRequest { PageSize = 100, Page = 0 });
+
+        var largePage = await service.ListAsync(
+            new UserInfo(user.Id, user.ApiKey, user.UserName, user.Email, string.Empty, string.Empty),
+            new PagedRequest { PageSize = 500, Page = 0 });
+
+        // Assert
+        AssertResultIsSuccessful(firstPage);
+        AssertResultIsSuccessful(largePage);
+        Assert.True(firstPage.Data.Count() <= 100);
+        Assert.True(largePage.Data.Count() <= 500);
+        Assert.True(firstPage.TotalCount >= 1200); // ensure count reflects total
+    }
+
+    [Fact]
     public async Task ListAsync_WithTotalCountOnlyRequest_ReturnsOnlyCount()
     {
         var service = GetPlaylistService();

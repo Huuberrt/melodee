@@ -1996,12 +1996,18 @@ public sealed class UserService(
 
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         var bookmarks = await scopedContext.Bookmarks
             .Include(x => x.Song).ThenInclude(x => x.Album).ThenInclude(x => x.Artist)
             .Include(x => x.Song).ThenInclude(x => x.UserSongs.Where(ua => ua.UserId == userId))
             .Where(x => x.UserId == userId)
+            .AsSplitQuery()
+            .AsNoTracking()
             .ToArrayAsync(cancellationToken)
             .ConfigureAwait(false);
+        sw.Stop();
+        Logger.Debug("[UserService] GetBookmarksAsync loaded {Count} bookmarks for user {UserId} in {ElapsedMs} ms",
+            bookmarks.Length, userId, sw.ElapsedMilliseconds);
 
         return new MelodeeModels.OperationResult<Bookmark[]>
         {

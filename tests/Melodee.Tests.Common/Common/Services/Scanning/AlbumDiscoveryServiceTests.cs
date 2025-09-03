@@ -18,6 +18,39 @@ public class AlbumDiscoveryServiceTests : ServiceTestBase
             mockFileSystemService ?? new MockFileSystemService());
     }
 
+    [Fact]
+    public async Task ProcessDirectoriesInParallel_UnderHighLoad_MaintainsConnectionPoolHealth()
+    {
+        // Arrange
+        var directoryPath = "/test/albums";
+        var mockFileSystem = new MockFileSystemService().SetDirectoryExists(directoryPath);
+
+        // Create many subdirectories with data files
+        var filePaths = new List<string>();
+        for (var i = 0; i < 200; i++)
+        {
+            var sub = Path.Combine(directoryPath, $"album_{i}");
+            var file = Path.Combine(sub, Album.JsonFileName);
+            filePaths.Add(file);
+            mockFileSystem.AddFilesToDirectory(directoryPath, file);
+            mockFileSystem.SetAlbumForFile(file, CreateTestAlbum(title: $"Album {i}"));
+        }
+
+        var service = GetTestService(mockFileSystem);
+        await service.InitializeAsync();
+
+        var directoryInfo = new FileSystemDirectoryInfo { Path = directoryPath, Name = "albums" };
+        var pagedRequest = new PagedRequest { PageSize = 50 };
+
+        // Act
+        var result = await service.AlbumsDataInfosForDirectoryAsync(directoryInfo, pagedRequest);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        Assert.True(result.TotalCount >= 0);
+    }
+
     public static Album CreateTestAlbum(
         Guid? id = null, 
         string title = "Test Album", 

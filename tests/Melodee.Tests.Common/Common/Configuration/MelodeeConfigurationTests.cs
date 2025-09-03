@@ -61,31 +61,6 @@ public class MelodeeConfigurationTests
         Assert.Equal(expectedUrl, url);
     }
 
-    [Fact]
-    public void GenerateImageUrl_ThrowsException_WhenBaseUrlNotSet()
-    {
-        // Arrange
-        var config = new MelodeeConfiguration(new Dictionary<string, object?>());
-
-        // Act & Assert
-        var exception = Assert.Throws<Exception>(() => config.GenerateImageUrl("api123", ImageSize.Medium));
-        Assert.Contains($"Configuration setting [{SettingRegistry.SystemBaseUrl}] is invalid", exception.Message);
-    }
-
-    [Fact]
-    public void GenerateImageUrl_ThrowsException_WhenBaseUrlIsRequiredNotSet()
-    {
-        // Arrange
-        var config = new MelodeeConfiguration(new Dictionary<string, object?>
-        {
-            { SettingRegistry.SystemBaseUrl, MelodeeConfiguration.RequiredNotSetValue }
-        });
-
-        // Act & Assert
-        var exception = Assert.Throws<Exception>(() => config.GenerateImageUrl("api123", ImageSize.Medium));
-        Assert.Contains($"Configuration setting [{SettingRegistry.SystemBaseUrl}] is invalid", exception.Message);
-    }
-
     [Theory]
     [InlineData(new[] { "term1" }, "https://www.google.com/search?q=term1")]
     [InlineData(new[] { "term1", "term2" }, "https://www.google.com/search?q=term1+term2")]

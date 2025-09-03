@@ -309,13 +309,18 @@ public class SongService(
             await using (var scopedContext =
                          await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
             {
-                return await scopedContext
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var song = await scopedContext
                     .Songs
                     .Include(x => x.Contributors).ThenInclude(x => x.Artist)
                     .Include(x => x.Album).ThenInclude(x => x.Artist)
+                    .AsSplitQuery()
                     .AsNoTracking()
                     .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
                     .ConfigureAwait(false);
+                sw.Stop();
+                Logger.Debug("[SongService] GetAsync({Id}) completed in {ElapsedMs} ms", id, sw.ElapsedMilliseconds);
+                return song;
             }
         }, cancellationToken);
         return new MelodeeModels.OperationResult<Song?>

@@ -680,26 +680,107 @@ public async Task<MelodeeModels.PagedResult<SongDataInfo>> SongsForPlaylistAsync
     /// Get playlists for a user with full include structure needed for OpenSubsonic API
     /// </summary>
     public async Task<OperationResult<Playlist[]>> GetPlaylistsForUserAsync(
-        int userId, 
+        int userId,
         CancellationToken cancellationToken = default)
     {
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
+        // Only include what's needed for ToApiPlaylist(false): User reference.
+        // Avoid loading songs/albums here to prevent heavy graph materialization and N+1 patterns.
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         var playlists = await scopedContext
             .Playlists
             .Include(x => x.User)
-            .Include(x => x.Songs).ThenInclude(x => x.Song).ThenInclude(x => x.Album).ThenInclude(x => x.Artist)
-            .Include(x => x.Songs).ThenInclude(x => x.Song).ThenInclude(x =>
-                x.UserSongs.Where(ua => ua.UserId == userId))
             .Where(x => x.UserId == userId)
-            .AsSplitQuery()
             .AsNoTracking()
             .ToArrayAsync(cancellationToken)
             .ConfigureAwait(false);
+        sw.Stop();
+        Logger.Debug("[PlaylistService] GetPlaylistsForUserAsync loaded {Count} playlists for user {UserId} in {ElapsedMs} ms",
+            playlists.Length, userId, sw.ElapsedMilliseconds);
 
         return new OperationResult<Playlist[]>
         {
             Data = playlists
+        };
+    }
+
+    /// <summary>
+    /// Streams playlists for a user in bounded batches to avoid loading everything in memory.
+    /// </summary>
+    public async IAsyncEnumerable<Playlist> StreamPlaylistsForUserInBatchesAsync(
+        int userId,
+        int batchSize = 250,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x < 1, userId, nameof(userId));
+        batchSize = Math.Max(1, Math.Min(batchSize, 1000));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var query = scopedContext
+            .Playlists
+            .AsNoTracking()
+            .Where(p => p.UserId == userId)
+            .OrderBy(p => p.Id);
+
+        var skip = 0;
+        while (true)
+        {
+            var page = await query
+                .Skip(skip)
+                .Take(batchSize)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (page.Count == 0)
+            {
+                yield break;
+            }
+
+            foreach (var item in page)
+            {
+                yield return item;
+            }
+
+            skip += page.Count;
+        }
+    }
+
+    /// <summary>
+    /// Get playlists for a user with pagination support.
+    /// </summary>
+    public async Task<PagedResult<Playlist>> GetPlaylistsForUserAsync(
+        int userId,
+        PagedRequest pagedRequest,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x < 1, userId, nameof(userId));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var query = scopedContext
+            .Playlists
+            .Include(x => x.User)
+            .Where(x => x.UserId == userId)
+            .AsNoTracking();
+
+        var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        // Default ordering by Name to keep consistent UX
+        query = query.OrderBy(p => p.Name);
+
+        var data = await query
+            .Skip(pagedRequest.SkipValue)
+            .Take(pagedRequest.TakeValue)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return new PagedResult<Playlist>
+        {
+            TotalCount = totalCount,
+            TotalPages = pagedRequest.TotalPages(totalCount),
+            Data = data
         };
     }
 

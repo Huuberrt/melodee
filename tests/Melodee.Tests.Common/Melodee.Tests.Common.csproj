@@ -13,6 +13,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="NBomber"/>
     <PackageReference Include="EntityFrameworkCore.Sqlite.NodaTime"/>
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite"/>
@@ -46,4 +47,3 @@
   </ItemGroup>
 
 </Project>
-
