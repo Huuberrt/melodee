@@ -55,23 +55,15 @@ Use this checklist to resolve memory pressure and correctness issues in streamin
  - [x] Backward-compat tests for OpenSubsonic clients (ensure accepted headers and 206 handling remain compatible).
  - [ ] Add optional performance check in CI (e.g., dotnet-counters or benchmark harness) to assert no large managed allocations during streaming paths.
 
-## Benchmarking & CI Gates (BenchmarkDotNet)
+## Benchmarking 
 - [ ] Create `benchmarks/Melodee.Benchmarks` project and add BenchmarkDotNet packages.
-- [ ] Configure jobs for `net8.0`, Server GC, and add `[MemoryDiagnoser]` (and `[ThreadingDiagnoser]` if helpful).
+- [ ] Configure jobs for `net9.0`, Server GC, and add `[MemoryDiagnoser]` (and `[ThreadingDiagnoser]` if helpful).
 - [ ] Implement microbenchmarks for hot paths:
   - [ ] Streaming loop: `FileStream` → sink (ArrayPool vs. new buffer; buffer sizes).
   - [ ] Range parsing and header construction.
   - [ ] Controller path comparison: `FileStreamResult` with `EnableRangeProcessing` vs. manual chunking (logic only, not full HTTP).
 - [ ] Add runnable entrypoint and docs to execute: `dotnet run -c Release --project benchmarks/Melodee.Benchmarks`.
 - [ ] Capture and commit a baseline JSON/CSV export for benchmarks (or store as artifact) to enable regression comparison.
-- [ ] Add CI job to run benchmarks in Release, export JSON, and compare to baseline.
-- [ ] Enforce thresholds in CI (fail build if):
-  - [ ] Mean time regresses > 10% for any benchmark.
-  - [ ] Allocated bytes/op increase > 5%.
-  - [ ] New Gen1/Gen2 GCs appear where there were none.
-- [ ] Make thresholds configurable to reduce flakiness and document override procedure.
-- [ ] Optional: add an E2E Kestrel benchmark guarded by a flag; keep microbenchmarks the required gate.
-- [ ] Add a “Performance” section to PR template requiring before/after benchmark snippets (time, ops/s, allocated bytes/op).
 
 ## Observability & Logging
 - [ ] Metrics: in-flight streams, bytes streamed, average chunk size, duration, cancellations, and allocation estimates.
