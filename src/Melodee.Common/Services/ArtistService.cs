@@ -1058,9 +1058,10 @@ public class ArtistService(
     /// <summary>
     /// Get artist with similar artists for OpenSubsonic API
     /// </summary>
-    public async Task<MelodeeModels.OperationResult<(Artist artist, Artist[] similarArtists)>> GetArtistWithSimilarAsync(
+    public async Task<MelodeeModels.OperationResult<(Artist artist, Artist[] similarArtists)>> GetArtistWithRelatedAsync(
         Guid apiKey, 
         int? numberOfSimilarArtists = null, 
+        ArtistRelationType? artistRelationType = null, 
         CancellationToken cancellationToken = default)
     {
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
@@ -1083,11 +1084,11 @@ public class ArtistService(
         
         if (numberOfSimilarArtists > 0)
         {
-            var similarArtistRelationType = SafeParser.ToNumber<int>(ArtistRelationType.Similar);
+            var similarArtistRelationType = SafeParser.ToNumber<int>(artistRelationType ?? ArtistRelationType.Similar);
             var similarDbArtists = await scopedContext.ArtistRelation
                 .Include(x => x.RelatedArtist)
                 .Where(x => x.ArtistId == artist.Id)
-                .Where(x => x.ArtistRelationType == similarArtistRelationType)
+                .Where(x => similarArtistRelationType == 0 || x.ArtistRelationType == similarArtistRelationType)
                 .OrderBy(x => x.Artist.SortName)
                 .Take(numberOfSimilarArtists.Value)
                 .AsNoTracking()
@@ -1104,5 +1105,192 @@ public class ArtistService(
         {
             Data = (artist, similarArtists)
         };
+    }
+
+    public async Task<MelodeeModels.OperationResult<bool>> AddArtistRelationAsync(
+        int artistId,
+        int relatedArtistId,
+        ArtistRelationType relationType,
+        int? sortOrder = null,
+        DateTime? relationStart = null,
+        DateTime? relationEnd = null,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x < 1, artistId, nameof(artistId));
+        Guard.Against.Expression(x => x < 1, relatedArtistId, nameof(relatedArtistId));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var exists = await scopedContext.ArtistRelation.AnyAsync(ar => ar.ArtistId == artistId && ar.RelatedArtistId == relatedArtistId, cancellationToken).ConfigureAwait(false);
+        if (exists)
+        {
+            return new MelodeeModels.OperationResult<bool>("Relation already exists") { Data = false, Type = MelodeeModels.OperationResponseType.ValidationFailure };
+        }
+
+        scopedContext.ArtistRelation.Add(new Data.Models.ArtistRelation
+        {
+            ArtistId = artistId,
+            RelatedArtistId = relatedArtistId,
+            ArtistRelationType = SafeParser.ToNumber<int>(relationType),
+            SortOrder = sortOrder ?? 0,
+            RelationStart = relationStart != null ? NodaTime.Instant.FromDateTimeUtc(DateTime.SpecifyKind(relationStart.Value, DateTimeKind.Utc)) : null,
+            RelationEnd = relationEnd != null ? NodaTime.Instant.FromDateTimeUtc(DateTime.SpecifyKind(relationEnd.Value, DateTimeKind.Utc)) : null,
+            CreatedAt = NodaTime.SystemClock.Instance.GetCurrentInstant()
+        });
+
+        var result = await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false) > 0;
+
+        if (result)
+        {
+            await ClearCacheAsync(artistId, cancellationToken).ConfigureAwait(false);
+            await ClearCacheAsync(relatedArtistId, cancellationToken).ConfigureAwait(false);
+        }
+
+        return new MelodeeModels.OperationResult<bool> { Data = result };
+    }
+
+    public async Task<MelodeeModels.OperationResult<bool>> DeleteArtistRelationAsync(
+        int artistId,
+        int relatedArtistId,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x < 1, artistId, nameof(artistId));
+        Guard.Against.Expression(x => x < 1, relatedArtistId, nameof(relatedArtistId));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var relations = await scopedContext.ArtistRelation
+            .Where(ar => ar.ArtistId == artistId && ar.RelatedArtistId == relatedArtistId)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!relations.Any())
+        {
+            return new MelodeeModels.OperationResult<bool>("Relation not found") { Data = false, Type = MelodeeModels.OperationResponseType.NotFound };
+        }
+
+        scopedContext.ArtistRelation.RemoveRange(relations);
+        var result = await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false) > 0;
+        if (result)
+        {
+            await ClearCacheAsync(artistId, cancellationToken).ConfigureAwait(false);
+            await ClearCacheAsync(relatedArtistId, cancellationToken).ConfigureAwait(false);
+        }
+
+        return new MelodeeModels.OperationResult<bool> { Data = result };
+    }
+
+    public async Task<MelodeeModels.OperationResult<bool>> DeleteAllArtistRelationsAsync(
+        int artistId,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x < 1, artistId, nameof(artistId));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var relations = await scopedContext.ArtistRelation
+            .Where(ar => ar.ArtistId == artistId)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!relations.Any())
+        {
+            return new MelodeeModels.OperationResult<bool> { Data = true };
+        }
+
+        var relatedIds = relations.Select(r => r.RelatedArtistId).Distinct().ToArray();
+        scopedContext.ArtistRelation.RemoveRange(relations);
+        var result = await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false) > 0;
+        if (result)
+        {
+            await ClearCacheAsync(artistId, cancellationToken).ConfigureAwait(false);
+            foreach (var rid in relatedIds)
+            {
+                await ClearCacheAsync(rid, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        return new MelodeeModels.OperationResult<bool> { Data = result };
+    }
+
+    public async Task<MelodeeModels.OperationResult<int>> CountArtistRelationsAsync(
+        int artistId,
+        ArtistRelationType? relationType = null,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x < 1, artistId, nameof(artistId));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        var typeNumber = SafeParser.ToNumber<int>(relationType ?? ArtistRelationType.NotSet);
+        var query = scopedContext.ArtistRelation
+            .AsNoTracking()
+            .Where(x => x.ArtistId == artistId);
+        if (relationType != null && typeNumber != 0)
+        {
+            query = query.Where(x => x.ArtistRelationType == typeNumber);
+        }
+        var count = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+        return new MelodeeModels.OperationResult<int> { Data = count };
+    }
+
+    public async Task<MelodeeModels.OperationResult<ArtistRelation[]>> ListArtistRelationsAsync(
+        int artistId,
+        ArtistRelationType? relationType = null,
+        int? take = null,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x < 1, artistId, nameof(artistId));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        var typeNumber = SafeParser.ToNumber<int>(relationType ?? ArtistRelationType.NotSet);
+
+        var query = scopedContext.ArtistRelation
+            .Include(x => x.RelatedArtist)
+            .Where(x => x.ArtistId == artistId)
+            .AsNoTracking();
+
+        if (relationType != null && typeNumber != 0)
+        {
+            query = query.Where(x => x.ArtistRelationType == typeNumber);
+        }
+
+        query = query.OrderBy(x => x.RelatedArtist.SortName).ThenBy(x => x.RelatedArtist.Name);
+        if (take.HasValue && take.Value > 0)
+        {
+            query = query.Take(take.Value);
+        }
+
+        var relations = await query.ToArrayAsync(cancellationToken).ConfigureAwait(false);
+        return new MelodeeModels.OperationResult<ArtistRelation[]> { Data = relations };
+    }
+
+    public async Task<MelodeeModels.OperationResult<bool>> DeleteAllArtistImagesAsync(
+        int artistId,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x < 1, artistId, nameof(artistId));
+
+        var artist = await GetAsync(artistId, cancellationToken).ConfigureAwait(false);
+        if (!artist.IsSuccess || artist.Data == null)
+        {
+            return new MelodeeModels.OperationResult<bool>("Unknown artist.") { Data = false };
+        }
+
+        var artistDir = artist.Data.ToFileSystemDirectoryInfo();
+        fileSystemService.DeleteAllFilesForExtension(artistDir, "*.jpg");
+
+        await using (var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
+            await scopedContext.Artists
+                .Where(x => x.Id == artist.Data.Id)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(x => x.LastUpdatedAt, now)
+                    .SetProperty(x => x.ImageCount, artistDir.ImageFilesFound), cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        await ClearCacheAsync(artist.Data, cancellationToken).ConfigureAwait(false);
+        return new MelodeeModels.OperationResult<bool> { Data = true };
     }
 }

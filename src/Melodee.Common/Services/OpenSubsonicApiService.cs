@@ -2966,7 +2966,7 @@ public class OpenSubsonicApiService(
 
         if (apiKey != null)
         {
-            var artistResult = await artistService.GetArtistWithSimilarAsync(apiKey.Value, numberOfSimilarArtistsToReturn, cancellationToken);
+            var artistResult = await artistService.GetArtistWithRelatedAsync(apiKey.Value, numberOfSimilarArtistsToReturn, ArtistRelationType.Similar, cancellationToken);
 
             if (artistResult.IsSuccess)
             {

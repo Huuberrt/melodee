@@ -236,6 +236,41 @@
                     </RadzenColumn>
                 </RadzenRow>
             }
+            else if (_showItem == ShowItem.Files)
+            {
+                <RadzenPanel>
+                    <HeaderTemplate>
+                        <RadzenText TextStyle="TextStyle.H6"
+                                    class="rz-display-flex rz-align-items-center rz-m-0">
+                            <RadzenIcon Icon="description" class="rz-me-1"/>
+                            Files
+                        </RadzenText>
+                    </HeaderTemplate>
+                    <ChildContent>
+                        <table class="rz-table">
+                            <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th style="width:140px;">Size</th>
+                                <th style="width:80px;">Action</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var f in _albumFiles)
+                            {
+                                <tr>
+                                    <td>@f.Name</td>
+                                    <td>@f.Length.FormatFileSize()</td>
+                                    <td>
+                                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@(() => DeleteAlbumFileAsync(f))"/>
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </ChildContent>
+                </RadzenPanel>
+            }
         </RadzenColumn>
     </RadzenRow>
 </RadzenStack>
@@ -296,12 +331,16 @@
         Songs = []
     };
 
-    private void OnShowItemChange(TreeEventArgs arg)
+    private async void OnShowItemChange(TreeEventArgs arg)
     {
         switch (arg.Text)
         {
             default:
                 _showItem = ShowItem.Overview;
+                break;
+            case "Files":
+                _showItem = ShowItem.Files;
+                await LoadAlbumFilesAsync();
                 break;
         }
     }
@@ -399,11 +438,38 @@
                 Key = nameof(AlbumQuery.Year),
                 Value = _album.AlbumYear()?.ToString() ?? string.Empty
             }
-        };
+    };
+
         await DialogService.OpenAsync("Identify Album", ds =>
             @<IdentifyAlbum
                 OnUpdateCallback="IdentifyAlbumCallback"
                 SearchValues="searchValues"/>);
+    }
+
+    FileInfo[] _albumFiles = [];
+
+    private async Task LoadAlbumFilesAsync()
+    {
+        var dir = new DirectoryInfo(_album.Directory.FullName());
+        _albumFiles = dir.Exists ? dir.GetFiles().OrderBy(f => f.Name).ToArray() : Array.Empty<FileInfo>();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task DeleteAlbumFileAsync(FileInfo file)
+    {
+        var confirm = await DialogService.Confirm($"Delete {file.Name}?", "Confirm", new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+        if (confirm ?? false)
+        {
+            try
+            {
+                file.Delete();
+            }
+            catch (Exception ex)
+            {
+                NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = "Error", Detail = ex.Message });
+            }
+            await LoadAlbumFilesAsync();
+        }
     }
 
     private async Task IdentifyAlbumCallback(AlbumDataInfo? arg)
@@ -705,4 +771,3 @@
     }
 
 }
-

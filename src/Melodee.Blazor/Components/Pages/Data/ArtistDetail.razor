@@ -121,13 +121,13 @@
                         <RadzenTreeItem Text="Images">
                             <Template>
                                 <RadzenIcon Icon="image"/>
-                                @($"{context.Text} ({_artist.ImageCount ?? 0})")
+                                @($"{context.Text} ({_artistImageFiles?.Length ?? 0})")
                             </Template>
                         </RadzenTreeItem>
                         <RadzenTreeItem Text="Relationships">
                             <Template>
                                 <RadzenIcon Icon="partner_exchange"/>
-                                @context.Text
+                                @($"{context.Text} ({_relationshipCount})")
                             </Template>
                         </RadzenTreeItem>
                     </RadzenTree>
@@ -370,6 +370,79 @@
                     </RadzenColumn>
                 </RadzenRow>
             }
+            else if (_showItem == ShowItem.Images)
+            {
+                <RadzenPanel>
+                    <HeaderTemplate>
+                        <RadzenText TextStyle="TextStyle.H6" class="rz-display-flex rz-align-items-center rz-m-0">
+                            <RadzenIcon Icon="image" class="rz-me-1"/>
+                            Images
+                        </RadzenText>
+                    </HeaderTemplate>
+                    <ChildContent>
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                            <RadzenSwitch @bind-Value="@_replaceAllImages" Name="ReplaceAll"/>
+                            <RadzenLabel Text="Replace all images on upload" Component="ReplaceAll"/>
+                            <InputFile multiple OnChange="@OnArtistImageUpload" />
+                            <RadzenButton Icon="checklist" Size="ButtonSize.Small" Text="Select All" Click="@SelectAllImages"/>
+                            <RadzenButton Icon="check_box_outline_blank" Size="ButtonSize.Small" Text="Select None" Click="@SelectNoneImages"/>
+                            <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Text="Delete Selected"
+                                          Disabled="@(!_selectedImagePaths.Any())"
+                                          Visible="CurrentUser?.IsEditor() ?? false"
+                                          Click="@DeleteSelectedArtistImagesButtonClick" />
+                        </RadzenStack>
+                        <RadzenDataList Data="@_artistImageList" TItem="ArtistImageListItem" class="rz-mt-3">
+                            <Template Context="item">
+                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                    <RadzenCheckBox TValue="bool" Value="@_selectedImagePaths.Contains(item.File.FullName)"
+                                                    Change="@(args => ToggleImageSelected(item.File.FullName, args))"/>
+                                    <RadzenImage Path="@item.ImageBase64" Style="width: 96px; height: 96px; object-fit:cover;"/>
+                                    <RadzenText Text="@item.File.Name"/>
+                                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@(() => DeleteArtistImageAsync(item.File))" />
+                                </RadzenStack>
+                            </Template>
+                        </RadzenDataList>
+                    </ChildContent>
+                </RadzenPanel>
+            }
+            else if (_showItem == ShowItem.Relationships)
+            {
+                <RadzenPanel>
+                    <HeaderTemplate>
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                            <RadzenText TextStyle="TextStyle.H6" class="rz-display-flex rz-align-items-center rz-m-0">
+                                <RadzenIcon Icon="partner_exchange" class="rz-me-1"/>
+                                Relationships
+                            </RadzenText>
+                            <RadzenButton Icon="add" Text="Add Relationship" Size="ButtonSize.Small" Click="@AddRelationshipClick" Visible="CurrentUser?.IsEditor() ?? false"/>
+                            <RadzenButton Icon="checklist" Size="ButtonSize.Small" Text="Select All" Click="@SelectAllRelationships"/>
+                            <RadzenButton Icon="check_box_outline_blank" Size="ButtonSize.Small" Text="Select None" Click="@SelectNoneRelationships"/>
+                            <RadzenButton Icon="delete" Text="Delete Selected" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
+                                          Visible="CurrentUser?.IsEditor() ?? false" Disabled="@(!_selectedRelationshipIds.Any())"
+                                          Click="@DeleteSelectedRelationshipsButtonClick"/>
+                        </RadzenStack>
+                    </HeaderTemplate>
+                    <ChildContent>
+                        <RadzenStack Orientation="Orientation.Vertical" Gap="0.5rem">
+                            @if (_relationshipItems?.Count > 0)
+                            {
+                                @foreach (var item in _relationshipItems)
+                                {
+                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                        <RadzenCheckBox TValue="bool" Value="@_selectedRelationshipIds.Contains(item.Artist.Id)"
+                                                        Change="@(args => ToggleRelationshipSelected(item.Artist.Id, args))"/>
+                                        <ArtistDataInfoCardComponent Artist="@item.Artist.ToArtistDataInfo()"/>
+                                        <RadzenBadge Text="@item.RelationType.ToString()" Style="min-width: 100px; text-align:center;"/>
+                                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Text="Remove"
+                                                      Visible="CurrentUser?.IsEditor() ?? false"
+                                                      Click="@(() => RemoveRelationshipAsync(item.Artist.Id))" />
+                                    </RadzenStack>
+                                }
+                            }
+                        </RadzenStack>
+                    </ChildContent>
+                </RadzenPanel>
+            }
         </RadzenColumn>
     </RadzenRow>
 </RadzenStack>
@@ -407,10 +480,20 @@
     };
 
     string[] _artistImagesInByteBase64 = [];
+    System.IO.FileInfo[] _artistImageFiles = [];
+    class ArtistImageListItem { public required System.IO.FileInfo File { get; init; } public required string ImageBase64 { get; init; } }
+    List<ArtistImageListItem> _artistImageList = [];
+    HashSet<string> _selectedImagePaths = new();
 
     string? _biographyNoAvailablePlaceholder = string.Empty;
 
     ShowItem _showItem = ShowItem.Overview;
+    bool _replaceAllImages;
+    Artist[] _relatedArtists = [];
+    class RelationshipItem { public required Artist Artist { get; init; } public required ArtistRelationType RelationType { get; init; } }
+    List<RelationshipItem> _relationshipItems = [];
+    HashSet<int> _selectedRelationshipIds = new();
+    int _relationshipCount = 0;
 
     bool _isPinned;
 
@@ -561,20 +644,274 @@
                         }
                     });
                     _artistImagesInByteBase64 = artistImagesInBase64.OrderBy(x => x.Item1).Select(x => x.Item2).ToArray();
+                    _artistImageFiles = artistDirectory.FileInfosForExtension("jpg", false).ToArray();
+                }
+                else
+                {
+                    _artistImageFiles = artistDirectory.FileInfosForExtension("jpg", false).ToArray();
+                }
+
+                // Build image list items safely
+                _artistImageList = new List<ArtistImageListItem>();
+                for (var i = 0; i < _artistImageFiles.Length; i++)
+                {
+                    var fi = _artistImageFiles[i];
+                    string path;
+                    if (i < _artistImagesInByteBase64.Length)
+                    {
+                        path = _artistImagesInByteBase64[i];
+                    }
+                    else
+                    {
+                        try
+                        {
+                            var bytes = await System.IO.File.ReadAllBytesAsync(fi.FullName);
+                            path = $"data:image;base64,{Convert.ToBase64String(bytes)}";
+                        }
+                        catch
+                        {
+                            path = DefaultImages.ArtistBase64;
+                        }
+                    }
+                    _artistImageList.Add(new ArtistImageListItem { File = fi, ImageBase64 = path });
                 }
 
                 _isPinned = await UserService.IsPinned(CurrentUsersId, UserPinType.Artist, _artist.Id);
+                var relCount = await ArtistService.CountArtistRelationsAsync(_artist.Id);
+                _relationshipCount = relCount.Data;
+                _selectedImagePaths.Clear();
+                _selectedRelationshipIds.Clear();
             }
         }
     }
 
-    private void OnShowItemChange(TreeEventArgs arg)
+    private async void OnShowItemChange(TreeEventArgs arg)
     {
         switch (arg.Text)
         {
             default:
                 _showItem = ShowItem.Overview;
                 break;
+            case "Images":
+                _showItem = ShowItem.Images;
+                break;
+            case "Relationships":
+                _showItem = ShowItem.Relationships;
+                await RefreshRelationshipsAsync();
+                break;
+        }
+    }
+
+    private async Task OnArtistImageUpload(InputFileChangeEventArgs e)
+    {
+        foreach (var file in e.GetMultipleFiles())
+        {
+            await using var ms = new MemoryStream();
+            await file.OpenReadStream(MelodeeConfiguration.MaximumUploadFileSize).CopyToAsync(ms);
+            var save = await ArtistService.SaveImageAsArtistImageAsync(_artist.Id, _replaceAllImages, ms.ToArray());
+            if (!save.IsSuccess)
+            {
+                NotificationService.Notify(NotificationMessageForResult(save, "upload artist image", ToastTime));
+            }
+            _replaceAllImages = false; // only first upload replaces all
+        }
+        await RefreshArtistImages();
+    }
+
+    private async Task DeleteArtistImageAsync(System.IO.FileInfo file)
+    {
+        try
+        {
+            // optimistically remove from UI before deleting to avoid rendering stale file
+            _artistImageList = _artistImageList.Where(x => x.File.FullName != file.FullName).ToList();
+            _artistImageFiles = _artistImageFiles.Where(x => x.FullName != file.FullName).ToArray();
+            StateHasChanged();
+
+            file.Delete();
+            // update count
+            _artist.ImageCount = Math.Max(0, (_artist.ImageCount ?? 0) - 1);
+            await ArtistService.UpdateAsync(_artist);
+            await RefreshArtistImages();
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = "Delete failed", Detail = ex.Message });
+        }
+    }
+
+    private async Task DeleteAllArtistImagesButtonClick()
+    {
+        var confirm = await DialogService.Confirm("Are you sure?", "Delete all images", new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+        if (confirm ?? false)
+        {
+            var result = await ArtistService.DeleteAllArtistImagesAsync(_artist.Id);
+            NotificationService.Notify(NotificationMessageForResult(result, "deleting artist images", ToastTime));
+            if (result.IsSuccess && result.Data)
+            {
+                _artist.ImageCount = 0;
+                await RefreshArtistImages();
+            }
+        }
+    }
+
+    private void ToggleImageSelected(string fullName, bool selected)
+    {
+        if (selected) _selectedImagePaths.Add(fullName);
+        else _selectedImagePaths.Remove(fullName);
+        StateHasChanged();
+    }
+
+    private void SelectAllImages()
+    {
+        _selectedImagePaths = _artistImageFiles.Select(f => f.FullName).ToHashSet();
+        StateHasChanged();
+    }
+
+    private void SelectNoneImages()
+    {
+        _selectedImagePaths.Clear();
+        StateHasChanged();
+    }
+
+    private async Task DeleteSelectedArtistImagesButtonClick()
+    {
+        if (!_selectedImagePaths.Any()) return;
+        var confirm = await DialogService.Confirm("Are you sure?", $"Delete {_selectedImagePaths.Count} selected images", new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+        if (!(confirm ?? false)) return;
+
+        var deleteCount = 0;
+        foreach (var path in _selectedImagePaths.ToArray())
+        {
+            try
+            {
+                if (System.IO.File.Exists(path))
+                {
+                    System.IO.File.Delete(path);
+                    deleteCount++;
+                }
+            }
+            catch (Exception ex)
+            {
+                NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = "Delete failed", Detail = ex.Message });
+            }
+        }
+
+        _selectedImagePaths.Clear();
+        _artist.ImageCount = Math.Max(0, (_artist.ImageCount ?? 0) - deleteCount);
+        await ArtistService.UpdateAsync(_artist);
+        await RefreshArtistImages();
+    }
+
+    private async Task RefreshArtistImages()
+    {
+        var artistDirectory = Path.Combine(_artist.Library.Path, _artist.Directory).ToFileSystemDirectoryInfo();
+        _artistImageFiles = artistDirectory.FileInfosForExtension("jpg", false).ToArray();
+        var list = new List<string>();
+        _artistImageList = new List<ArtistImageListItem>();
+        var validPaths = new HashSet<string>(_artistImageFiles.Select(f => f.FullName));
+        _selectedImagePaths.RemoveWhere(p => !validPaths.Contains(p));
+        foreach (var fi in _artistImageFiles)
+        {
+            string path;
+            try
+            {
+                var bytes = await System.IO.File.ReadAllBytesAsync(fi.FullName);
+                path = $"data:image;base64,{Convert.ToBase64String(bytes)}";
+            }
+            catch
+            {
+                path = DefaultImages.ArtistBase64;
+            }
+            list.Add(path);
+            _artistImageList.Add(new ArtistImageListItem { File = fi, ImageBase64 = path });
+        }
+        _artistImagesInByteBase64 = list.ToArray();
+        StateHasChanged();
+    }
+
+    private async Task AddRelationshipClick()
+    {
+        await DialogService.OpenAsync("Add Relationship", ds => @<AddArtistRelationshipDialog ArtistId="@_artist.Id"/>);
+        await RefreshRelationshipsAsync();
+    }
+
+    private async Task RefreshRelationshipsAsync()
+    {
+        var rels = await ArtistService.ListArtistRelationsAsync(_artist.Id, ArtistRelationType.NotSet, 100);
+        _relationshipItems = rels.Data
+            .Select(r => new RelationshipItem { Artist = r.RelatedArtist, RelationType = (ArtistRelationType)r.ArtistRelationType })
+            .OrderBy(x => x.Artist.SortName ?? x.Artist.Name)
+            .ToList();
+        _relatedArtists = _relationshipItems.Select(x => x.Artist).ToArray();
+        var relCount = await ArtistService.CountArtistRelationsAsync(_artist.Id);
+        _relationshipCount = relCount.Data;
+        var validIds = _relationshipItems.Select(i => i.Artist.Id).ToHashSet();
+        _selectedRelationshipIds.RemoveWhere(id => !validIds.Contains(id));
+        StateHasChanged();
+    }
+
+    private void ToggleRelationshipSelected(int relatedArtistId, bool selected)
+    {
+        if (selected) _selectedRelationshipIds.Add(relatedArtistId);
+        else _selectedRelationshipIds.Remove(relatedArtistId);
+        StateHasChanged();
+    }
+
+    private void SelectAllRelationships()
+    {
+        _selectedRelationshipIds = _relationshipItems.Select(i => i.Artist.Id).ToHashSet();
+        StateHasChanged();
+    }
+
+    private void SelectNoneRelationships()
+    {
+        _selectedRelationshipIds.Clear();
+        StateHasChanged();
+    }
+
+    private async Task DeleteSelectedRelationshipsButtonClick()
+    {
+        if (!_selectedRelationshipIds.Any()) return;
+        var confirm = await DialogService.Confirm("Are you sure?", $"Delete {_selectedRelationshipIds.Count} selected relationships", new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+        if (!(confirm ?? false)) return;
+
+        foreach (var id in _selectedRelationshipIds.ToArray())
+        {
+            var result = await ArtistService.DeleteArtistRelationAsync(_artist.Id, id);
+            if (!result.IsSuccess || !result.Data)
+            {
+                NotificationService.Notify(NotificationMessageForResult(result, $"removing relationship to id {id}", ToastTime));
+            }
+        }
+        _selectedRelationshipIds.Clear();
+        await RefreshRelationshipsAsync();
+    }
+
+    private async Task RemoveRelationshipAsync(int relatedArtistId)
+    {
+        var confirm = await DialogService.Confirm("Are you sure?", "Remove relationship", new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+        if (confirm ?? false)
+        {
+            var result = await ArtistService.DeleteArtistRelationAsync(_artist.Id, relatedArtistId);
+            NotificationService.Notify(NotificationMessageForResult(result, "removing relationship", ToastTime));
+            if (result.IsSuccess && result.Data)
+            {
+                await RefreshRelationshipsAsync();
+            }
+        }
+    }
+
+    private async Task DeleteAllRelationshipsButtonClick()
+    {
+        var confirm = await DialogService.Confirm("Are you sure?", "Delete all relationships", new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+        if (confirm ?? false)
+        {
+            var result = await ArtistService.DeleteAllArtistRelationsAsync(_artist.Id);
+            NotificationService.Notify(NotificationMessageForResult(result, "deleting all relationships", ToastTime));
+            if (result.IsSuccess && result.Data)
+            {
+                await RefreshRelationshipsAsync();
+            }
         }
     }
 

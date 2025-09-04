@@ -1,0 +1,67 @@
+@using Melodee.Common.Data.Models
+@using Melodee.Common.Enums
+@using Melodee.Common.Filtering
+@using Melodee.Common.Models.Collection
+@inject ArtistService ArtistService
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+
+<RadzenStack Gap="0.75rem">
+<RadzenAutoComplete TValue="string"
+                    Data="@_artistChoices"
+                    TextProperty="Name"
+                    @bind-SelectedItem="_selectedArtist"
+                    Style="width:100%"
+                    LoadData="@LoadArtists"
+                    Placeholder="Search artist by name" />
+
+    <RadzenDropDown TValue="ArtistRelationType"
+                    Data="@_relationTypes"
+                    @bind-Value="_relationType"
+                    Style="width:100%" />
+
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+        <RadzenButton Icon="cancel" Text="Cancel" Click="@(_ => DialogService.Close(false))"/>
+        <RadzenButton Icon="save" Text="Add" Click="@AddRelationAsync" Disabled="_selectedArtist == null"/>
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    [Parameter] public int ArtistId { get; set; }
+
+    ArtistRelationType _relationType = ArtistRelationType.Similar;
+    ArtistRelationType[] _relationTypes = Enum.GetValues<ArtistRelationType>();
+    ArtistDataInfo[] _artistChoices = [];
+    object? _selectedArtist;
+
+    private async Task LoadArtists(LoadDataArgs args)
+    {
+        var query = args.Filter?.ToString() ?? string.Empty;
+        var result = await ArtistService.ListAsync(new Melodee.Common.Models.PagedRequest
+        {
+            Page = 1,
+            PageSize = 20,
+            FilterBy = query.Length > 1 ? new[] { new Melodee.Common.Filtering.FilterOperatorInfo(nameof(ArtistDataInfo.Name), Melodee.Common.Filtering.FilterOperator.Contains, query) } : null
+        });
+        _artistChoices = result.Data.ToArray();
+        StateHasChanged();
+    }
+
+    private async Task AddRelationAsync()
+    {
+        if (_selectedArtist == null)
+        {
+            return;
+        }
+
+        var related = await ArtistService.GetAsync(((ArtistDataInfo)_selectedArtist).Id);
+        if (related.Data == null)
+        {
+            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = "Error", Detail = "Related artist not found" });
+            return;
+        }
+        var result = await ArtistService.AddArtistRelationAsync(ArtistId, related.Data.Id, _relationType);
+        NotificationService.Notify(new NotificationMessage { Severity = result.IsSuccess ? NotificationSeverity.Success : NotificationSeverity.Error, Summary = result.IsSuccess ? "Added" : "Error", Detail = result.IsSuccess ? "Relation added" : string.Join(";", result.Messages ?? []) });
+        DialogService.Close(result.IsSuccess);
+    }
+}
