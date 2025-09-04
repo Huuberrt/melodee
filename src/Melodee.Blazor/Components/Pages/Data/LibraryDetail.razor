@@ -6,12 +6,13 @@
 @using Melodee.Common.Filtering
 @using Melodee.Common.Models.Collection
 @using Melodee.Common.Services.Scanning
+@using Quartz
 @using FilterOperator = Melodee.Common.Filtering.FilterOperator
 @using Library = Melodee.Common.Data.Models.Library
 @using IScheduler = Quartz.IScheduler
 
 @inject IConfiguration AppSettingsConfiguration
-@inject IScheduler Scheduler
+@inject ISchedulerFactory SchedulerFactory
 @inject ILogger Logger
 @inject DialogService DialogService
 @inject IMelodeeConfigurationFactory ConfigurationFactory
@@ -280,6 +281,7 @@
 </RadzenStack>
 
 @code {
+    private IScheduler? Scheduler;
 
     RadzenDataGrid<LibraryScanHistoryDataInfo> _grid = null!;
     int _count;
@@ -375,6 +377,7 @@
         await base.OnInitializedAsync();
 
         _areJobsEnabled = !AppSettingsConfiguration.GetValue<bool>(AppSettingsKeys.QuartzDisabled);
+        Scheduler = await SchedulerFactory.GetScheduler();
     }
 
     private async Task PurgeButtonClick()
@@ -458,7 +461,7 @@
             MainLayoutProxyService.ToggleSpinnerVisible();
             try
             {
-                await Scheduler.TriggerJob(JobKeyRegistry.LibraryProcessJobJobKey);
+                await Scheduler!.TriggerJob(JobKeyRegistry.LibraryProcessJobJobKey);
                 NotificationService.Notify(NotificationMessageForResult(new OperationResult<bool> { Data = true }, "started library scan job", ToastTime));
             }
             finally
@@ -507,5 +510,7 @@
             MainLayoutProxyService.ToggleSpinnerVisible();
         }
     }
+
+
 
 }

@@ -5,8 +5,7 @@
 @using Quartz
 @using Quartz.Impl.Matchers
 @using IScheduler = Quartz.IScheduler
-
-@inject IScheduler Scheduler
+@inject ISchedulerFactory SchedulerFactory
 @inject IConfiguration AppSettingsConfiguration
 
 @attribute [Authorize(Roles = "Administrator")]
@@ -65,6 +64,7 @@ else if (_jobs.Count == 0)
 @code {
 
     private readonly List<JobStatus> _jobs = [];
+    private IScheduler? Scheduler;
 
     private async Task RefreshJobs()
     {
@@ -98,6 +98,7 @@ else if (_jobs.Count == 0)
 
     protected override async Task OnInitializedAsync()
     {
+        Scheduler = await SchedulerFactory.GetScheduler();
         await RefreshJobs();
     }
 

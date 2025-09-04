@@ -8,8 +8,27 @@ namespace Melodee.Common.Metadata.AudioTags.Writers;
 
 public class Id3v2TagWriter : ITagWriter
 {
+    private static bool HasId3v2Header(string filePath)
+    {
+        try
+        {
+            using var fs = File.OpenRead(filePath);
+            Span<byte> header = stackalloc byte[3];
+            var read = fs.Read(header);
+            return read == 3 && header[0] == (byte)'I' && header[1] == (byte)'D' && header[2] == (byte)'3';
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public Task WriteTagsAsync(string filePath, IDictionary<MetaTagIdentifier, object> tags, CancellationToken cancellationToken = default)
     {
+        if (!HasId3v2Header(filePath))
+        {
+            throw new IOException("File does not contain an ID3v2 tag header.");
+        }
         // Use ATL to update common tag fields
         var track = new ATL.Track(filePath);
 
@@ -64,6 +83,10 @@ public class Id3v2TagWriter : ITagWriter
 
     public Task RemoveTagAsync(string filePath, MetaTagIdentifier tagId, CancellationToken cancellationToken = default)
     {
+        if (!HasId3v2Header(filePath))
+        {
+            throw new IOException("File does not contain an ID3v2 tag header.");
+        }
         var track = new ATL.Track(filePath);
         switch (tagId)
         {
@@ -94,6 +117,10 @@ public class Id3v2TagWriter : ITagWriter
 
     public Task AddImageAsync(string filePath, AudioImage image, CancellationToken cancellationToken = default)
     {
+        if (!HasId3v2Header(filePath))
+        {
+            throw new IOException("File does not contain an ID3v2 tag header.");
+        }
         var track = new ATL.Track(filePath);
         var picType = ATL.PictureInfo.PIC_TYPE.Front;
         if (image.Type == PictureIdentifier.Back) picType = ATL.PictureInfo.PIC_TYPE.Back;
@@ -104,6 +131,10 @@ public class Id3v2TagWriter : ITagWriter
 
     public Task RemoveImagesAsync(string filePath, CancellationToken cancellationToken = default)
     {
+        if (!HasId3v2Header(filePath))
+        {
+            throw new IOException("File does not contain an ID3v2 tag header.");
+        }
         var track = new ATL.Track(filePath);
         track.EmbeddedPictures.Clear();
         track.Save();

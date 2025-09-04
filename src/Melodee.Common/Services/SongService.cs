@@ -370,6 +370,9 @@ public class SongService(
 
     public async Task<MelodeeModels.OperationResult<bool>> DeleteAsync(int[] toArray, CancellationToken cancellationToken = default)
     {
+        // Deleting songs is not currently supported; ensure callers do not perform destructive operations.
+        throw new NotImplementedException("DeleteAsync for songs is not implemented.");
+
         Guard.Against.NullOrEmpty(toArray, nameof(toArray));
 
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);

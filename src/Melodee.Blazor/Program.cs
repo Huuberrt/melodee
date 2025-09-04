@@ -259,10 +259,7 @@ builder.Services.AddQuartz(q => { q.UseTimeZoneConverter(); });
 
 builder.Services.AddQuartzServer(opts => { opts.WaitForJobsToComplete = true; });
 
-// Provide IScheduler to DI for services/components that inject it
-// Uses the factory to obtain the singleton scheduler instance managed by QuartzServer
-builder.Services.AddSingleton<IScheduler>(sp =>
-    sp.GetRequiredService<ISchedulerFactory>().GetScheduler().GetAwaiter().GetResult());
+// Avoid resolving IScheduler synchronously; inject ISchedulerFactory and resolve asynchronously where used
 
 #endregion
 
