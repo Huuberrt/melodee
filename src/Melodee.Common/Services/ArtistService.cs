@@ -1233,6 +1233,26 @@ public class ArtistService(
         return new MelodeeModels.OperationResult<int> { Data = count };
     }
 
+    public async Task<MelodeeModels.OperationResult<int>> CountArtistRelationsInboundAsync(
+        int relatedArtistId,
+        ArtistRelationType? relationType = null,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x < 1, relatedArtistId, nameof(relatedArtistId));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        var typeNumber = SafeParser.ToNumber<int>(relationType ?? ArtistRelationType.NotSet);
+        var query = scopedContext.ArtistRelation
+            .AsNoTracking()
+            .Where(x => x.RelatedArtistId == relatedArtistId);
+        if (relationType != null && typeNumber != 0)
+        {
+            query = query.Where(x => x.ArtistRelationType == typeNumber);
+        }
+        var count = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+        return new MelodeeModels.OperationResult<int> { Data = count };
+    }
+
     public async Task<MelodeeModels.OperationResult<ArtistRelation[]>> ListArtistRelationsAsync(
         int artistId,
         ArtistRelationType? relationType = null,
@@ -1255,6 +1275,37 @@ public class ArtistService(
         }
 
         query = query.OrderBy(x => x.RelatedArtist.SortName).ThenBy(x => x.RelatedArtist.Name);
+        if (take.HasValue && take.Value > 0)
+        {
+            query = query.Take(take.Value);
+        }
+
+        var relations = await query.ToArrayAsync(cancellationToken).ConfigureAwait(false);
+        return new MelodeeModels.OperationResult<ArtistRelation[]> { Data = relations };
+    }
+
+    public async Task<MelodeeModels.OperationResult<ArtistRelation[]>> ListArtistRelationsInboundAsync(
+        int relatedArtistId,
+        ArtistRelationType? relationType = null,
+        int? take = null,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x < 1, relatedArtistId, nameof(relatedArtistId));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        var typeNumber = SafeParser.ToNumber<int>(relationType ?? ArtistRelationType.NotSet);
+
+        var query = scopedContext.ArtistRelation
+            .Include(x => x.Artist)
+            .Where(x => x.RelatedArtistId == relatedArtistId)
+            .AsNoTracking();
+
+        if (relationType != null && typeNumber != 0)
+        {
+            query = query.Where(x => x.ArtistRelationType == typeNumber);
+        }
+
+        query = query.OrderBy(x => x.Artist.SortName).ThenBy(x => x.Artist.Name);
         if (take.HasValue && take.Value > 0)
         {
             query = query.Take(take.Value);

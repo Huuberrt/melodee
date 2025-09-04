@@ -418,7 +418,7 @@
                             <RadzenButton Icon="checklist" Size="ButtonSize.Small" Text="Select All" Click="@SelectAllRelationships"/>
                             <RadzenButton Icon="check_box_outline_blank" Size="ButtonSize.Small" Text="Select None" Click="@SelectNoneRelationships"/>
                             <RadzenButton Icon="delete" Text="Delete Selected" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
-                                          Visible="CurrentUser?.IsEditor() ?? false" Disabled="@(!_selectedRelationshipIds.Any())"
+                                          Visible="CurrentUser?.IsEditor() ?? false" Disabled="@(!_selectedRelationships.Any())"
                                           Click="@DeleteSelectedRelationshipsButtonClick"/>
                         </RadzenStack>
                     </HeaderTemplate>
@@ -429,13 +429,13 @@
                                 @foreach (var item in _relationshipItems)
                                 {
                                     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                                        <RadzenCheckBox TValue="bool" Value="@_selectedRelationshipIds.Contains(item.Artist.Id)"
-                                                        Change="@(args => ToggleRelationshipSelected(item.Artist.Id, args))"/>
+                                        <RadzenCheckBox TValue="bool" Value="@_selectedRelationships.Contains((item.OwnerArtistId, item.RelatedArtistId))"
+                                                        Change="@(args => ToggleRelationshipSelected((item.OwnerArtistId, item.RelatedArtistId), args))"/>
                                         <ArtistDataInfoCardComponent Artist="@item.Artist.ToArtistDataInfo()"/>
-                                        <RadzenBadge Text="@item.RelationType.ToString()" Style="min-width: 100px; text-align:center;"/>
+                                        <RadzenBadge Text="@($"{item.RelationType} {(item.IsInbound ? "←" : "→")}")" Style="min-width: 120px; text-align:center;"/>
                                         <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Text="Remove"
                                                       Visible="CurrentUser?.IsEditor() ?? false"
-                                                      Click="@(() => RemoveRelationshipAsync(item.Artist.Id))" />
+                                                      Click="@(() => RemoveRelationshipAsync(item.OwnerArtistId, item.RelatedArtistId))" />
                                     </RadzenStack>
                                 }
                             }
@@ -490,9 +490,16 @@
     ShowItem _showItem = ShowItem.Overview;
     bool _replaceAllImages;
     Artist[] _relatedArtists = [];
-    class RelationshipItem { public required Artist Artist { get; init; } public required ArtistRelationType RelationType { get; init; } }
+    class RelationshipItem
+    {
+        public required Artist Artist { get; init; } // The other artist to display
+        public required ArtistRelationType RelationType { get; init; }
+        public required int OwnerArtistId { get; init; } // Relation's ArtistId
+        public required int RelatedArtistId { get; init; } // Relation's RelatedArtistId
+        public required bool IsInbound { get; init; } // True if points to current artist
+    }
     List<RelationshipItem> _relationshipItems = [];
-    HashSet<int> _selectedRelationshipIds = new();
+    HashSet<(int OwnerArtistId, int RelatedArtistId)> _selectedRelationships = new();
     int _relationshipCount = 0;
 
     bool _isPinned;
@@ -677,10 +684,12 @@
                 }
 
                 _isPinned = await UserService.IsPinned(CurrentUsersId, UserPinType.Artist, _artist.Id);
-                var relCount = await ArtistService.CountArtistRelationsAsync(_artist.Id);
-                _relationshipCount = relCount.Data;
+                var outCountTask2 = ArtistService.CountArtistRelationsAsync(_artist.Id);
+                var inCountTask2 = ArtistService.CountArtistRelationsInboundAsync(_artist.Id);
+                await Task.WhenAll(outCountTask2, inCountTask2);
+                _relationshipCount = outCountTask2.Result.Data + inCountTask2.Result.Data;
                 _selectedImagePaths.Clear();
-                _selectedRelationshipIds.Clear();
+                _selectedRelationships.Clear();
             }
         }
     }
@@ -837,62 +846,91 @@
 
     private async Task RefreshRelationshipsAsync()
     {
-        var rels = await ArtistService.ListArtistRelationsAsync(_artist.Id, ArtistRelationType.NotSet, 100);
-        _relationshipItems = rels.Data
-            .Select(r => new RelationshipItem { Artist = r.RelatedArtist, RelationType = (ArtistRelationType)r.ArtistRelationType })
+        var outbound = await ArtistService.ListArtistRelationsAsync(_artist.Id, ArtistRelationType.NotSet, 100);
+        var inbound = await ArtistService.ListArtistRelationsInboundAsync(_artist.Id, ArtistRelationType.NotSet, 100);
+
+        var items = new List<RelationshipItem>();
+        if (outbound.Data?.Length > 0)
+        {
+            items.AddRange(outbound.Data.Select(r => new RelationshipItem
+            {
+                Artist = r.RelatedArtist,
+                RelationType = (ArtistRelationType)r.ArtistRelationType,
+                OwnerArtistId = r.ArtistId,
+                RelatedArtistId = r.RelatedArtistId,
+                IsInbound = false
+            }));
+        }
+        if (inbound.Data?.Length > 0)
+        {
+            items.AddRange(inbound.Data.Select(r => new RelationshipItem
+            {
+                Artist = r.Artist,
+                RelationType = (ArtistRelationType)r.ArtistRelationType,
+                OwnerArtistId = r.ArtistId,
+                RelatedArtistId = r.RelatedArtistId,
+                IsInbound = true
+            }));
+        }
+
+        _relationshipItems = items
             .OrderBy(x => x.Artist.SortName ?? x.Artist.Name)
             .ToList();
         _relatedArtists = _relationshipItems.Select(x => x.Artist).ToArray();
-        var relCount = await ArtistService.CountArtistRelationsAsync(_artist.Id);
-        _relationshipCount = relCount.Data;
-        var validIds = _relationshipItems.Select(i => i.Artist.Id).ToHashSet();
-        _selectedRelationshipIds.RemoveWhere(id => !validIds.Contains(id));
+
+        var outCountTask = ArtistService.CountArtistRelationsAsync(_artist.Id);
+        var inCountTask = ArtistService.CountArtistRelationsInboundAsync(_artist.Id);
+        await Task.WhenAll(outCountTask, inCountTask);
+        _relationshipCount = (outCountTask.Result.Data) + (inCountTask.Result.Data);
+
+        var validPairs = _relationshipItems.Select(i => (i.OwnerArtistId, i.RelatedArtistId)).ToHashSet();
+        _selectedRelationships.RemoveWhere(pair => !validPairs.Contains(pair));
         StateHasChanged();
     }
 
-    private void ToggleRelationshipSelected(int relatedArtistId, bool selected)
+    private void ToggleRelationshipSelected((int OwnerArtistId, int RelatedArtistId) key, bool selected)
     {
-        if (selected) _selectedRelationshipIds.Add(relatedArtistId);
-        else _selectedRelationshipIds.Remove(relatedArtistId);
+        if (selected) _selectedRelationships.Add(key);
+        else _selectedRelationships.Remove(key);
         StateHasChanged();
     }
 
     private void SelectAllRelationships()
     {
-        _selectedRelationshipIds = _relationshipItems.Select(i => i.Artist.Id).ToHashSet();
+        _selectedRelationships = _relationshipItems.Select(i => (i.OwnerArtistId, i.RelatedArtistId)).ToHashSet();
         StateHasChanged();
     }
 
     private void SelectNoneRelationships()
     {
-        _selectedRelationshipIds.Clear();
+        _selectedRelationships.Clear();
         StateHasChanged();
     }
 
     private async Task DeleteSelectedRelationshipsButtonClick()
     {
-        if (!_selectedRelationshipIds.Any()) return;
-        var confirm = await DialogService.Confirm("Are you sure?", $"Delete {_selectedRelationshipIds.Count} selected relationships", new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+        if (!_selectedRelationships.Any()) return;
+        var confirm = await DialogService.Confirm("Are you sure?", $"Delete {_selectedRelationships.Count} selected relationships", new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
         if (!(confirm ?? false)) return;
 
-        foreach (var id in _selectedRelationshipIds.ToArray())
+        foreach (var key in _selectedRelationships.ToArray())
         {
-            var result = await ArtistService.DeleteArtistRelationAsync(_artist.Id, id);
+            var result = await ArtistService.DeleteArtistRelationAsync(key.OwnerArtistId, key.RelatedArtistId);
             if (!result.IsSuccess || !result.Data)
             {
-                NotificationService.Notify(NotificationMessageForResult(result, $"removing relationship to id {id}", ToastTime));
+                NotificationService.Notify(NotificationMessageForResult(result, $"removing relationship [{key.OwnerArtistId} -> {key.RelatedArtistId}]", ToastTime));
             }
         }
-        _selectedRelationshipIds.Clear();
+        _selectedRelationships.Clear();
         await RefreshRelationshipsAsync();
     }
 
-    private async Task RemoveRelationshipAsync(int relatedArtistId)
+    private async Task RemoveRelationshipAsync(int ownerArtistId, int relatedArtistId)
     {
         var confirm = await DialogService.Confirm("Are you sure?", "Remove relationship", new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
         if (confirm ?? false)
         {
-            var result = await ArtistService.DeleteArtistRelationAsync(_artist.Id, relatedArtistId);
+            var result = await ArtistService.DeleteArtistRelationAsync(ownerArtistId, relatedArtistId);
             NotificationService.Notify(NotificationMessageForResult(result, "removing relationship", ToastTime));
             if (result.IsSuccess && result.Data)
             {
