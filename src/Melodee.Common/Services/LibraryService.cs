@@ -1439,10 +1439,46 @@ public class LibraryService : ServiceBase
     //     return result.Distinct().ToArray();
     // }
 
-    public Task<MelodeeModels.OperationResult<bool>> DeleteAsync(int[] ids,
+    public async Task<MelodeeModels.OperationResult<bool>> DeleteAsync(int[] ids,
         CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        Guard.Against.NullOrEmpty(ids, nameof(ids));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        // Validate libraries exist and are empty (no artists/albums/songs)
+        foreach (var id in ids)
+        {
+            var lib = await scopedContext.Libraries.FirstOrDefaultAsync(l => l.Id == id, cancellationToken).ConfigureAwait(false);
+            if (lib == null)
+            {
+                return new MelodeeModels.OperationResult<bool>("Unknown library") { Data = false };
+            }
+
+            var hasContent = await scopedContext.Artists.AnyAsync(a => a.LibraryId == id, cancellationToken).ConfigureAwait(false);
+            if (hasContent)
+            {
+                return new MelodeeModels.OperationResult<bool>("Library must be empty before deletion")
+                {
+                    Data = false,
+                    Type = MelodeeModels.OperationResponseType.ValidationFailure
+                };
+            }
+        }
+
+        var libs = await scopedContext.Libraries.Where(l => ids.Contains(l.Id)).ToListAsync(cancellationToken).ConfigureAwait(false);
+
+        // Remove rows
+        scopedContext.Libraries.RemoveRange(libs);
+        var result = await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false) > 0;
+
+        // Clear caches
+        foreach (var l in libs)
+        {
+            ClearCache(l);
+        }
+
+        return new MelodeeModels.OperationResult<bool> { Data = result };
     }
 
     public async Task<MelodeeModels.OperationResult<bool>> UpdateAsync(Library library,

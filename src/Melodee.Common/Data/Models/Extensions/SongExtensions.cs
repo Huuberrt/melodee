@@ -7,6 +7,7 @@ using Melodee.Common.Models.OpenSubsonic;
 using Melodee.Common.Models.Scrobbling;
 using Melodee.Common.Models.SearchEngines;
 using Melodee.Common.Utility;
+using Melodee.Common.Enums;
 
 namespace Melodee.Common.Data.Models.Extensions;
 
@@ -111,15 +112,45 @@ public static class SongExtensions
             null,
             song.TitleSort,
             song.MusicBrainzId?.ToString(),
-            [], //TODO
-            [], //TODO
+            song.Genres?.Select(g => new Genre { Value = g, SongCount = 0, AlbumCount = 0 }).ToArray(),
+            song.Contributors.Where(c => c.ContributorTypeValue == ContributorType.Performer)
+                .Select(c => c.Artist != null
+                    ? c.Artist.ToApiArtistID3()
+                    : new ArtistID3(
+                        $"contributor{OpenSubsonicServer.ApiIdSeparator}{(c.ContributorName ?? string.Empty).ToNormalizedString()}",
+                        c.ContributorName ?? string.Empty,
+                        song.ToCoverArtId(),
+                        0,
+                        0,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null)).ToArray(),
             album.Artist.Name,
-            [], //TODO
+            new[] { album.Artist.ToApiArtistID3() },
             album.Artist.Name,
-            [], //TODO
-            null, //TODO
-            [], //TODO
-            null, //TODO,
+            song.Contributors.Select(c => new Common.Models.OpenSubsonic.Contributor(
+                c.Role,
+                c.Artist != null
+                    ? c.Artist.ToApiArtistID3()
+                    : new ArtistID3(
+                        $"contributor{OpenSubsonicServer.ApiIdSeparator}{(c.ContributorName ?? string.Empty).ToNormalizedString()}",
+                        c.ContributorName ?? string.Empty,
+                        song.ToCoverArtId(),
+                        0,
+                        0,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    ),
+                c.SubRole)).ToArray(),
+            song.Contributors.FirstOrDefault(cc => cc.Role.Equals("Composer", StringComparison.OrdinalIgnoreCase))?.Artist?.Name
+                ?? song.Contributors.FirstOrDefault(cc => cc.Role.Equals("Composer", StringComparison.OrdinalIgnoreCase))?.ContributorName,
+            song.Moods,
+            new ReplayGain(song.ReplayGain, album.ReplayGain, song.ReplayPeak, album.ReplayPeak, null, null),
             SafeParser.ToNumber<int>(song.CalculatedRating),
             userSong?.Rating,
             nowPlayingInfo?.User.UserName,

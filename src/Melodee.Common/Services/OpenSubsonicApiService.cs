@@ -1644,8 +1644,83 @@ public class OpenSubsonicApiService(
 
                 if (apiRequest.Jwt.Nullify() != null)
                 {
-                    // see https://github.com/navidrome/navidrome/blob/acce3c97d5dcf22a005a46d855bb1763a8bb8b66/server/subsonic/middlewares.go#L132
-                    throw new NotImplementedException();
+                    // JWT-based authentication (Navidrome semantics): parse token and map to user
+                    // Prefer ApiKey (sid) -> user lookup, else fallback to username (sub/name)
+                    try
+                    {
+                        var parts = apiRequest.Jwt.Split('.');
+                        if (parts.Length < 2)
+                        {
+                            return new ResponseModel
+                            {
+                                UserInfo = UserInfo.BlankUserInfo,
+                                IsSuccess = false,
+                                ResponseData = await NewApiResponse(false, string.Empty, string.Empty, Error.AuthError)
+                            };
+                        }
+
+                        static byte[] FromBase64Url(string s)
+                        {
+                            s = s.Replace('-', '+').Replace('_', '/');
+                            switch (s.Length % 4)
+                            {
+                                case 2: s += "=="; break;
+                                case 3: s += "="; break;
+                            }
+                            return Convert.FromBase64String(s);
+                        }
+
+                        var payloadJson = System.Text.Encoding.UTF8.GetString(FromBase64Url(parts[1]));
+                        using var payloadDoc = System.Text.Json.JsonDocument.Parse(payloadJson);
+                        var root = payloadDoc.RootElement;
+
+                        string? sid = null;
+                        string? username = null;
+
+                        // Try common claim names first
+                        if (root.TryGetProperty("sid", out var sidEl)) sid = sidEl.GetString();
+                        if (sid == null && root.TryGetProperty("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/sid", out var sid2)) sid = sid2.GetString();
+
+                        if (root.TryGetProperty("name", out var nameEl)) username = nameEl.GetString();
+                        if (string.IsNullOrWhiteSpace(username) && root.TryGetProperty("sub", out var subEl)) username = subEl.GetString();
+                        if (string.IsNullOrWhiteSpace(username) && root.TryGetProperty("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name", out var name2)) username = name2.GetString();
+
+                        OperationResult<Data.Models.User?> jwtUserResult;
+                        if (Guid.TryParse(sid, out var apiKeyGuid) && apiKeyGuid != Guid.Empty)
+                        {
+                            jwtUserResult = await userService.GetByApiKeyAsync(apiKeyGuid, cancellationToken).ConfigureAwait(false);
+                        }
+                        else if (!string.IsNullOrWhiteSpace(username))
+                        {
+                            jwtUserResult = await userService.GetByUsernameAsync(username, cancellationToken).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            return new ResponseModel
+                            {
+                                UserInfo = UserInfo.BlankUserInfo,
+                                IsSuccess = false,
+                                ResponseData = await NewApiResponse(false, string.Empty, string.Empty, Error.AuthError)
+                            };
+                        }
+
+                        return new ResponseModel
+                        {
+                            UserInfo = jwtUserResult.Data?.ToUserInfo() ?? UserInfo.BlankUserInfo,
+                            IsSuccess = jwtUserResult.IsSuccess,
+                            ResponseData = await NewApiResponse(jwtUserResult.IsSuccess, string.Empty, string.Empty, jwtUserResult.IsSuccess ? null : Error.AuthError)
+                        };
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error(ex, "JWT authentication failed, request [{ApiRequest}]", apiRequest);
+                        return new ResponseModel
+                        {
+                            UserInfo = UserInfo.BlankUserInfo,
+                            IsSuccess = false,
+                            ResponseData = await NewApiResponse(false, string.Empty, string.Empty, Error.AuthError)
+                        };
+                    }
                 }
 
                 if (apiRequest.Token?.Nullify() != null && apiRequest.Salt?.Nullify() != null)

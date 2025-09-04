@@ -233,6 +233,50 @@ public sealed class IdSharpMetaTag(
     public Task<OperationResult<bool>> UpdateSongAsync(FileSystemDirectoryInfo directoryInfo, Models.Song song,
         CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        // Use ATL to write common tags back to the media file
+        var fullPath = song.File.FullName(directoryInfo);
+        var track = new Track(fullPath);
+
+        try
+        {
+            // Map core tags from song meta
+            track.Title = song.Title();
+            track.Album = song.AlbumTitle();
+            track.Artist = song.SongArtist();
+            track.AlbumArtist = song.AlbumArtist();
+            track.TrackNumber = song.SongNumber();
+
+            var year = song.AlbumYear();
+            if (year.HasValue)
+            {
+                track.Date = new DateTime(year.Value, 1, 1);
+            }
+
+            var comment = song.Comment();
+            if (!string.IsNullOrWhiteSpace(comment))
+            {
+                track.Comment = comment;
+            }
+
+            // Genre can be a single or multiple values; join as a single string
+            var genres = song.Tags?.Where(t => t.Identifier == MetaTagIdentifier.Genre)
+                .Select(t => t.Value?.ToString())
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .Distinct()
+                .ToArray() ?? [];
+            if (genres.Length > 0)
+            {
+                track.Genre = string.Join(';', genres);
+            }
+
+            track.Save();
+
+            return Task.FromResult(new OperationResult<bool> { Data = true });
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to update tags for file [{File}]", fullPath);
+            return Task.FromResult(new OperationResult<bool>([$"Failed to update tags: {ex.Message}"]) { Data = false });
+        }
     }
 }

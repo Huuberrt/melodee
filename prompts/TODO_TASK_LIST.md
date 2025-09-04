@@ -6,49 +6,49 @@ Last updated: ${DATE}
 
 ## Phase 1 — Core API & Serialization
 
-- [ ] Songs API: implement `SongById(Guid id)`
+- [x] Songs API: implement `SongById(Guid id)`
   - File: `src/Melodee.Blazor/Controllers/Melodee/SongsController.cs`
-  - Status: throws `NotImplementedException`.
+  - Status: Implemented.
   - Notes: Should authorize, fetch song by ApiKey/Id, return DTO model with pagination metadata alignment.
 
-- [ ] Subsonic Auth: handle JWT auth branch
+- [x] Subsonic Auth: handle JWT auth branch
   - File: `src/Melodee.Common/Services/OpenSubsonicApiService.cs`
   - Location: `AuthenticateSubsonicApiAsync` (JWT section)
-  - Status: throws `NotImplementedException`.
+  - Status: Implemented.
   - Notes: Follow Navidrome semantics for JWT; verify token, map to user.
 
-- [ ] JSON Converter: implement `OpenSubsonicResponseModelConvertor.Read`
+- [x] JSON Converter: implement `OpenSubsonicResponseModelConvertor.Read`
   - File: `src/Melodee.Common/Serialization/Convertors/OpenSubsonicResponseModelConvertor.cs`
-  - Status: throws `NotImplementedException`.
+  - Status: Implemented.
   - Notes: Should deserialize Subsonic format into `ResponseModel` (only needed if reading Subsonic JSON from clients/tests).
 
-- [ ] Song deletion: implement `SongService.DeleteAsync(int[])`
+- [x] Song deletion: implement `SongService.DeleteAsync(int[])`
   - File: `src/Melodee.Common/Services/SongService.cs`
-  - Status: throws `NotImplementedException`.
+  - Status: Implemented.
   - Notes: Respect referential integrity, remove cache and related `UserSong` entries; tests expect NotImplemented currently.
 
-- [ ] Library deletion: implement `LibraryService.DeleteAsync(int[])`
+- [x] Library deletion: implement `LibraryService.DeleteAsync(int[])`
   - File: `src/Melodee.Common/Services/LibraryService.cs`
-  - Status: throws `NotImplementedException`.
+  - Status: Implemented.
   - Notes: Must validate libraries are empty or define cascade/cleanup behavior; ensure cache invalidation.
 
 ## Phase 2 — Metadata & Tagging
 
-- [ ] ID3v2 writer: implement writing/updating multiple ID3v2.4 tags
+- [x] ID3v2 writer: implement writing/updating multiple ID3v2.4 tags
   - File: `src/Melodee.Common/Metadata/AudioTags/Writers/Id3v2TagWriter.cs`
-  - Status: TODO comments for: add/update multiple tags, remove a single tag, add image, remove all images.
+  - Status: Implemented (write, remove, images).
   - Notes: Leverage library in use (ATL/IdSharp) with safe fallbacks.
 
-- [ ] IdSharpMetaTag: implement `UpdateSongAsync(...)`
+- [x] IdSharpMetaTag: implement `UpdateSongAsync(...)`
   - File: `src/Melodee.Common/Plugins/MetaData/Song/IdSharpMetaTag.cs`
-  - Status: throws `NotImplementedException`.
+  - Status: Implemented.
   - Notes: Update media file tags on disk from domain `Song` instance; integrate with validators.
 
-- [ ] Fill TODO fields in album/song DTO conversions
+- [x] Fill TODO fields in album/song DTO conversions
   - Files:
     - `src/Melodee.Common/Data/Models/Extensions/AlbumExtensions.cs` (several `//TODO` array/null placeholders)
     - `src/Melodee.Common/Data/Models/Extensions/SongExtensions.cs` (several `//TODO` array/null placeholders)
-  - Notes: Populate additional artists, genres, urls, contributors as available.
+  - Status: Implemented (genres, artists, contributors, moods, replay gain).
 
 ## Phase 3 — Search Engines & Scrobbling
 
@@ -181,4 +181,3 @@ For quick grep reference, these locations contain TODOs or NotImplementedExcepti
 - src/Melodee.Blazor/Components/Pages/Data/PlaylistDetail.razor (image/lock/unlock)
 - src/Melodee.Blazor/Components/Pages/Data/AlbumEdit.razor (as above)
 - src/Melodee.Blazor/Components/Pages/Data/LibraryDetail.razor (Edit button)
-

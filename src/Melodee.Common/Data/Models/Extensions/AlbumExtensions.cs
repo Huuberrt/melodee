@@ -205,15 +205,34 @@ public static class AlbumExtensions
             null,
             album.SortName,
             album.MusicBrainzId?.ToString(),
-            [], //TODO
-            [], //TODO
+            album.Genres?.Select(g => new Genre { Value = g, SongCount = 0, AlbumCount = 0 }).ToArray(),
+            album.ContributingArtists(),
             album.Artist.Name,
-            [], //TODO
+            new[] { album.Artist.ToApiArtistID3() },
             album.Artist.Name,
-            [], //TODO
-            null, //TODO
-            [], //TODO
-            null, //TODO
+            album.Contributors.Select(c =>
+                new Common.Models.OpenSubsonic.Contributor(
+                    c.Role,
+                    c.Artist != null
+                        ? c.Artist.ToApiArtistID3()
+                        : new ArtistID3(
+                            $"contributor{OpenSubsonicServer.ApiIdSeparator}{(c.ContributorName ?? string.Empty).ToNormalizedString()}",
+                            c.ContributorName ?? string.Empty,
+                            string.Empty,
+                            0,
+                            0,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null
+                        ),
+                    c.SubRole
+                )).ToArray(),
+            album.Contributors.FirstOrDefault(cc => cc.Role.Equals("Composer", StringComparison.OrdinalIgnoreCase))?.Artist?.Name
+                ?? album.Contributors.FirstOrDefault(cc => cc.Role.Equals("Composer", StringComparison.OrdinalIgnoreCase))?.ContributorName,
+            album.Moods,
+            new ReplayGain(null, album.ReplayGain, null, album.ReplayPeak, null, null),
             SafeParser.ToNumber<int>(album.CalculatedRating),
             userAlbum?.Rating,
             nowPlayingInfo?.User.UserName,

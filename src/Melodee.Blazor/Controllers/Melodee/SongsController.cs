@@ -15,6 +15,7 @@ using Melodee.Common.Serialization;
 using Melodee.Common.Services;
 using Melodee.Common.Utility;
 using Microsoft.AspNetCore.Mvc;
+using Melodee.Common.Data.Models;
 
 namespace Melodee.Blazor.Controllers.Melodee;
 
@@ -37,9 +38,47 @@ public class SongsController(
 {
     [HttpGet]
     [Route("{id:guid}")]
-    public Task<IActionResult> SongById(Guid id, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> SongById(Guid id, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        if (!ApiRequest.IsAuthorized)
+        {
+            return Unauthorized(new { error = "Authorization token is invalid" });
+        }
+
+        var userResult = await userService.GetByApiKeyAsync(SafeParser.ToGuid(ApiRequest.ApiKey) ?? Guid.Empty, cancellationToken).ConfigureAwait(false);
+        if (!userResult.IsSuccess || userResult.Data == null)
+        {
+            return Unauthorized(new { error = "Authorization token is invalid" });
+        }
+
+        if (userResult.Data.IsLocked)
+        {
+            return Forbid("User is locked");
+        }
+
+        var songResult = await songService.GetByApiKeyAsync(id, cancellationToken).ConfigureAwait(false);
+        if (!songResult.IsSuccess || songResult.Data == null)
+        {
+            return NotFound(new { error = "Song not found" });
+        }
+
+        // Try to enrich with user-specific data (rating/starred) via album scope for this song
+        UserSong? userSong = null;
+        try
+        {
+            var userSongsForAlbum = await userService.UserSongsForAlbumAsync(userResult.Data.Id, songResult.Data.Album.ApiKey, cancellationToken).ConfigureAwait(false);
+            userSong = userSongsForAlbum?.FirstOrDefault(us => us.Song.ApiKey == songResult.Data.ApiKey);
+        }
+        catch
+        {
+            // best-effort; ignore enrichment failures
+        }
+
+        var baseUrl = GetBaseUrl(await ConfigurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false));
+
+        return Ok(songResult.Data
+            .ToSongDataInfo(userSong)
+            .ToSongModel(baseUrl, userResult.Data.ToUserModel(baseUrl), userResult.Data.PublicKey));
     }
 
     [HttpGet]
