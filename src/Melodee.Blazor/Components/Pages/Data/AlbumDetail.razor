@@ -138,7 +138,7 @@
                         <RadzenTreeItem Text="Images">
                             <Template>
                                 <RadzenIcon Icon="image"/>
-                                @($"{context.Text} ({_album.ImageCount ?? 0})")
+                                @($"{context.Text} ({_albumImageFiles?.Length ?? 0})")
                             </Template>
                         </RadzenTreeItem>
                     </RadzenTree>
@@ -368,6 +368,72 @@
                     </RadzenColumn>
                 </RadzenRow>
             }
+            else if (_showItem == ShowItem.Files)
+            {
+                <RadzenPanel>
+                    <HeaderTemplate>
+                        <RadzenText TextStyle="TextStyle.H6" class="rz-display-flex rz-align-items-center rz-m-0">
+                            <RadzenIcon Icon="folder_data" class="rz-me-1"/>
+                            Files
+                        </RadzenText>
+                    </HeaderTemplate>
+                    <ChildContent>
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                            <InputFile multiple OnChange="@OnAlbumFilesUpload" />
+                            <RadzenButton Icon="checklist" Size="ButtonSize.Small" Text="Select All" Click="@SelectAllFiles"/>
+                            <RadzenButton Icon="check_box_outline_blank" Size="ButtonSize.Small" Text="Select None" Click="@SelectNoneFiles"/>
+                            <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Text="Delete Selected"
+                                          Disabled="@(!_selectedAlbumFilePaths.Any())"
+                                          Visible="CurrentUser?.IsEditor() ?? false"
+                                          Click="@DeleteSelectedAlbumFilesButtonClick" />
+                        </RadzenStack>
+                        <RadzenDataList Data="@_albumFileList" TItem="AlbumFileListItem" class="rz-mt-3">
+                            <Template Context="item">
+                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                    <RadzenCheckBox TValue="bool" Value="@_selectedAlbumFilePaths.Contains(item.File.FullName)"
+                                                    Change="@(args => ToggleAlbumFileSelected(item.File.FullName, args))"/>
+                                    <RadzenText Text="@item.File.Name"/>
+                                    <RadzenText Text=@($"{item.File.Length/1024} KB") style="color:var(--rz-text-secondary-color)"/>
+                                </RadzenStack>
+                            </Template>
+                        </RadzenDataList>
+                    </ChildContent>
+                </RadzenPanel>
+            }
+            else if (_showItem == ShowItem.Images)
+            {
+                <RadzenPanel>
+                    <HeaderTemplate>
+                        <RadzenText TextStyle="TextStyle.H6" class="rz-display-flex rz-align-items-center rz-m-0">
+                            <RadzenIcon Icon="image" class="rz-me-1"/>
+                            Images
+                        </RadzenText>
+                    </HeaderTemplate>
+                    <ChildContent>
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                            <RadzenSwitch @bind-Value="@_replaceAllAlbumImages" Name="ReplaceAllAlbum"/>
+                            <RadzenLabel Text="Replace all images on upload" Component="ReplaceAllAlbum"/>
+                            <InputFile multiple OnChange="@OnAlbumImageUpload" />
+                            <RadzenButton Icon="checklist" Size="ButtonSize.Small" Text="Select All" Click="@SelectAllAlbumImages"/>
+                            <RadzenButton Icon="check_box_outline_blank" Size="ButtonSize.Small" Text="Select None" Click="@SelectNoneAlbumImages"/>
+                            <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Text="Delete Selected"
+                                          Disabled="@(!_selectedAlbumImagePaths.Any())"
+                                          Visible="CurrentUser?.IsEditor() ?? false"
+                                          Click="@DeleteSelectedAlbumImagesButtonClick" />
+                        </RadzenStack>
+                        <RadzenDataList Data="@_albumImageList" TItem="AlbumImageListItem" class="rz-mt-3">
+                            <Template Context="item">
+                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                    <RadzenCheckBox TValue="bool" Value="@_selectedAlbumImagePaths.Contains(item.File.FullName)"
+                                                    Change="@(args => ToggleAlbumImageSelected(item.File.FullName, args))"/>
+                                    <RadzenImage Path="@item.ImageBase64" Style="width: 96px; height: 96px; object-fit:cover;"/>
+                                    <RadzenText Text="@item.File.Name"/>
+                                </RadzenStack>
+                            </Template>
+                        </RadzenDataList>
+                    </ChildContent>
+                </RadzenPanel>
+            }
         </RadzenColumn>
     </RadzenRow>
 </RadzenStack>
@@ -431,6 +497,18 @@
     };
 
     string[] _albumsImagesInByteBase64 = [];
+    // Album Images (selection + listing)
+    System.IO.FileInfo[] _albumImageFiles = [];
+    class AlbumImageListItem { public required System.IO.FileInfo File { get; init; } public required string ImageBase64 { get; init; } }
+    List<AlbumImageListItem> _albumImageList = [];
+    HashSet<string> _selectedAlbumImagePaths = new();
+    bool _replaceAllAlbumImages = false;
+
+    // Album Files (non-image files)
+    System.IO.FileInfo[] _albumFiles = [];
+    class AlbumFileListItem { public required System.IO.FileInfo File { get; init; } }
+    List<AlbumFileListItem> _albumFileList = [];
+    HashSet<string> _selectedAlbumFilePaths = new();
 
     private long _albumDirectoryFileCount;
 
@@ -497,6 +575,9 @@
 
                 _isPinned = await UserService.IsPinned(CurrentUsersId, UserPinType.Album, _album.Id);
 
+                await RefreshAlbumImages();
+                await RefreshAlbumFiles();
+
                 _isLoading = false;
             }
         }
@@ -509,7 +590,185 @@
             default:
                 _showItem = ShowItem.Overview;
                 break;
+            case "Files":
+                _showItem = ShowItem.Files;
+                break;
+            case "Images":
+                _showItem = ShowItem.Images;
+                break;
         }
+    }
+
+    private async Task OnAlbumImageUpload(InputFileChangeEventArgs e)
+    {
+        foreach (var file in e.GetMultipleFiles())
+        {
+            await using var ms = new MemoryStream();
+            await file.OpenReadStream(MelodeeConfiguration.MaximumUploadFileSize).CopyToAsync(ms);
+            var save = await AlbumService.SaveImageAsAlbumImageAsync(_album.Id, _replaceAllAlbumImages, ms.ToArray());
+            if (!save.IsSuccess)
+            {
+                NotificationService.Notify(NotificationMessageForResult(save, "upload album image", ToastTime));
+            }
+            _replaceAllAlbumImages = false; // only first upload replaces all
+        }
+        await RefreshAlbumImages();
+    }
+
+    private async Task RefreshAlbumImages()
+    {
+        _albumImageFiles = _albumDirectory
+            .AllFileImageTypeFileInfos()
+            .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        _albumImageList = new List<AlbumImageListItem>();
+        var valid = _albumImageFiles.Select(f => f.FullName).ToHashSet();
+        _selectedAlbumImagePaths.RemoveWhere(p => !valid.Contains(p));
+        foreach (var fi in _albumImageFiles)
+        {
+            string base64;
+            try
+            {
+                var bytes = await System.IO.File.ReadAllBytesAsync(fi.FullName);
+                base64 = $"data:image;base64,{Convert.ToBase64String(bytes)}";
+            }
+            catch
+            {
+                base64 = DefaultImages.AlbumCoverBase64;
+            }
+            _albumImageList.Add(new AlbumImageListItem { File = fi, ImageBase64 = base64 });
+        }
+        StateHasChanged();
+    }
+
+    private void ToggleAlbumImageSelected(string fullName, bool selected)
+    {
+        if (selected) _selectedAlbumImagePaths.Add(fullName);
+        else _selectedAlbumImagePaths.Remove(fullName);
+        StateHasChanged();
+    }
+
+    private void SelectAllAlbumImages()
+    {
+        _selectedAlbumImagePaths = _albumImageFiles.Select(f => f.FullName).ToHashSet();
+        StateHasChanged();
+    }
+
+    private void SelectNoneAlbumImages()
+    {
+        _selectedAlbumImagePaths.Clear();
+        StateHasChanged();
+    }
+
+    private async Task DeleteSelectedAlbumImagesButtonClick()
+    {
+        if (!_selectedAlbumImagePaths.Any()) return;
+        var confirm = await DialogService.Confirm("Are you sure?", $"Delete {_selectedAlbumImagePaths.Count} selected images", new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+        if (!(confirm ?? false)) return;
+
+        foreach (var path in _selectedAlbumImagePaths.ToArray())
+        {
+            try
+            {
+                if (System.IO.File.Exists(path))
+                {
+                    System.IO.File.Delete(path);
+                }
+            }
+            catch (Exception ex)
+            {
+                NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = "Delete failed", Detail = ex.Message });
+            }
+        }
+
+        _selectedAlbumImagePaths.Clear();
+        await RefreshAlbumImages();
+        await AlbumService.RescanAsync([_album.Id]);
+    }
+
+    private async Task OnAlbumFilesUpload(InputFileChangeEventArgs e)
+    {
+        var dir = _albumDirectory.FullName();
+        foreach (var file in e.GetMultipleFiles())
+        {
+            try
+            {
+                var target = Path.Combine(dir, file.Name);
+                await using var fs = File.Create(target);
+                await file.OpenReadStream(MelodeeConfiguration.MaximumUploadFileSize).CopyToAsync(fs);
+            }
+            catch (Exception ex)
+            {
+                NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = "Upload failed", Detail = ex.Message });
+            }
+        }
+        await RefreshAlbumFiles();
+        await AlbumService.RescanAsync([_album.Id]);
+    }
+
+    private async Task RefreshAlbumFiles()
+    {
+        var all = _albumDirectory
+            .AllFileInfos()
+            .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var images = _albumDirectory.AllFileImageTypeFileInfos().Select(f => f.FullName).ToHashSet();
+        _albumFiles = all
+            .Where(f => !images.Contains(f.FullName))
+            .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        _albumFileList = _albumFiles
+            .Select(f => new AlbumFileListItem { File = f })
+            .ToList();
+        var valid = _albumFiles.Select(f => f.FullName).ToHashSet();
+        _selectedAlbumFilePaths.RemoveWhere(p => !valid.Contains(p));
+        _albumDirectoryFileCount = _albumDirectory.FileCount();
+        StateHasChanged();
+    }
+
+    private void ToggleAlbumFileSelected(string fullName, bool selected)
+    {
+        if (selected) _selectedAlbumFilePaths.Add(fullName);
+        else _selectedAlbumFilePaths.Remove(fullName);
+        StateHasChanged();
+    }
+
+    private void SelectAllFiles()
+    {
+        _selectedAlbumFilePaths = _albumFiles.Select(f => f.FullName).ToHashSet();
+        StateHasChanged();
+    }
+
+    private void SelectNoneFiles()
+    {
+        _selectedAlbumFilePaths.Clear();
+        StateHasChanged();
+    }
+
+    private async Task DeleteSelectedAlbumFilesButtonClick()
+    {
+        if (!_selectedAlbumFilePaths.Any()) return;
+        var confirm = await DialogService.Confirm("Are you sure?", $"Delete {_selectedAlbumFilePaths.Count} selected files", new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+        if (!(confirm ?? false)) return;
+
+        foreach (var path in _selectedAlbumFilePaths.ToArray())
+        {
+            try
+            {
+                if (System.IO.File.Exists(path))
+                {
+                    System.IO.File.Delete(path);
+                }
+            }
+            catch (Exception ex)
+            {
+                NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = "Delete failed", Detail = ex.Message });
+            }
+        }
+
+        _selectedAlbumFilePaths.Clear();
+        await RefreshAlbumFiles();
+        await AlbumService.RescanAsync([_album.Id]);
     }
 
     private void EditButtonClick()
