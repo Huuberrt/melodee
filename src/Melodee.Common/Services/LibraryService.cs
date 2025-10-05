@@ -451,7 +451,8 @@ public class LibraryService : ServiceBase
                 var melodeeFile = await MelodeeModels.Album
                     .DeserializeAndInitializeAlbumAsync(_serializer, melodeeFileName, cancellationToken)
                     .ConfigureAwait(false);
-                melodeeFile!.Directory.Path = libraryAlbumPath;
+                melodeeFile!.Directory.Path = libraryAlbumPath.TrimEnd(Path.DirectorySeparatorChar);
+                melodeeFile.Directory.Name = albumDirectory.TrimEnd(Path.DirectorySeparatorChar);
                 if (album.Artist.Images?.Any() ?? false)
                 {
                     var existingArtistImages = libraryArtistDirectoryInfo.AllFileImageTypeFileInfos()

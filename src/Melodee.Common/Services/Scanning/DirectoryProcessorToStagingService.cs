@@ -322,8 +322,9 @@ public sealed class DirectoryProcessorToStagingService(
                 await _processingThrottle.WaitAsync(ct);
                 try
                 {
-                    await ProcessSingleDirectoryAsync(directoryInfoToProcess, processingMessages, processingErrors,
-                        artistsIdsSeen, albumsIdsSeen, songsIdsSeen, ct);
+                    var processingResult = await ProcessSingleDirectoryAsync(directoryInfoToProcess, processingMessages, processingErrors, artistsIdsSeen, albumsIdsSeen, songsIdsSeen, ct);
+                    numberOfAlbumsProcessed += processingResult.Item1;
+                    numberOfValidAlbumsProcessed += processingResult.Item2;
                 }
                 finally
                 {
@@ -432,7 +433,7 @@ public sealed class DirectoryProcessorToStagingService(
         OnProcessingEvent?.Invoke(this, exception?.ToString() ?? eventMessage);
     }
 
-    private async Task ProcessSingleDirectoryAsync(
+    private async Task<(int, int)> ProcessSingleDirectoryAsync(
         FileSystemDirectoryInfo directoryInfoToProcess,
         ConcurrentBag<string> processingMessages,
         ConcurrentBag<Exception> processingErrors,
@@ -445,6 +446,9 @@ public sealed class DirectoryProcessorToStagingService(
         using var operation = Operation.At(LogEventLevel.Debug)
             .Time("ProcessSingleDirectoryAsync for directory [{DirectoryName}]", directoryInfoToProcess.Name);
 
+        var numberOfValidAlbumsProcessed = 0;
+        var numberOfAlbumsProcessed = 0;
+        
         Trace.WriteLine($"DirectoryInfoToProcess: [{directoryInfoToProcess}]");
         try
         {
@@ -464,7 +468,7 @@ public sealed class DirectoryProcessorToStagingService(
 
             if (cancellationToken.IsCancellationRequested || _stopProcessingTriggered)
             {
-                return;
+                return new ValueTuple<int, int>(numberOfAlbumsProcessed, numberOfValidAlbumsProcessed);
             }
 
             // Use optimized file enumeration for memory efficiency
@@ -529,6 +533,8 @@ public sealed class DirectoryProcessorToStagingService(
                     break;
                 }
             }
+            
+            var convertedSongFiles = false;
 
             // Run Enabled Conversion scripts on each file in directory
             // e.g. Convert FLAC to MP3, Convert non JPEG files into JPEGs, etc.
@@ -541,6 +547,7 @@ public sealed class DirectoryProcessorToStagingService(
                 }
 
                 var fsi = fileInfo.ToFileSystemInfo();
+                var originalFileExtension = fileInfo.Extension;
                 foreach (var plugin in _conversionPlugins.Where(x => x.IsEnabled).OrderBy(x => x.SortOrder))
                 {
                     if (cancellationToken.IsCancellationRequested || _stopProcessingTriggered)
@@ -571,12 +578,28 @@ public sealed class DirectoryProcessorToStagingService(
                                 }
                             }
                         }
+                        else
+                        {
+                            convertedSongFiles = pluginResult.Data.Extension(directoryInfoToProcess) != originalFileExtension;
+                        }
                     }
 
                     if (plugin.StopProcessing)
                     {
                         break;
                     }
+                }
+            }
+
+            if (convertedSongFiles)
+            {
+                // Delete any melodee json files and let them get recreated as part of the conversion process
+                var melodeeFiles = directoryInfoToProcess.MelodeeJsonFiles().Select(f => f.FullName).ToList();
+                if (melodeeFiles.Count > 0)
+                {
+                    var deletedCount = await OptimizedFileOperations.DeleteFilesAsync(melodeeFiles, cancellationToken)
+                        .ConfigureAwait(false);
+                    LogAndRaiseEvent(LogEventLevel.Debug, "Deleted [{0}] existing Melodee files", null, deletedCount);
                 }
             }
 
@@ -628,7 +651,9 @@ public sealed class DirectoryProcessorToStagingService(
 
             // For each Album json find all image files and add to Album to be moved below to staging directory.
             Trace.WriteLine("Loading images for album...");
-            await ProcessAlbumsAsync(directoryInfoToProcess, albumsForDirectory, processingMessages, artistsIdsSeen, albumsIdsSeen, songsIdsSeen, cancellationToken);
+            var processingResult = await ProcessAlbumsAsync(directoryInfoToProcess, albumsForDirectory, processingMessages, artistsIdsSeen, albumsIdsSeen, songsIdsSeen, cancellationToken);
+            numberOfAlbumsProcessed += processingResult.Item1;
+            numberOfValidAlbumsProcessed += processingResult.Item2;            
         }
         catch (Exception e)
         {
@@ -636,9 +661,10 @@ public sealed class DirectoryProcessorToStagingService(
                 directoryInfoToProcess.ToString());
             processingErrors.Add(e);
         }
+        return new ValueTuple<int, int>(numberOfAlbumsProcessed, numberOfValidAlbumsProcessed);
     }
 
-    private async Task ProcessAlbumsAsync(
+    private async Task<(int, int)> ProcessAlbumsAsync(
         FileSystemDirectoryInfo directoryInfoToProcess,
         List<Album> albumsForDirectory,
         ConcurrentBag<string> processingMessages,
@@ -1065,5 +1091,6 @@ public sealed class DirectoryProcessorToStagingService(
                     e);
             }
         }
+        return new ValueTuple<int, int>(numberOfAlbumsProcessed, numberOfValidAlbumsProcessed);        
     }
 }
