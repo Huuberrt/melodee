@@ -54,7 +54,7 @@ public class OpenSubsonicApiService(
     AlbumService albumService,
     SongService songService,
     SearchService searchService,
-    IScheduler schedule,
+    ISchedulerFactory schedulerFactory,
     ScrobbleService scrobbleService,
     LibraryService libraryService,
     ArtistSearchEngineService artistSearchEngineService,
@@ -1534,7 +1534,8 @@ public class OpenSubsonicApiService(
             return authResponse with { UserInfo = UserInfo.BlankUserInfo };
         }
 
-        await schedule.TriggerJob(JobKeyRegistry.LibraryProcessJobJobKey, cancellationToken);
+        var scheduler = await schedulerFactory.GetScheduler(cancellationToken);
+        await scheduler.TriggerJob(JobKeyRegistry.LibraryProcessJobJobKey, cancellationToken);
 
         return new ResponseModel
         {
@@ -1555,7 +1556,8 @@ public class OpenSubsonicApiService(
             return authResponse with { UserInfo = UserInfo.BlankUserInfo };
         }
 
-        var executingJobs = await schedule.GetCurrentlyExecutingJobs(cancellationToken);
+        var scheduler = await schedulerFactory.GetScheduler(cancellationToken);
+        var executingJobs = await scheduler.GetCurrentlyExecutingJobs(cancellationToken);
         var libraryProcessJob = executingJobs.FirstOrDefault(x => Equals(x.JobDetail.Key, JobKeyRegistry.LibraryProcessJobJobKey));
         Error? error = null;
         var data = new ScanStatus(false, 0);
@@ -1648,7 +1650,7 @@ public class OpenSubsonicApiService(
                     // Prefer ApiKey (sid) -> user lookup, else fallback to username (sub/name)
                     try
                     {
-                        var parts = apiRequest.Jwt.Split('.');
+                        var parts = apiRequest.Jwt!.Split('.');
                         if (parts.Length < 2)
                         {
                             return new ResponseModel

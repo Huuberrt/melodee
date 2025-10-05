@@ -4,7 +4,6 @@
 @using Melodee.Blazor.ViewModels
 @using Quartz
 @using Quartz.Impl.Matchers
-@using IScheduler = Quartz.IScheduler
 @inject ISchedulerFactory SchedulerFactory
 @inject IConfiguration AppSettingsConfiguration
 
@@ -64,21 +63,21 @@ else if (_jobs.Count == 0)
 @code {
 
     private readonly List<JobStatus> _jobs = [];
-    private IScheduler? Scheduler;
 
     private async Task RefreshJobs()
     {
         _jobs.Clear();
 
-        var jobGroups = await Scheduler.GetJobGroupNames();
+        var scheduler = await SchedulerFactory.GetScheduler();
+        var jobGroups = await scheduler.GetJobGroupNames();
 
         foreach (var group in jobGroups)
         {
             var groupMatcher = GroupMatcher<JobKey>.GroupContains(group);
-            var jobKeys = await Scheduler.GetJobKeys(groupMatcher);
+            var jobKeys = await scheduler.GetJobKeys(groupMatcher);
             foreach (var jobKey in jobKeys)
             {
-                var triggers = await Scheduler.GetTriggersOfJob(jobKey);
+                var triggers = await scheduler.GetTriggersOfJob(jobKey);
                 foreach (var trigger in triggers)
                 {
                     var nextFireTime = trigger.GetNextFireTimeUtc();
@@ -88,7 +87,7 @@ else if (_jobs.Count == 0)
                         trigger.Key.Name,
                         trigger.Key.Group,
                         trigger.GetType().Name,
-                        Scheduler.GetTriggerState(trigger.Key).ToString()!,
+                        scheduler.GetTriggerState(trigger.Key).ToString()!,
                         nextFireTime?.LocalDateTime.ToString(CultureInfo.InvariantCulture) ?? "---",
                         previousFireTime?.LocalDateTime.ToString(CultureInfo.InvariantCulture) ?? "---"));
                 }
@@ -98,13 +97,13 @@ else if (_jobs.Count == 0)
 
     protected override async Task OnInitializedAsync()
     {
-        Scheduler = await SchedulerFactory.GetScheduler();
         await RefreshJobs();
     }
 
     private async Task RunJob(JobStatus jobStatus)
     {
-        await Scheduler.TriggerJob(new JobKey(jobStatus.Name));
+        var scheduler = await SchedulerFactory.GetScheduler();
+        await scheduler.TriggerJob(new JobKey(jobStatus.Name));
     }
 
 }

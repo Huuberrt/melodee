@@ -368,82 +368,10 @@ public class SongService(
         }
     }
 
-    public async Task<MelodeeModels.OperationResult<bool>> DeleteAsync(int[] toArray, CancellationToken cancellationToken = default)
+    public Task<MelodeeModels.OperationResult<bool>> DeleteAsync(int[] toArray, CancellationToken cancellationToken = default)
     {
         // Deleting songs is not currently supported; ensure callers do not perform destructive operations.
         throw new NotImplementedException("DeleteAsync for songs is not implemented.");
-
-        Guard.Against.NullOrEmpty(toArray, nameof(toArray));
-
-        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-
-        // Validate all ids
-        foreach (var id in toArray)
-        {
-            var exists = await scopedContext.Songs.AnyAsync(s => s.Id == id, cancellationToken).ConfigureAwait(false);
-            if (!exists)
-            {
-                return new MelodeeModels.OperationResult<bool>("Unknown song") { Data = false };
-            }
-        }
-
-        // Load songs with minimal includes for file path + aggregates
-        var songs = await scopedContext.Songs
-            .Where(s => toArray.Contains(s.Id))
-            .Include(s => s.Album).ThenInclude(a => a.Artist).ThenInclude(ar => ar.Library)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        var artistIds = songs.Select(s => s.Album.ArtistId).Distinct().ToArray();
-        var libraryIds = songs.Select(s => s.Album.Artist.LibraryId).Distinct().ToArray();
-
-        // Delete dependent entities first
-        var songIds = songs.Select(s => s.Id).ToArray();
-        await scopedContext.UserSongs.Where(us => songIds.Contains(us.SongId)).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-        await scopedContext.Bookmarks.Where(b => songIds.Contains(b.SongId)).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-        await scopedContext.PlayQues.Where(pq => songIds.Contains(pq.SongId)).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-        await scopedContext.Contributors.Where(c => c.SongId != null && songIds.Contains(c.SongId.Value)).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-        await scopedContext.Set<PlaylistSong>().Where(ps => songIds.Contains(ps.SongId)).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-
-        // Delete files on disk (best effort)
-        foreach (var s in songs)
-        {
-            try
-            {
-                var fullPath = s.Album.Artist.Library.Path + s.Album.Artist.Directory + s.Album.Directory + s.FileName;
-                var fi = new FileInfo(fullPath);
-                if (fi.Exists)
-                {
-                    fi.Delete();
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Warning(ex, "[{ServiceName}] Failed deleting file for song [{ApiKey}]", nameof(SongService), s.ApiKey);
-            }
-        }
-
-        // Remove songs
-        scopedContext.Songs.RemoveRange(songs);
-        await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-        // Update aggregates and clear caches
-        foreach (var artistId in artistIds)
-        {
-            await UpdateArtistAggregateValuesByIdAsync(artistId, cancellationToken).ConfigureAwait(false);
-        }
-        foreach (var libraryId in libraryIds)
-        {
-            await UpdateLibraryAggregateStatsByIdAsync(libraryId, cancellationToken).ConfigureAwait(false);
-        }
-
-        foreach (var song in songs)
-        {
-            await ClearCacheAsync(song.Id, cancellationToken).ConfigureAwait(false);
-        }
-
-        Logger.Information("Deleted songs [{Ids}]", string.Join(',', songIds));
-        return new MelodeeModels.OperationResult<bool> { Data = true };
     }
 
     /// <summary>

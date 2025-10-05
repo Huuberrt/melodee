@@ -576,7 +576,7 @@
                 _isPinned = await UserService.IsPinned(CurrentUsersId, UserPinType.Album, _album.Id);
 
                 await RefreshAlbumImages();
-                await RefreshAlbumFiles();
+                RefreshAlbumFiles();
 
                 _isLoading = false;
             }
@@ -702,11 +702,11 @@
                 NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = "Upload failed", Detail = ex.Message });
             }
         }
-        await RefreshAlbumFiles();
+        RefreshAlbumFiles();
         await AlbumService.RescanAsync([_album.Id]);
     }
 
-    private async Task RefreshAlbumFiles()
+    private void RefreshAlbumFiles()
     {
         var all = _albumDirectory
             .AllFileInfos()
@@ -767,7 +767,7 @@
         }
 
         _selectedAlbumFilePaths.Clear();
-        await RefreshAlbumFiles();
+        RefreshAlbumFiles();
         await AlbumService.RescanAsync([_album.Id]);
     }
 
