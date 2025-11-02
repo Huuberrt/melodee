@@ -84,7 +84,7 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: /DATA/AppData/melodee/staging
+      device: /DATA/Media/Music/melodee/staging
 
   user_images:
     driver: local
