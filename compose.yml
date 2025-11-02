@@ -70,14 +70,14 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: /DATA/Media/Music
+      device: /DATA/Media/Music/melodee/storage
 
   inbound:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /DATA/Media/Music
+      device: /DATA/Media/Music/melodee/inbound
 
   staging:
     driver: local
