@@ -51,6 +51,7 @@
     <PackageReference Include="Radzen.Blazor"/>
     <PackageReference Include="Asp.Versioning.Http"/>
     <PackageReference Include="Blazored.SessionStorage"/>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
     <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions"/>
     <PackageReference Include="Microsoft.Extensions.Configuration.Json"/>
     <PackageReference Include="Microsoft.IdentityModel.Tokens"/>
