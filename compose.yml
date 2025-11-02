@@ -59,14 +59,43 @@ services:
 
 volumes:
   db_data:
-    name: melodee_db_data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /DATA/AppData/melodee/db-data
+
   storage:
-    name: melodee_storage
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /DATA/Media/Music
+
   inbound:
-    name: melodee_inbound
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /DATA/Media/Music
+
   staging:
-    name: melodee_staging
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /DATA/AppData/melodee/staging
+
   user_images:
-    name: melodee_user_images
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /DATA/AppData/melodee/user-images
+
   playlists:
-    name: melodee_playlists
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /DATA/AppData/melodee/playlists
