@@ -1,3 +1,9 @@
+repository for my settings so that i can make it works in portainer
+
+
+
+
+
 <div align="center">
   <img src="graphics/melodee_logo.png" alt="Melodee Logo" height="120px" />
 
@@ -238,3 +244,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <div align="center">
   Made with ❤️ by the Melodee community
 </div>
+
